@@ -18,7 +18,7 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - Two repo entry points: **paste a public repo URL** and **link GitHub (OAuth) → pick a repo**.
 - **Responsive**: must feel native on phone *and* laptop.
 - **Privacy-first**; AI features are **opt-in** and **ZDR-only**.
-- **Free hosted + open source.**
+- **Free hosted + open source** under **Apache 2.0** (see `LICENSE`).
 - **Runtime: Bun** (package manager + test runner). Never npm/yarn/node/ts-node.
 - Design language: **organic-futuristic-modernism** — calm, powerful, intentional (see [docs/DESIGN.md](docs/DESIGN.md)).
 
@@ -28,7 +28,6 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - **Public-repo ingestion model**: server-side clone vs GitHub API vs client-side — this is a *privacy-defining* choice, not a detail.
 - **AI feature surface**: what AI actually does (branch summaries? history explanations? Q&A?) — never specified.
 - **AI provider** that satisfies ZDR.
-- **License** (open-source license not yet chosen).
 
 ## 3. Conventions
 

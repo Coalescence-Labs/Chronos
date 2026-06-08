@@ -56,4 +56,4 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture, including
 
 ## License
 
-Intended to be open source. License TBD (see open decisions in [AGENTS.md](AGENTS.md)).
+[Apache License 2.0](LICENSE) — Copyright 2026 Coalescence Labs. Free to use, fork, self-host, and modify, with an explicit patent grant.

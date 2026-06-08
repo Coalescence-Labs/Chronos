@@ -65,7 +65,7 @@ These are unresolved. Resolve them deliberately (with the owner), then move the 
 | 5 | **AI provider (ZDR)** | The privacy promise depends on a provider that contractually does zero retention / no training. | Verify ZDR in writing before integrating. Run the privacy pre-flight skill. |
 | 6 | **Rate limits & caching** | Public-URL viewing + GitHub API both hit limits; caching strategy interacts with #3 and privacy. | Tie to ingestion decision. |
 | 7 | **Auth/session for GitHub OAuth** | Token storage and scope minimization are privacy-sensitive. | Request least scopes; never store more than needed. |
-| 8 | **License** | "Open source" decided; specific license not. | Pick before first public release. |
+| ~~8~~ | ~~License~~ | RESOLVED: **Apache 2.0** (see `LICENSE`). | Permissive + patent grant; maximizes adoption. |
 
 ## Performance posture
 
