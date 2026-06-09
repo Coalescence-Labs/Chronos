@@ -2,7 +2,7 @@
 
 **See your git history at a glance.** Chronos is a beautiful, fast git branch-graph visualizer for anyone who wants to understand what's happening in a repo without spelunking through `git log`.
 
-> Status: 🌱 Greenfield. This repository currently contains the **agent backbone** — the docs, conventions, and guardrails that guide development. No application code exists yet.
+> Status: 🌱 Early development. The app skeleton (Next.js + Bun) is in place alongside the **agent backbone** — the docs, conventions, and guardrails that guide development.
 
 ---
 
@@ -16,7 +16,7 @@ Inspired by the best parts of Bitbucket's branch graph — and unafraid to fix t
 
 ## What it does (product goals)
 
-- **View any repo's branch history** — paste a **public repo URL**, or **link your GitHub account** and pick a private repo.
+- **View any repo's branch history** — paste a **public repo URL**, or **link your GitHub account** and pick a repo (public repos in v1).
 - **Works everywhere** — a hosted web app that feels native on both **laptop and phone**. No install required.
 - **Beautiful and polished** — an organic-futuristic design language; calm, powerful, intentional. The UI is a feature.
 - **Privacy-first** — see [Privacy & Security](docs/PRIVACY.md). Optional AI features run under strict **Zero Data Retention (ZDR)** policies.
@@ -52,7 +52,24 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture, including
 
 ## Getting started
 
-> ⚠️ No app scaffold exists yet. Once it does, this section will cover `bun install` and `bun run dev`. For now, start with [AGENTS.md](AGENTS.md) and the docs above.
+Requires [Bun](https://bun.sh) ≥ 1.3.
+
+```bash
+bun install
+bun run dev        # dev server at http://localhost:3005
+```
+
+Other commands:
+
+```bash
+bun run build      # production build
+bun run start      # serve the production build
+bun test           # unit tests (smoke + module-boundary checks)
+bun run lint       # ESLint --fix
+bun run typecheck  # tsc --noEmit (TypeScript strict)
+```
+
+Contributors and agents: read [AGENTS.md](AGENTS.md) first.
 
 ## License
 
