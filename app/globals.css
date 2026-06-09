@@ -1,0 +1,39 @@
+/* Foundational tokens only — the real design system lands with COA-69 (docs/DESIGN.md). */
+
+:root {
+  --bg: #0a0c10;
+  --bg-elevated: #11141b;
+  --fg: #e8eaf0;
+  --fg-muted: #8b93a7;
+  --accent: #7c9cff;
+  --radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
