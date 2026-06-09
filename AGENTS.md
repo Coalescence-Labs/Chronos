@@ -52,11 +52,21 @@ Chronos/
     PRIVACY.md              # security + ZDR model
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
-  app/                      # (future) Next.js App Router
-  lib/                      # (future) graph engine, git ingestion, AI
-  components/               # (future) UI
+  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /styleguide)
+  lib/
+    graph/                  # pure layout engine + normalized model (types.ts) — no DOM/network
+    ingest/                 # source adapters -> normalized model (GitHub via BFF)
+    ai/                     # empty until decisions #4/#5 resolve
+  components/
+    graph/                  # SVG renderer over layout output
+    ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
+    shell/                  # AppShell (responsive scaffold)
+    pwa/                    # service-worker registration
+  public/                   # fonts (Satoshi), PWA icons, sw.js
+  scripts/                  # generate-icons.ts (regenerates PWA icons from tokens)
+  tests/                    # bun test suites (boundaries, ingest, design tokens, pwa)
 ```
-Application directories don't exist yet — create them as work begins, and update this map.
+Keep this map current as directories are added.
 
 ## 5. Non-negotiables
 

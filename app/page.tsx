@@ -1,27 +1,20 @@
+import { AppShell } from "@/components/shell/AppShell";
 import { PROXY_DISCLOSURE } from "@/lib/ingest";
+import styles from "./page.module.css";
 
 export default function Home() {
   return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        display: "grid",
-        placeItems: "center",
-        padding: "2rem",
-      }}
-    >
-      <div style={{ textAlign: "center", maxWidth: "32rem" }}>
-        <h1 style={{ fontSize: "2rem", fontWeight: 600, letterSpacing: "-0.02em" }}>
-          Chronos
-        </h1>
-        <p style={{ color: "var(--fg-muted)", lineHeight: 1.6 }}>
-          See your git history at a glance. High information density, low
-          cognitive load.
-        </p>
-        <p style={{ color: "var(--fg-muted)", fontSize: "0.8125rem", lineHeight: 1.6 }}>
-          {PROXY_DISCLOSURE}
-        </p>
-      </div>
-    </main>
+    <AppShell>
+      <section className={styles.hero}>
+        <div className={styles.heroInner}>
+          <h1 className={styles.title}>See your git history at a glance.</h1>
+          <p className={styles.tagline}>
+            Chronos turns any repo into a beautiful, legible branch graph. High
+            information density, low cognitive load.
+          </p>
+          <p className={styles.disclosure}>{PROXY_DISCLOSURE}</p>
+        </div>
+      </section>
+    </AppShell>
   );
 }

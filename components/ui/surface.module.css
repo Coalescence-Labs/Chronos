@@ -1,0 +1,25 @@
+.surface {
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1), var(--glass-highlight);
+}
+
+.level2 {
+  background: var(--bg-raised);
+  background-image: var(--glass-bg);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-2), var(--glass-highlight);
+}
+
+.level3 {
+  background: var(--bg-raised);
+  background-image: var(--glass-bg);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-3), var(--glass-highlight);
+}
+
+.padded {
+  padding: var(--space-5);
+}
