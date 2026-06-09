@@ -1,3 +1,5 @@
+import { PROXY_DISCLOSURE } from "@/lib/ingest";
+
 export default function Home() {
   return (
     <main
@@ -15,6 +17,9 @@ export default function Home() {
         <p style={{ color: "var(--fg-muted)", lineHeight: 1.6 }}>
           See your git history at a glance. High information density, low
           cognitive load.
+        </p>
+        <p style={{ color: "var(--fg-muted)", fontSize: "0.8125rem", lineHeight: 1.6 }}>
+          {PROXY_DISCLOSURE}
         </p>
       </div>
     </main>

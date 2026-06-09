@@ -1,0 +1,72 @@
+import type { RepoHistory } from "@/lib/graph/types";
+import type { CommitsPageResponse, IngestErrorBody, RepoResponse } from "./api";
+import { IngestError } from "./errors";
+
+/**
+ * Browser-side ingestion adapter: talks to the BFF routes and assembles the
+ * normalized model progressively — first page renders fast, the rest
+ * backfills page by page (decision #3's progressive-loading posture).
+ */
+
+export interface IngestResult {
+  history: RepoHistory;
+  /** True when the history was cut off at maxPages rather than completed. */
+  truncated: boolean;
+}
+
+export interface IngestOptions {
+  /** Cap on default-branch commit pages (100 commits each). */
+  maxPages?: number;
+  /** Called after each page so the UI can render incrementally. */
+  onProgress?: (history: RepoHistory) => void;
+  fetchImpl?: typeof fetch;
+}
+
+export const DEFAULT_MAX_PAGES = 10;
+
+async function getJson<T>(fetchImpl: typeof fetch, url: string): Promise<T> {
+  const response = await fetchImpl(url);
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as IngestErrorBody | null;
+    throw body
+      ? new IngestError(body.error.code, body.error.message, body.error.retryAfterSeconds)
+      : new IngestError("upstream", "Something went wrong fetching the repository.");
+  }
+  return response.json() as Promise<T>;
+}
+
+export async function fetchPublicRepoHistory(
+  input: string,
+  options: IngestOptions = {},
+): Promise<IngestResult> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
+  const repoParam = encodeURIComponent(input);
+
+  const initial = await getJson<RepoResponse>(fetchImpl, `/api/repo?repo=${repoParam}`);
+  const bySha = new Map(initial.history.commits.map((commit) => [commit.sha, commit]));
+  const history: RepoHistory = {
+    commits: [...initial.history.commits],
+    refs: initial.history.refs,
+  };
+  options.onProgress?.(history);
+
+  let nextPage = initial.nextPage;
+  const branch = encodeURIComponent(initial.repo.defaultBranch);
+  while (nextPage !== null && nextPage <= maxPages) {
+    const page = await getJson<CommitsPageResponse>(
+      fetchImpl,
+      `/api/repo/commits?repo=${repoParam}&sha=${branch}&page=${nextPage}`,
+    );
+    for (const commit of page.commits) {
+      if (!bySha.has(commit.sha)) {
+        bySha.set(commit.sha, commit);
+        history.commits.push(commit);
+      }
+    }
+    options.onProgress?.(history);
+    nextPage = page.nextPage;
+  }
+
+  return { history, truncated: nextPage !== null };
+}
