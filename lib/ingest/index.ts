@@ -7,18 +7,29 @@
  * adapter behind the same interface.
  */
 
-import type { RepoHistory } from "@/lib/graph/types";
+import { fetchPublicRepoHistory } from "./client";
+import type { IngestOptions, IngestResult } from "./client";
 
-export type IngestSourceKind = "github-public-url" | "github-oauth";
-
-export interface IngestRequest {
-  kind: IngestSourceKind;
-  /** "owner/repo" — parsed and validated before any network call. */
-  repo: string;
-}
+export type { CommitsPageResponse, IngestErrorBody, RepoResponse } from "./api";
+export { DEFAULT_MAX_PAGES, fetchPublicRepoHistory } from "./client";
+export type { IngestOptions, IngestResult } from "./client";
+export { INGEST_ERROR_STATUS, IngestError } from "./errors";
+export type { IngestErrorCode } from "./errors";
+export { parseRepoInput } from "./github/parse";
+export type { RepoId } from "./github/parse";
 
 export interface IngestAdapter {
-  fetchHistory(request: IngestRequest): Promise<RepoHistory>;
+  fetchHistory(input: string, options?: IngestOptions): Promise<IngestResult>;
 }
 
-/** Adapters land with COA-70 (normalized git model + public-URL ingestion). */
+/** v1 entry point: paste a public GitHub URL (decision #3). */
+export const githubPublicUrlAdapter: IngestAdapter = {
+  fetchHistory: fetchPublicRepoHistory,
+};
+
+/**
+ * Consent/transparency copy (docs/PRIVACY.md): render wherever a repo URL
+ * is submitted, so proxying is disclosed before any data flows.
+ */
+export const PROXY_DISCLOSURE =
+  "Public repo data is fetched through the Chronos server, used only to draw your graph, and never stored or logged.";
