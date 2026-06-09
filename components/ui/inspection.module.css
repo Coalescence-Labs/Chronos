@@ -1,0 +1,98 @@
+.surface {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  visibility: hidden;
+  transition:
+    transform var(--duration-slow) var(--ease-out),
+    visibility 0s linear var(--duration-slow);
+}
+
+.surface[data-open="true"] {
+  visibility: visible;
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--fg-muted);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.close:hover {
+  color: var(--fg);
+}
+
+.body {
+  padding: var(--space-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Phone: bottom sheet, first-class touch surface. */
+@media (max-width: 879px) {
+  .surface {
+    inset: auto 0 0 0;
+    max-height: 72dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: translateY(100%);
+  }
+
+  .surface[data-open="true"] {
+    transform: translateY(0);
+  }
+
+  .handle {
+    width: 40px;
+    height: 4px;
+    margin: var(--space-3) auto 0;
+    border-radius: var(--radius-full);
+    background: var(--border-strong);
+  }
+}
+
+/* Laptop: side panel. */
+@media (min-width: 880px) {
+  .surface {
+    top: var(--space-4);
+    right: var(--space-4);
+    bottom: var(--space-4);
+    width: min(380px, 40vw);
+    transform: translateX(calc(100% + var(--space-6)));
+  }
+
+  .surface[data-open="true"] {
+    transform: translateX(0);
+  }
+
+  .handle {
+    display: none;
+  }
+}
