@@ -24,9 +24,20 @@ Hard rules:
 
 Before merging **any** AI feature or **any** new path that sends user/repo data off the user's device or off our server, run the guardrail at `.claude/skills/privacy-preflight/`. It is a short checklist that forces you to name the data, the destination, the retention terms, and the user's consent surface. No exceptions — the owner emphasized privacy as a core pillar.
 
-## Data-flow decisions still open
+## Ingestion: server-side BFF proxy (decisions #3 + #7, resolved)
 
-The single most important privacy decision — **how public repos are ingested** (server-side clone vs GitHub API vs client-side) — is **not yet made**. It is tracked as open decision #3 in [ARCHITECTURE.md](ARCHITECTURE.md) and must be resolved *together with this document*, not as an implementation detail. Default bias: keep repo data off our servers wherever feasible.
+> Posture note: an earlier draft resolved #3 as *client-side* (repo data never touches our servers). It was **deliberately revised** when #7 chose the **BFF (Backend-for-Frontend)** OAuth pattern for maximum token security — BFF requires the server to make the GitHub calls, so repo data now transits our infrastructure. This is a conscious trade of "data off our servers" for "token never exposed to browser JS." It is bounded by the rules below; it is **not** a license to retain or mine repo data.
+
+How it works and what this document binds:
+
+- **The OAuth token rests server-side** in an encrypted, httpOnly, SameSite, Secure session — never readable by browser JS, never in the client bundle or logs (Principle 3, 6).
+- **The server proxies GitHub API calls.** Public-repo git metadata flows GitHub → our server → browser **transiently**. **Zero server-side persistence of repo content**, and **no logging of repo content or tokens** (Principle 1, applied as "minimize what *rests*").
+- **Fetch the minimum:** only graph-relevant commit fields (sha, parents, author, date, message, refs) — not file contents/diffs unless a specific feature needs them and re-clears pre-flight.
+- **Caching** may be both server-side (short-TTL, content-addressed, no PII beyond what GitHub already exposes) and client-side; neither may become a durable store of repo data (see #6).
+- **Consent/transparency:** the UI discloses that requests are proxied through our server and that we store neither repo data nor the token beyond the session.
+- **Private repos are out of scope for v1.** The BFF posture would technically support them, but adding private-repo scope requires a **fresh privacy pre-flight** — private repo data transiting our servers is a materially different promise.
+
+Default bias remains: minimize what *rests* on our servers, and never retain or train on repo data.
 
 ## The native companion as a privacy feature
 

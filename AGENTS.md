@@ -15,7 +15,11 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 ### Decided (by the project owner)
 - **Web-first**, hosted on Vercel; **Next.js / React**.
 - **`zero-native` desktop companion is phase 2** and *additive* — it wraps the same web UI for a local-`.git` privacy mode. Not a v1 blocker.
-- Two repo entry points: **paste a public repo URL** and **link GitHub (OAuth) → pick a repo**.
+- Two repo entry points: **paste a public GitHub repo URL** and **link GitHub (OAuth) → pick a repo**. (v1 is GitHub-only — see decision #3.)
+- **Ingestion is a server-side BFF proxy to the GitHub API** (decisions #3 + #7) — server proxies GitHub calls with **zero persistence/logging of repo data**; v1 is GitHub-only; large repos use progressive loading. (Originally client-side; flipped for the BFF token-security posture below.)
+- **GitHub OAuth uses the BFF pattern** (decision #7) — token held server-side in an encrypted httpOnly session, never exposed to browser JS; least scopes, read-only, never write. Private repos out of scope for v1 (would need a fresh privacy pre-flight).
+- **Graph layout is a hybrid lane algorithm in our own pure `lib/graph`** (decision #1) — stable columns for active branches, compact reuse for stale, hard column cap for mobile. No render-coupled libs.
+- **Render is SVG with viewport virtualization** (decision #2) — render only on-screen rows; renderer stays behind the `components/graph` interface so it's swappable without touching `lib/graph`.
 - **Responsive**: must feel native on phone *and* laptop.
 - **Privacy-first**; AI features are **opt-in** and **ZDR-only**.
 - **Free hosted + open source** under **Apache 2.0** (see `LICENSE`).
@@ -23,9 +27,6 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - Design language: **organic-futuristic-modernism** — calm, powerful, intentional (see [docs/DESIGN.md](docs/DESIGN.md)).
 
 ### Open (do NOT invent answers — see docs/ARCHITECTURE.md "Open Decisions")
-- Graph **layout algorithm** (the actual hard core of "like Bitbucket, but better").
-- **Render technology**: SVG vs Canvas vs WebGL (affects large-repo performance).
-- **Public-repo ingestion model**: server-side clone vs GitHub API vs client-side — this is a *privacy-defining* choice, not a detail.
 - **AI feature surface**: what AI actually does (branch summaries? history explanations? Q&A?) — never specified.
 - **AI provider** that satisfies ZDR.
 

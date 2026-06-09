@@ -26,7 +26,7 @@ Chronos is **web-first** with a **native companion** planned later.
 
 ### Core (v1)
 - **Next.js / React**, hosted on **Vercel**.
-- **Two entry points:** paste a public repo URL; or link GitHub via OAuth and select a repo.
+- **Two entry points:** paste a public **GitHub** repo URL; or link GitHub via OAuth and select a repo. (v1 is GitHub-only — see decision #3.)
 - **Responsive PWA** — first-class on phone and laptop.
 - **Optional AI** features, opt-in, ZDR-only.
 
@@ -41,7 +41,7 @@ Chronos is **web-first** with a **native companion** planned later.
 source → ingest → normalized commit/branch model → layout → render → interaction → (optional) AI
 ```
 
-- **source** — public URL, GitHub API/clone, or (phase 2) local `.git`.
+- **source** — public repo URL or GitHub-linked repo, fetched via a **server-side BFF proxy to the GitHub API** (decisions #3 + #7), with no server-side persistence of repo data; or (phase 2) local `.git`.
 - **ingest** — turn raw git data into a normalized in-memory model (commits, refs, parents, branch tips, merges).
 - **layout** — assign commits to lanes/rows; the heart of the product. *(Open.)*
 - **render** — draw it. *(Open: SVG/Canvas/WebGL.)*
@@ -58,13 +58,13 @@ These are unresolved. Resolve them deliberately (with the owner), then move the 
 
 | # | Decision | Why it matters | Notes / leanings |
 |---|----------|----------------|------------------|
-| 1 | **Graph layout algorithm** | This *is* "like Bitbucket, but better." Lane assignment, merge rendering, and ordering determine whether the glance works. | Study Bitbucket, `git log --graph`, and existing OSS graph libs before committing. Likely the highest-risk, highest-value module. |
-| 2 | **Render technology** (SVG vs Canvas vs WebGL) | Large repos (10k+ commits) will tank naive SVG. But SVG is simplest for crisp, accessible, themeable output. | Possible: SVG for small/medium, Canvas/WebGL fallback for large. Decide with a perf budget, not vibes. |
-| 3 | **Public-repo ingestion model** (server-side clone vs GitHub API vs client-side) | **Privacy-defining.** Server-side clone means repo data transits our infra. Client-side keeps it on the user's device. | Must be decided *with* [PRIVACY.md](PRIVACY.md). Default bias: minimize what touches our servers. |
+| ~~1~~ | ~~Graph layout algorithm~~ | RESOLVED: **hybrid lane assignment in our own pure `lib/graph` module** (no render-coupled lib). Stable columns for active/long-lived branches; compact reuse of freed lanes for stale branches; a **hard column cap** so the graph stays readable on mobile. Topological order with date tie-breaking. | Branch *identity* and the "active/long-lived" heuristic + cap value are tuning parameters, not blockers — pick simple defaults, make them adjustable, unit-test heavily (highest-risk module). |
+| ~~2~~ | ~~Render technology~~ | RESOLVED: **SVG with viewport virtualization** (render only on-screen rows). Best fit for the DESIGN bar (theming, gradients, crisp strokes) and accessibility; virtualization + worker layout + progressive load (#3) keep big repos within budget without a second renderer. | Keep the renderer behind the `components/graph` interface so a Canvas/WebGL path can be added later **without touching `lib/graph`** — only if profiling proves SVG can't hold the perf budget. |
+| ~~3~~ | ~~Public-repo ingestion model~~ | RESOLVED: **server-side BFF proxy** (revised — see #7). Our server proxies GitHub API calls; repo data flows GitHub → our server → browser **transiently, with zero server-side persistence or content logging**. v1 is GitHub-only. Large repos handled via **progressive loading** (render recent slice first, backfill in background). *(Originally resolved as client-side; flipped when #7 chose the BFF security posture, which requires the server to make the API calls.)* | Trade-off: weaker than client-side on "data off our servers," stronger on token security. Privacy pre-flight completed; the binding posture lives in [PRIVACY.md](PRIVACY.md). Caching (#6) is now server- and client-side. |
 | 4 | **AI feature surface** | The owner wants AI but never said what it does. Building a chatbot "because AI" violates the cognitive-load mandate. | Pick one concrete, load-reducing job first (e.g. "summarize this branch"). |
 | 5 | **AI provider (ZDR)** | The privacy promise depends on a provider that contractually does zero retention / no training. | Verify ZDR in writing before integrating. Run the privacy pre-flight skill. |
 | 6 | **Rate limits & caching** | Public-URL viewing + GitHub API both hit limits; caching strategy interacts with #3 and privacy. | Tie to ingestion decision. |
-| 7 | **Auth/session for GitHub OAuth** | Token storage and scope minimization are privacy-sensitive. | Request least scopes; never store more than needed. |
+| ~~7~~ | ~~Auth/session for GitHub OAuth~~ | RESOLVED: **BFF (Backend-for-Frontend)** — the server completes the OAuth code exchange and holds the token in an **encrypted, httpOnly, SameSite, Secure** session cookie; the token is never exposed to browser JS, and the server proxies GitHub calls (this is what flipped #3 to server-side). IETF browser-app best practice; strongest against token theft. | Least scopes, read-only, never write. **Known trigger:** posture already supports private repos if added later (token already server-held) — but adding private-repo scope still requires a fresh privacy pre-flight. |
 | ~~8~~ | ~~License~~ | RESOLVED: **Apache 2.0** (see `LICENSE`). | Permissive + patent grant; maximizes adoption. |
 
 ## Performance posture
