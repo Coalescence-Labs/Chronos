@@ -52,14 +52,15 @@ Chronos/
     PRIVACY.md              # security + ZDR model
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
-  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /styleguide; /repo/[owner]/[repo] = graph view)
+  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /styleguide; /repo/[owner]/[repo] = graph view; /demo = synthetic graph, no network)
   lib/
     graph/                  # pure layout engine (layout.ts, hybrid lanes) + normalized model (types.ts) — no DOM/network
     ingest/                 # source adapters -> normalized model (GitHub via BFF)
+    demo/                   # deterministic synthetic history backing /demo
     ai/                     # empty until decisions #4/#5 resolve
   components/
     graph/                  # GraphView: virtualized SVG renderer over layout output
-    repo/                   # RepoScreen (ingest -> layout -> GraphView -> inspector) + RepoUrlForm
+    repo/                   # GraphExplorer (layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm
     ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
     shell/                  # AppShell (responsive scaffold)
     pwa/                    # service-worker registration

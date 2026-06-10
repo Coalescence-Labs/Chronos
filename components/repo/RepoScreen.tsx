@@ -1,24 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { GraphView } from "@/components/graph/GraphView";
-import { EmptyState, ErrorState, InspectionSurface, LoadingState } from "@/components/ui";
-import { DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
+import { useEffect, useState } from "react";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
 import type { RepoHistory } from "@/lib/graph";
 import { fetchPublicRepoHistory, IngestError } from "@/lib/ingest";
-import styles from "./repo.module.css";
+import { GraphExplorer } from "./GraphExplorer";
 
 /**
- * The end-to-end view (COA-71): progressive ingestion → hybrid lane layout →
- * GraphView, with the inspection surface for tap-to-inspect. Pages stream in
- * via onProgress so the first 100 commits render before the rest arrive.
- *
- * Layout runs synchronously in useMemo — the perf test on the 20k-commit
- * fixture keeps it inside budget, so no worker yet (revisit if that fails).
+ * The live end-to-end view (COA-71): progressive ingestion → GraphExplorer.
+ * Pages stream in via onProgress so the first 100 commits render before the
+ * rest arrive. Loading/error/empty here; graph + inspection in GraphExplorer.
  */
-
-const PHONE_MAX_LANES = 8;
-const PHONE_BREAKPOINT = 700;
 
 /** Fetch progress/outcome, tagged with the request it answers so stale
  * results from a previous repo or retry are ignored instead of reset. */
@@ -43,16 +35,6 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const [loaded, setLoaded] = useState<LoadedState | null>(null);
   const [failed, setFailed] = useState<FailedState | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [selectedSha, setSelectedSha] = useState<string | null>(null);
-  const [maxLanes, setMaxLanes] = useState(DEFAULT_MAX_LANES);
-
-  useEffect(() => {
-    const update = () =>
-      setMaxLanes(window.innerWidth < PHONE_BREAKPOINT ? PHONE_MAX_LANES : DEFAULT_MAX_LANES);
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
 
   const requestKey = `${owner}/${repo}#${attempt}`;
 
@@ -99,23 +81,6 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const history = loaded?.key === requestKey ? loaded.history : null;
   const error = failed?.key === requestKey ? failed.error : null;
 
-  const layout = useMemo(
-    () => (history ? layoutGraph(history, { maxLanes }) : null),
-    [history, maxLanes],
-  );
-
-  const selected = useMemo(
-    () => (history && selectedSha ? history.commits.find((c) => c.sha === selectedSha) : undefined),
-    [history, selectedSha],
-  );
-  const selectedRefs = useMemo(
-    () =>
-      history && selectedSha
-        ? history.refs.filter((ref) => ref.sha === selectedSha && ref.type !== "head")
-        : [],
-    [history, selectedSha],
-  );
-
   if (error) {
     return (
       <ErrorState
@@ -125,7 +90,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       />
     );
   }
-  if (!history || !layout) {
+  if (!history) {
     return <LoadingState label={`Reading ${owner}/${repo}…`} />;
   }
   if (history.commits.length === 0) {
@@ -138,55 +103,19 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   }
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.repoName}>
-          {owner}
-          <span className={styles.repoSlash}>/</span>
-          {repo}
-        </h1>
-        <p className={styles.status} role="status">
+    <GraphExplorer
+      history={history}
+      owner={owner}
+      repo={repo}
+      status={
+        <>
           {history.commits.length.toLocaleString()} commits
           {!loaded?.complete && " · loading more…"}
-          {loaded?.complete && loaded.truncated && " · showing the most recent pages of a longer history"}
-        </p>
-      </header>
-      <GraphView
-        history={history}
-        layout={layout}
-        selectedSha={selectedSha}
-        onSelect={setSelectedSha}
-      />
-      <InspectionSurface
-        open={selected !== undefined}
-        onClose={() => setSelectedSha(null)}
-        title={selected ? `Commit ${selected.sha.slice(0, 7)}` : "Commit"}
-      >
-        {selected && (
-          <dl className={styles.details}>
-            <dt>Message</dt>
-            <dd>{selected.message}</dd>
-            <dt>Author</dt>
-            <dd>{selected.author}</dd>
-            <dt>Date</dt>
-            <dd>{new Date(selected.date).toLocaleString()}</dd>
-            <dt>SHA</dt>
-            <dd className={styles.mono}>{selected.sha}</dd>
-            <dt>{selected.parents.length === 1 ? "Parent" : "Parents"}</dt>
-            <dd className={styles.mono}>
-              {selected.parents.length === 0
-                ? "none (root commit)"
-                : selected.parents.map((p) => p.slice(0, 7)).join(", ")}
-            </dd>
-            {selectedRefs.length > 0 && (
-              <>
-                <dt>Refs</dt>
-                <dd>{selectedRefs.map((ref) => ref.name).join(", ")}</dd>
-              </>
-            )}
-          </dl>
-        )}
-      </InspectionSurface>
-    </div>
+          {loaded?.complete &&
+            loaded.truncated &&
+            " · showing the most recent pages of a longer history"}
+        </>
+      }
+    />
   );
 }

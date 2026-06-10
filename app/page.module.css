@@ -31,6 +31,22 @@
   color: var(--fg-muted);
 }
 
+.demoHint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.demoHint a {
+  color: var(--accent);
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.demoHint a:hover {
+  color: var(--accent-strong);
+}
+
 .disclosure {
   margin: var(--space-4) 0 0;
   font-size: var(--text-xs);

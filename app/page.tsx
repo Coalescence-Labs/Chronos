@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RepoUrlForm } from "@/components/repo/RepoUrlForm";
 import { AppShell } from "@/components/shell/AppShell";
 import { PROXY_DISCLOSURE } from "@/lib/ingest";
@@ -14,6 +15,9 @@ export default function Home() {
             information density, low cognitive load.
           </p>
           <RepoUrlForm />
+          <p className={styles.demoHint}>
+            …or <Link href="/demo">explore the demo repo</Link> — no network needed.
+          </p>
           <p className={styles.disclosure}>{PROXY_DISCLOSURE}</p>
         </div>
       </section>
