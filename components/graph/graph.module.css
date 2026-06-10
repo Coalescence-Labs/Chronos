@@ -84,21 +84,42 @@
   }
 }
 
+/* Ref badges hang off the right side of their node, inside the graph area,
+   so a label visibly belongs to its lane. Opaque background keeps them
+   legible over edges passing in higher lanes. */
+.refs {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  gap: var(--space-1);
+  max-width: 45%;
+}
+
 .badge {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 var(--space-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-full);
   font-size: var(--text-xs);
   color: var(--accent-strong);
-  background: var(--accent-soft);
+  background: var(--bg-raised);
 }
 
 /* Tags read by border style too, not color alone. */
 .badge[data-ref-type="tag"] {
   border-style: dashed;
   color: var(--fg-muted);
-  background: none;
+}
+
+/* Long-term branches read by weight too, not color alone. */
+.badge[data-branch-role] {
+  font-weight: 700;
 }
 
 .zoomControls {

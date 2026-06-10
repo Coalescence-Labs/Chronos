@@ -17,12 +17,18 @@ export interface IngestResult {
 export interface IngestOptions {
   /** Cap on default-branch commit pages (100 commits each). */
   maxPages?: number;
+  /**
+   * Cap on side branches loaded beyond the default branch (one page each),
+   * so every branch ref can appear in the graph, not just the trunk.
+   */
+  maxBranchTips?: number;
   /** Called after each page so the UI can render incrementally. */
   onProgress?: (history: RepoHistory) => void;
   fetchImpl?: typeof fetch;
 }
 
 export const DEFAULT_MAX_PAGES = 10;
+export const DEFAULT_MAX_BRANCH_TIPS = 10;
 
 async function getJson<T>(fetchImpl: typeof fetch, url: string): Promise<T> {
   const response = await fetchImpl(url);
@@ -66,6 +72,29 @@ export async function fetchPublicRepoHistory(
     }
     options.onProgress?.(history);
     nextPage = page.nextPage;
+  }
+
+  // Side branches: the default-branch pages only cover trunk history, so
+  // branch tips that haven't merged yet would never load — and a ref without
+  // its commit can't appear in the graph. Load one page per missing tip;
+  // deeper parents render as open edges until merged history picks them up.
+  const missingTips = history.refs
+    .filter((ref) => ref.type === "branch" && !bySha.has(ref.sha))
+    .slice(0, options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS);
+  for (const ref of missingTips) {
+    const page = await getJson<CommitsPageResponse>(
+      fetchImpl,
+      `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
+    );
+    let added = false;
+    for (const commit of page.commits) {
+      if (!bySha.has(commit.sha)) {
+        bySha.set(commit.sha, commit);
+        history.commits.push(commit);
+        added = true;
+      }
+    }
+    if (added) options.onProgress?.(history);
   }
 
   return { history, truncated: nextPage !== null };

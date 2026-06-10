@@ -73,6 +73,38 @@ describe("GraphView accessibility", () => {
     const html = render(history);
     expect(html).toContain(">main</span>");
     expect(html).not.toContain(">HEAD<"); // HEAD duplicates the default branch
+    // Full name survives ellipsis via the tooltip.
+    expect(html).toContain('title="main"');
+  });
+
+  test("branch badges wear their lane's color, tying label to line", () => {
+    const html = render(history); // main on lane 0, f's branch line on lane 1
+    const badge = html.match(/<span[^>]*data-ref-type="branch"[^>]*>main<\/span>/)![0];
+    expect(badge).toContain("var(--lane-0)");
+  });
+
+  test("long-term branches carry fixed identity colors", () => {
+    const withDevelop: RepoHistory = {
+      commits: history.commits,
+      refs: [
+        ...history.refs,
+        { name: "develop", type: "branch", sha: "f" },
+        { name: "feature/very-long-name", type: "branch", sha: "t1" },
+        { name: "v1.0.0", type: "tag", sha: "base" },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <GraphView history={withDevelop} layout={layoutGraph(withDevelop)} />,
+    );
+    expect(html).toMatch(/data-branch-role="main"[^>]*>main</);
+    expect(html).toMatch(/data-branch-role="develop"[^>]*>develop</);
+    // Anchor badges are filled with the lane color (dark text on color).
+    const main = html.match(/<span[^>]*data-branch-role="main"[^>]*>/)![0];
+    expect(main).toContain("background:var(--lane-0)");
+    expect(main).toContain("var(--on-accent)");
+    // Short-lived branches and tags get no identity role.
+    expect(html).not.toMatch(/data-branch-role[^>]*>feature\/very-long-name</);
+    expect(html).not.toMatch(/data-branch-role[^>]*>v1\.0\.0</);
   });
 });
 

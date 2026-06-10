@@ -72,6 +72,51 @@ describe("fetchPublicRepoHistory", () => {
     expect(calls).toHaveLength(2);
   });
 
+  test("loads one page for each branch tip missing from trunk history", async () => {
+    const withFeature: RepoResponse = {
+      ...initial,
+      history: {
+        commits: initial.history.commits,
+        refs: [
+          ...initial.history.refs,
+          { name: "feature/x", type: "branch", sha: "f2" }, // tip not in trunk pages
+        ],
+      },
+      nextPage: null,
+    };
+    const calls: string[] = [];
+    const fetchImpl = ((input: RequestInfo | URL) => {
+      const url = new URL(input.toString(), "http://localhost");
+      calls.push(url.pathname + url.search);
+      if (url.pathname === "/api/repo") return Promise.resolve(Response.json(withFeature));
+      expect(url.searchParams.get("sha")).toBe("feature/x");
+      return Promise.resolve(
+        Response.json({
+          commits: [node("f2", ["f1"]), node("f1", ["c2"]), node("c2", ["c1"])],
+          nextPage: 2,
+        } satisfies CommitsPageResponse),
+      );
+    }) as typeof fetch;
+
+    const result = await fetchPublicRepoHistory("acme/widgets", { fetchImpl });
+    expect(calls).toEqual([
+      "/api/repo?repo=acme%2Fwidgets",
+      "/api/repo/commits?repo=acme%2Fwidgets&sha=feature%2Fx&page=1",
+    ]);
+    // Tip and its line load once each; the overlapping c2 stays deduplicated.
+    expect(result.history.commits.map((commit) => commit.sha)).toEqual(["c3", "c2", "f2", "f1"]);
+    expect(result.truncated).toBe(false);
+  });
+
+  test("skips branch tips already covered by trunk history", async () => {
+    const { fetchImpl, calls } = bffMock(
+      { ...initial, nextPage: null }, // main's tip c3 is in the initial page
+      {},
+    );
+    await fetchPublicRepoHistory("acme/widgets", { fetchImpl });
+    expect(calls).toEqual(["/api/repo?repo=acme%2Fwidgets"]);
+  });
+
   test("rethrows BFF errors as IngestError with the wire code", async () => {
     const fetchImpl = (() =>
       Promise.resolve(

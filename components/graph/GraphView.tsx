@@ -39,6 +39,14 @@ function laneColor(lane: number): string {
   return `var(--lane-${lane % LANE_COLOR_COUNT})`;
 }
 
+/** Long-term branches keep fixed identity colors (--branch-* tokens). */
+function branchRole(name: string): "main" | "develop" | undefined {
+  const base = name.toLowerCase();
+  if (base === "main" || base === "master" || base === "trunk") return "main";
+  if (base === "develop" || base === "dev" || base === "development") return "develop";
+  return undefined;
+}
+
 /**
  * Child→parent path: drop out of the child, travel down the via lane, and
  * curve into the parent. Bends are smooth half-row S-curves; the degenerate
@@ -345,6 +353,16 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
           {visiblePlacements.map((placed) => {
             const commit = commitsBySha.get(placed.sha);
             const refs = refsBySha.get(placed.sha);
+            const refsLeft = xOf(placed.lane) + nodeRadius + 6;
+            // Estimated badge row width (text-xs ≈ 6.2px/char, capped by the
+            // 9rem ellipsis) so the message starts clear of the badges.
+            const refsWidth = refs
+              ? refs.reduce(
+                  (width, ref) => width + Math.min(144, ref.name.length * 6.2 + 18),
+                  (refs.length - 1) * 4,
+                )
+              : 0;
+            const padLeft = Math.max(graphWidth + 8, refs ? refsLeft + refsWidth + 8 : 0);
             return (
               <div
                 key={placed.sha}
@@ -354,14 +372,39 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
                 aria-posinset={placed.row + 1}
                 aria-setsize={rowCount}
                 className={styles.row}
-                style={{ top: placed.row * rowHeight, height: rowHeight, paddingLeft: graphWidth + 8 }}
+                style={{ top: placed.row * rowHeight, height: rowHeight, paddingLeft: padLeft }}
                 onClick={() => onSelect?.(placed.sha === selectedSha ? null : placed.sha)}
               >
-                {refs?.map((ref) => (
-                  <span key={ref.name} className={styles.badge} data-ref-type={ref.type}>
-                    {ref.name}
+                {refs && (
+                  <span className={styles.refs} style={{ left: refsLeft }}>
+                    {refs.map((ref) => {
+                      const role = ref.type === "branch" ? branchRole(ref.name) : undefined;
+                      const color = laneColor(placed.lane);
+                      // Branch badges wear their lane's color so label and
+                      // line read as one thing; long-term branches fill the
+                      // pill so the anchors stand out (main is always lane 0,
+                      // so its color is fixed by construction).
+                      const identity =
+                        ref.type === "tag"
+                          ? undefined
+                          : role
+                            ? { background: color, borderColor: color, color: "var(--on-accent)" }
+                            : { color, borderColor: color };
+                      return (
+                        <span
+                          key={ref.name}
+                          className={styles.badge}
+                          data-ref-type={ref.type}
+                          data-branch-role={role}
+                          title={ref.name}
+                          style={identity}
+                        >
+                          {ref.name}
+                        </span>
+                      );
+                    })}
                   </span>
-                ))}
+                )}
                 <span className={styles.message}>{commit?.message}</span>
                 <span className={styles.meta}>
                   {placed.sha.slice(0, 7)}
