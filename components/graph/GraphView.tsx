@@ -8,7 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
-import type { GraphLayout, Ref, RepoHistory } from "@/lib/graph";
+import { branchLines, packShelves, pinnedLines } from "@/lib/graph";
+import type { GraphLayout, RepoHistory } from "@/lib/graph";
 import styles from "./graph.module.css";
 
 /**
@@ -39,13 +40,26 @@ function laneColor(lane: number): string {
   return `var(--lane-${lane % LANE_COLOR_COUNT})`;
 }
 
-/** Long-term branches keep fixed identity colors (--branch-* tokens). */
+/** Long-term branches render as filled pills (main is always lane 0). */
 function branchRole(name: string): "main" | "develop" | undefined {
   const base = name.toLowerCase();
   if (base === "main" || base === "master" || base === "trunk") return "main";
   if (base === "develop" || base === "dev" || base === "development") return "develop";
   return undefined;
 }
+
+/** A row label: a live ref, or a branch name recovered from a merge commit. */
+interface RefLabel {
+  name: string;
+  type: "branch" | "tag" | "merged";
+}
+
+/** Rough pill width (text-xs ≈ 6.2px/char, capped by the 9rem ellipsis). */
+function estimateBadgeWidth(name: string): number {
+  return Math.min(144, name.length * 6.2 + 18);
+}
+
+const SHELF_HEIGHT = 26;
 
 /**
  * Child→parent path: drop out of the child, travel down the via lane, and
@@ -110,16 +124,25 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
     () => new Map(history.commits.map((commit) => [commit.sha, commit])),
     [history.commits],
   );
-  const refsBySha = useMemo(() => {
-    const map = new Map<string, Ref[]>();
+  const lines = useMemo(() => branchLines(history, layout), [history, layout]);
+
+  const labelsBySha = useMemo(() => {
+    const map = new Map<string, RefLabel[]>();
+    const push = (sha: string, label: RefLabel) => {
+      const list = map.get(sha);
+      if (list) list.push(label);
+      else map.set(sha, [label]);
+    };
     for (const ref of history.refs) {
       if (ref.type === "head") continue; // HEAD duplicates the default branch ref
-      const list = map.get(ref.sha);
-      if (list) list.push(ref);
-      else map.set(ref.sha, [ref]);
+      push(ref.sha, { name: ref.name, type: ref.type });
+    }
+    // Merged branches keep their recovered name at their tip-most commit.
+    for (const line of lines) {
+      if (line.source === "merge") push(line.tipSha, { name: line.name, type: "merged" });
     }
     return map;
-  }, [history.refs]);
+  }, [history.refs, lines]);
 
   const selectedRow = useMemo(
     () => (selectedSha ? layout.placements.findIndex((p) => p.sha === selectedSha) : -1),
@@ -224,6 +247,16 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
     }
   }, []);
 
+  /** Scroll so `row` sits at the top — used by pinned badges to jump to a tip. */
+  const scrollToRow = useCallback((row: number) => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const top = Math.max(0, row * BASE_ROW_HEIGHT * zoomRef.current - 4);
+    const reduce =
+      typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
+  }, []);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (rowCount === 0) return;
@@ -284,6 +317,17 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
   const nodeRadius = Math.max(3.5, 4.5 * zoom);
   const edgeWidth = Math.max(1.25, 1.75 * zoom);
 
+  // Sticky badges (variant B): a branch whose tip scrolled off the top keeps
+  // its name pinned to its lane at the top edge while the line is in view.
+  const pinned = pinnedLines(lines, scrollTop / rowHeight)
+    .map((line) => ({
+      line,
+      start: xOf(line.lane) + 6,
+      width: estimateBadgeWidth(line.name) + 14, // the ↑ glyph
+    }))
+    .sort((a, b) => a.start - b.start);
+  const shelves = packShelves(pinned);
+
   return (
     <div className={styles.root}>
       <div
@@ -296,6 +340,33 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
         onScroll={handleScroll}
         onKeyDown={handleKeyDown}
       >
+        {pinned.length > 0 && (
+          // Sticky badges: redundant with the real ref rows (which stay the
+          // accessible source of truth), so the overlay is aria-hidden;
+          // clicking a badge jumps to that branch's tip.
+          <div className={styles.pinned} aria-hidden="true">
+            {pinned.map(({ line, start }, i) =>
+              shelves[i]! >= 0 ? (
+                <span
+                  key={`${line.name}@${line.tipRow}`}
+                  className={styles.pinnedBadge}
+                  data-pinned={line.name}
+                  data-source={line.source}
+                  style={{
+                    left: start,
+                    top: shelves[i]! * SHELF_HEIGHT + 6,
+                    color: laneColor(line.lane),
+                    borderColor: laneColor(line.lane),
+                  }}
+                  title={`${line.name} — jump to the tip`}
+                  onClick={() => scrollToRow(line.tipRow)}
+                >
+                  ↑ {line.name}
+                </span>
+              ) : null,
+            )}
+          </div>
+        )}
         <div className={styles.canvas} style={{ height: totalHeight }}>
           <svg
             className={styles.edges}
@@ -352,17 +423,16 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
           </svg>
           {visiblePlacements.map((placed) => {
             const commit = commitsBySha.get(placed.sha);
-            const refs = refsBySha.get(placed.sha);
+            const labels = labelsBySha.get(placed.sha);
             const refsLeft = xOf(placed.lane) + nodeRadius + 6;
-            // Estimated badge row width (text-xs ≈ 6.2px/char, capped by the
-            // 9rem ellipsis) so the message starts clear of the badges.
-            const refsWidth = refs
-              ? refs.reduce(
-                  (width, ref) => width + Math.min(144, ref.name.length * 6.2 + 18),
-                  (refs.length - 1) * 4,
+            // Estimated badge row width so the message starts clear of the badges.
+            const refsWidth = labels
+              ? labels.reduce(
+                  (width, label) => width + estimateBadgeWidth(label.name),
+                  (labels.length - 1) * 4,
                 )
               : 0;
-            const padLeft = Math.max(graphWidth + 8, refs ? refsLeft + refsWidth + 8 : 0);
+            const padLeft = Math.max(graphWidth + 8, labels ? refsLeft + refsWidth + 8 : 0);
             return (
               <div
                 key={placed.sha}
@@ -375,31 +445,33 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
                 style={{ top: placed.row * rowHeight, height: rowHeight, paddingLeft: padLeft }}
                 onClick={() => onSelect?.(placed.sha === selectedSha ? null : placed.sha)}
               >
-                {refs && (
+                {labels && (
                   <span className={styles.refs} style={{ left: refsLeft }}>
-                    {refs.map((ref) => {
-                      const role = ref.type === "branch" ? branchRole(ref.name) : undefined;
+                    {labels.map((label) => {
+                      const role = label.type === "branch" ? branchRole(label.name) : undefined;
                       const color = laneColor(placed.lane);
                       // Branch badges wear their lane's color so label and
                       // line read as one thing; long-term branches fill the
                       // pill so the anchors stand out (main is always lane 0,
-                      // so its color is fixed by construction).
+                      // so its color is fixed by construction). Merged-branch
+                      // names (recovered from merge messages) are quiet
+                      // annotations, not pills.
                       const identity =
-                        ref.type === "tag"
+                        label.type === "tag"
                           ? undefined
                           : role
                             ? { background: color, borderColor: color, color: "var(--on-accent)" }
                             : { color, borderColor: color };
                       return (
                         <span
-                          key={ref.name}
+                          key={label.name}
                           className={styles.badge}
-                          data-ref-type={ref.type}
+                          data-ref-type={label.type}
                           data-branch-role={role}
-                          title={ref.name}
+                          title={label.name}
                           style={identity}
                         >
-                          {ref.name}
+                          {label.name}
                         </span>
                       );
                     })}

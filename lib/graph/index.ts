@@ -7,6 +7,8 @@ export {
   DEFAULT_MAX_LANES,
   layoutGraph,
 } from "./layout";
+export { branchLines, mergedBranchName, packShelves, pinnedLines } from "./lines";
+export type { BranchLine } from "./lines";
 export type {
   EdgeKind,
   GraphEdge,

@@ -24,6 +24,22 @@ test("the demo repo renders and inspects without any network", async ({ page, is
   expect(apiCalls).toBe(0);
 });
 
+test("scrolling past a tip pins its badge; clicking it jumps back", async ({ page }) => {
+  await page.goto("/demo");
+  const graph = page.getByRole("listbox", { name: /commit graph/i });
+  await expect(graph).toBeVisible();
+  await expect(page.locator('[data-pinned="develop"]')).toHaveCount(0); // tip in view
+
+  await graph.evaluate((el) => el.scrollTo({ top: 800 }));
+  const pinnedDevelop = page.locator('[data-pinned="develop"]');
+  await expect(pinnedDevelop).toBeVisible();
+  await expect(page.locator('[data-pinned="main"]')).toBeVisible();
+
+  await pinnedDevelop.click();
+  await expect(pinnedDevelop).toHaveCount(0); // back at the tip → unpinned
+  await expect(graph).toHaveJSProperty("scrollTop", 0);
+});
+
 test("the home page links to the demo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /explore the demo repo/ }).click();

@@ -69,6 +69,19 @@ describe("GraphView accessibility", () => {
     expect(hollow[0]).toContain("var(--bg-elevated)");
   });
 
+  test("merged branches keep their recovered name as a quiet annotation", () => {
+    const merged: RepoHistory = withHead([
+      { ...commit("m", ["t1", "f"], 0), message: "Merge branch 'feature/auth'" },
+      commit("t1", ["base"], 1),
+      commit("f", ["base"], 2),
+      commit("base", [], 3),
+    ]);
+    const html = renderToStaticMarkup(
+      <GraphView history={merged} layout={layoutGraph(merged)} />,
+    );
+    expect(html).toMatch(/data-ref-type="merged"[^>]*>feature\/auth</);
+  });
+
   test("branch and tag refs render as badges on their rows", () => {
     const html = render(history);
     expect(html).toContain(">main</span>");
