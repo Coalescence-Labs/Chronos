@@ -52,19 +52,21 @@ Chronos/
     PRIVACY.md              # security + ZDR model
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
-  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /styleguide)
+  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /styleguide; /repo/[owner]/[repo] = graph view)
   lib/
-    graph/                  # pure layout engine + normalized model (types.ts) — no DOM/network
+    graph/                  # pure layout engine (layout.ts, hybrid lanes) + normalized model (types.ts) — no DOM/network
     ingest/                 # source adapters -> normalized model (GitHub via BFF)
     ai/                     # empty until decisions #4/#5 resolve
   components/
-    graph/                  # SVG renderer over layout output
+    graph/                  # GraphView: virtualized SVG renderer over layout output
+    repo/                   # RepoScreen (ingest -> layout -> GraphView -> inspector) + RepoUrlForm
     ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
     shell/                  # AppShell (responsive scaffold)
     pwa/                    # service-worker registration
   public/                   # fonts (Satoshi), PWA icons, sw.js
   scripts/                  # generate-icons.ts (regenerates PWA icons from tokens)
-  tests/                    # bun test suites (boundaries, ingest, design tokens, pwa)
+  tests/                    # bun test suites (boundaries, ingest, design tokens, pwa, graph layout/view/pipeline)
+    e2e/                    # Playwright (*.e2e.ts; bun run test:e2e) — phone + laptop projects, BFF mocked
 ```
 Keep this map current as directories are added.
 

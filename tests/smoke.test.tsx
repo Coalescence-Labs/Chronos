@@ -1,8 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import Home from "@/app/page";
 import { layoutGraph, type RepoHistory } from "@/lib/graph";
 import { GraphView } from "@/components/graph/GraphView";
+
+// Home embeds RepoUrlForm, whose useRouter needs the App Router context that
+// plain renderToString doesn't provide.
+mock.module("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
+const { default: Home } = await import("@/app/page");
 
 describe("smoke", () => {
   test("root route renders", () => {
@@ -24,11 +28,12 @@ describe("smoke", () => {
   });
 
   test("GraphView renders a node per placed commit", () => {
-    const layout = layoutGraph({
+    const history: RepoHistory = {
       commits: [{ sha: "a", parents: [], author: "alex", date: "2026-06-08T00:00:00Z", message: "first" }],
       refs: [],
-    });
-    const html = renderToString(<GraphView layout={layout} />);
+    };
+    const layout = layoutGraph(history);
+    const html = renderToString(<GraphView history={history} layout={layout} />);
     expect(html).toContain("<svg");
     expect(html).toContain("<circle");
   });

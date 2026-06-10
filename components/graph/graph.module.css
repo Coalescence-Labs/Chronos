@@ -1,0 +1,141 @@
+/*
+ * Graph viewport: native scroll is the pan gesture; rows + an SVG window are
+ * virtualized and absolutely positioned inside a full-height canvas.
+ */
+
+.root {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.viewport {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* one/two-finger drag pans natively; pinch stays ours (touchmove handler) */
+  touch-action: pan-x pan-y;
+}
+
+.viewport:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+}
+
+.canvas {
+  position: relative;
+  min-width: 100%;
+}
+
+.edges {
+  position: absolute;
+  left: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.row:hover {
+  background: var(--accent-soft);
+}
+
+.row[aria-selected="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.message {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-sm);
+}
+
+.meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+/* The message is the load-bearing text — on phones, author/date yield to it. */
+@media (max-width: 699px) {
+  .byline {
+    display: none;
+  }
+}
+
+.badge {
+  flex-shrink: 0;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+/* Tags read by border style too, not color alone. */
+.badge[data-ref-type="tag"] {
+  border-style: dashed;
+  color: var(--fg-muted);
+  background: none;
+}
+
+.zoomControls {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-2);
+}
+
+.zoomButton {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.zoomButton:hover {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+.zoomReadout {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}

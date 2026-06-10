@@ -1,3 +1,4 @@
+import { RepoUrlForm } from "@/components/repo/RepoUrlForm";
 import { AppShell } from "@/components/shell/AppShell";
 import { PROXY_DISCLOSURE } from "@/lib/ingest";
 import styles from "./page.module.css";
@@ -12,6 +13,7 @@ export default function Home() {
             Chronos turns any repo into a beautiful, legible branch graph. High
             information density, low cognitive load.
           </p>
+          <RepoUrlForm />
           <p className={styles.disclosure}>{PROXY_DISCLOSURE}</p>
         </div>
       </section>
