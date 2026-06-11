@@ -10,13 +10,22 @@ import { IngestError } from "./errors";
 
 export interface IngestResult {
   history: RepoHistory;
-  /** True when the history was cut off at maxPages rather than completed. */
+  /** True while older history exists upstream that isn't loaded yet. */
   truncated: boolean;
+  /**
+   * Lazy paging: fetches one more trunk page (100 commits) into the same
+   * history and resolves with the updated result. Absent once everything is
+   * loaded or the maxPages cap is reached — so the GitHub budget is only
+   * spent on history the user actually scrolls toward.
+   */
+  loadMore?: () => Promise<IngestResult>;
 }
 
 export interface IngestOptions {
-  /** Cap on default-branch commit pages (100 commits each). */
+  /** Hard cap on default-branch commit pages (100 commits each). */
   maxPages?: number;
+  /** Pages loaded eagerly before returning; the rest go through loadMore. */
+  initialPages?: number;
   /**
    * Cap on side branches loaded beyond the default branch (one page each),
    * so every branch ref can appear in the graph, not just the trunk.
@@ -28,6 +37,7 @@ export interface IngestOptions {
 }
 
 export const DEFAULT_MAX_PAGES = 10;
+export const DEFAULT_INITIAL_PAGES = 3;
 export const DEFAULT_MAX_BRANCH_TIPS = 10;
 
 async function getJson<T>(fetchImpl: typeof fetch, url: string): Promise<T> {
@@ -57,24 +67,37 @@ export async function fetchPublicRepoHistory(
   };
   options.onProgress?.(history);
 
-  let nextPage = initial.nextPage;
-  const branch = encodeURIComponent(initial.repo.defaultBranch);
-  while (nextPage !== null && nextPage <= maxPages) {
-    const page = await getJson<CommitsPageResponse>(
-      fetchImpl,
-      `/api/repo/commits?repo=${repoParam}&sha=${branch}&page=${nextPage}`,
-    );
-    for (const commit of page.commits) {
+  const merge = (commits: RepoHistory["commits"]): number => {
+    let added = 0;
+    for (const commit of commits) {
       if (!bySha.has(commit.sha)) {
         bySha.set(commit.sha, commit);
         history.commits.push(commit);
+        added++;
       }
     }
+    return added;
+  };
+
+  let nextPage = initial.nextPage;
+  const branch = encodeURIComponent(initial.repo.defaultBranch);
+
+  const fetchTrunkPage = async (page: number): Promise<number | null> => {
+    const data = await getJson<CommitsPageResponse>(
+      fetchImpl,
+      `/api/repo/commits?repo=${repoParam}&sha=${branch}&page=${page}`,
+    );
+    merge(data.commits);
     options.onProgress?.(history);
-    nextPage = page.nextPage;
+    return data.nextPage;
+  };
+
+  const initialPages = Math.min(options.initialPages ?? DEFAULT_INITIAL_PAGES, maxPages);
+  while (nextPage !== null && nextPage <= initialPages) {
+    nextPage = await fetchTrunkPage(nextPage);
   }
 
-  // Side branches: the default-branch pages only cover trunk history, so
+  // Side branches: the trunk pages only cover default-branch history, so
   // branch tips that haven't merged yet would never load — and a ref without
   // its commit can't appear in the graph. Load one page per missing tip;
   // deeper parents render as open edges until merged history picks them up.
@@ -86,16 +109,23 @@ export async function fetchPublicRepoHistory(
       fetchImpl,
       `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
     );
-    let added = false;
-    for (const commit of page.commits) {
-      if (!bySha.has(commit.sha)) {
-        bySha.set(commit.sha, commit);
-        history.commits.push(commit);
-        added = true;
-      }
-    }
-    if (added) options.onProgress?.(history);
+    if (merge(page.commits) > 0) options.onProgress?.(history);
   }
 
-  return { history, truncated: nextPage !== null };
+  async function loadMore(): Promise<IngestResult> {
+    if (nextPage !== null && nextPage <= maxPages) {
+      nextPage = await fetchTrunkPage(nextPage);
+    }
+    return makeResult();
+  }
+
+  function makeResult(): IngestResult {
+    return {
+      history,
+      truncated: nextPage !== null,
+      loadMore: nextPage !== null && nextPage <= maxPages ? loadMore : undefined,
+    };
+  }
+
+  return makeResult();
 }

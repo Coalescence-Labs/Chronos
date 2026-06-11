@@ -103,9 +103,21 @@ export interface GraphViewProps {
   layout: GraphLayout;
   selectedSha?: string | null;
   onSelect?: (sha: string | null) => void;
+  /**
+   * Fired when the rendered window reaches the oldest loaded rows — the
+   * hook for lazy paging. Re-fires after new rows arrive if still near the
+   * end, so short histories backfill until they outgrow the viewport.
+   */
+  onNearEnd?: () => void;
 }
 
-export function GraphView({ history, layout, selectedSha = null, onSelect }: GraphViewProps) {
+export function GraphView({
+  history,
+  layout,
+  selectedSha = null,
+  onSelect,
+  onNearEnd,
+}: GraphViewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef(1);
   const pendingScrollTop = useRef<number | null>(null);
@@ -305,6 +317,11 @@ export function GraphView({ history, layout, selectedSha = null, onSelect }: Gra
 
   const xOf = (lane: number) => lane * laneWidth + laneWidth / 2;
   const yOf = (row: number) => (row - startRow) * rowHeight + rowHeight / 2;
+
+  const nearEnd = rowCount > 0 && endRow >= rowCount - OVERSCAN_ROWS;
+  useEffect(() => {
+    if (nearEnd) onNearEnd?.();
+  }, [nearEnd, rowCount, onNearEnd]);
 
   const visiblePlacements = layout.placements.slice(startRow, endRow);
   const visibleEdges = layout.edges.filter(

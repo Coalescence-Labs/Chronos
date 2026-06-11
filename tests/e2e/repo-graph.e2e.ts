@@ -38,7 +38,7 @@ const repoResponse = {
 };
 
 async function mockBff(page: Page) {
-  await page.route("**/api/repo*", (route) => {
+  await page.route("**/api/repo**", (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/repo") return route.fulfill({ json: repoResponse });
     return route.fulfill({ json: { commits: [], nextPage: null } });
@@ -123,9 +123,58 @@ test("zoom controls scale the graph and meet the touch-target size", async ({ pa
   expect(rowAfter.height).toBeGreaterThan(rowBefore.height);
 });
 
+test("older pages load lazily as the graph scrolls toward the end", async ({ page }) => {
+  // Four pages of 20: pages 1–3 load eagerly (DEFAULT_INITIAL_PAGES) for 60
+  // commits — taller than any viewport — and page 4 must wait for scroll.
+  const trunkPage = (page: number, last: boolean) =>
+    Array.from({ length: 20 }, (_, j) => {
+      const i = (page - 1) * 20 + j;
+      return commit(`a${i}`, last && i === page * 20 - 1 ? [] : [`a${i + 1}`], i, `Change ${i}`);
+    });
+  const commitsRequests: string[] = [];
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      return route.fulfill({
+        json: {
+          repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+          history: {
+            commits: trunkPage(1, false),
+            refs: [
+              { name: "HEAD", type: "head", sha: "a0" },
+              { name: "main", type: "branch", sha: "a0" },
+            ],
+          },
+          nextPage: 2,
+        },
+      });
+    }
+    const pageNumber = Number(url.searchParams.get("page"));
+    commitsRequests.push(String(pageNumber));
+    return route.fulfill({
+      json: {
+        commits: trunkPage(pageNumber, pageNumber === 4),
+        nextPage: pageNumber === 4 ? null : pageNumber + 1,
+      },
+    });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  // The DOM is virtualized, so assert totals via the listbox label.
+  await expect(page.getByRole("listbox", { name: /60 commits/ })).toBeVisible();
+  await expect(page.getByText("older commits load as you scroll")).toBeVisible();
+  expect(commitsRequests).toEqual(["2", "3"]); // eager pages only
+
+  await graphOf(page).evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await expect(page.getByRole("listbox", { name: /80 commits/ })).toBeVisible();
+  expect(commitsRequests).toEqual(["2", "3", "4"]);
+  await expect(page.getByText("older commits load as you scroll")).toBeHidden();
+});
+
 test("upstream errors surface as a designed error state with retry", async ({ page }) => {
-  await page.unroute("**/api/repo*");
-  await page.route("**/api/repo*", (route) =>
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) =>
     route.fulfill({
       status: 404,
       json: { error: { code: "not-found", message: "That repository doesn't exist or is private." } },

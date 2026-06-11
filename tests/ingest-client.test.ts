@@ -62,14 +62,68 @@ describe("fetchPublicRepoHistory", () => {
     ]);
   });
 
-  test("stops at maxPages and reports truncation", async () => {
+  test("stops at maxPages and reports truncation with no loadMore", async () => {
     const { fetchImpl, calls } = bffMock(initial, {
       2: { commits: [node("c1")], nextPage: 3 },
     });
     const result = await fetchPublicRepoHistory("acme/widgets", { fetchImpl, maxPages: 2 });
     expect(result.truncated).toBe(true);
+    expect(result.loadMore).toBeUndefined();
     expect(result.history.commits).toHaveLength(3);
     expect(calls).toHaveLength(2);
+  });
+
+  test("loads initialPages eagerly, the rest lazily through loadMore", async () => {
+    const { fetchImpl, calls } = bffMock(initial, {
+      2: { commits: [node("c1", ["c0"])], nextPage: 3 },
+      3: { commits: [node("c0", ["b9"])], nextPage: 4 },
+      4: { commits: [node("b9")], nextPage: null },
+    });
+    const first = await fetchPublicRepoHistory("acme/widgets", { fetchImpl, initialPages: 2 });
+    expect(calls).toHaveLength(2); // /api/repo + page 2 only
+    expect(first.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1"]);
+    expect(first.truncated).toBe(true);
+    expect(first.loadMore).toBeDefined();
+
+    const second = await first.loadMore!();
+    expect(calls).toHaveLength(3);
+    expect(second.history).toBe(first.history); // same assembled history
+    expect(second.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0"]);
+    expect(second.loadMore).toBeDefined();
+
+    const third = await second.loadMore!();
+    expect(third.history.commits).toHaveLength(5);
+    expect(third.truncated).toBe(false);
+    expect(third.loadMore).toBeUndefined();
+  });
+
+  test("loadMore stops handing out continuations at the maxPages cap", async () => {
+    const { fetchImpl } = bffMock(initial, {
+      2: { commits: [node("c1")], nextPage: 3 },
+      3: { commits: [node("c0")], nextPage: 4 },
+    });
+    const first = await fetchPublicRepoHistory("acme/widgets", {
+      fetchImpl,
+      initialPages: 2,
+      maxPages: 3,
+    });
+    const second = await first.loadMore!();
+    expect(second.truncated).toBe(true); // page 4 exists upstream…
+    expect(second.loadMore).toBeUndefined(); // …but the cap stops here
+  });
+
+  test("loadMore reports pages to onProgress like the eager path", async () => {
+    const progress: number[] = [];
+    const { fetchImpl } = bffMock(initial, {
+      2: { commits: [node("c1")], nextPage: null },
+    });
+    const first = await fetchPublicRepoHistory("acme/widgets", {
+      fetchImpl,
+      initialPages: 1,
+      onProgress: (history) => progress.push(history.commits.length),
+    });
+    await first.loadMore!();
+    expect(progress).toEqual([2, 3]);
   });
 
   test("loads one page for each branch tip missing from trunk history", async () => {
