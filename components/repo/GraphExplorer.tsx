@@ -26,9 +26,11 @@ export interface GraphExplorerProps {
   owner: string;
   repo: string;
   status?: ReactNode;
+  /** Forwarded to GraphView for lazy paging. */
+  onNearEnd?: () => void;
 }
 
-export function GraphExplorer({ history, owner, repo, status }: GraphExplorerProps) {
+export function GraphExplorer({ history, owner, repo, status, onNearEnd }: GraphExplorerProps) {
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [maxLanes, setMaxLanes] = useState(DEFAULT_MAX_LANES);
 
@@ -73,6 +75,7 @@ export function GraphExplorer({ history, owner, repo, status }: GraphExplorerPro
         layout={layout}
         selectedSha={selectedSha}
         onSelect={setSelectedSha}
+        onNearEnd={onNearEnd}
       />
       <InspectionSurface
         open={selected !== undefined}
