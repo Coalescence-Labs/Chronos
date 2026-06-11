@@ -11,7 +11,7 @@ import { fetchPublicRepoHistory } from "./client";
 import type { IngestOptions, IngestResult } from "./client";
 
 export type { CommitsPageResponse, IngestErrorBody, RepoResponse } from "./api";
-export { DEFAULT_MAX_PAGES, fetchPublicRepoHistory } from "./client";
+export { DEFAULT_MAX_BRANCH_TIPS, DEFAULT_MAX_PAGES, fetchPublicRepoHistory } from "./client";
 export type { IngestOptions, IngestResult } from "./client";
 export { INGEST_ERROR_STATUS, IngestError } from "./errors";
 export type { IngestErrorCode } from "./errors";

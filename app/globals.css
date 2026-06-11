@@ -28,6 +28,16 @@
   --danger-soft: rgba(251, 113, 133, 0.08);
   --selection: rgba(124, 156, 255, 0.3);
 
+  /* ---- color: graph lanes (cycle of 8; pair with shape cues, never color alone) ---- */
+  --lane-0: #7c9cff;
+  --lane-1: #5eead4;
+  --lane-2: #a78bfa;
+  --lane-3: #f9a8d4;
+  --lane-4: #fbbf24;
+  --lane-5: #7dd3fc;
+  --lane-6: #bef264;
+  --lane-7: #fdba74;
+
   /* ---- color: lines & glass ---- */
   --border: rgba(232, 234, 240, 0.08);
   --border-strong: rgba(232, 234, 240, 0.16);
