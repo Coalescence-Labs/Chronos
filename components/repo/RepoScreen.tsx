@@ -160,7 +160,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           {!loaded?.complete && " · loading…"}
           {loaded?.complete &&
             loaded.hasMore &&
-            (loadingMore ? " · loading older commits…" : " · older commits load as you scroll")}
+            (loadingMore && " · loading older commits…")}
           {loaded?.complete &&
             !loaded.hasMore &&
             loaded.truncated &&
