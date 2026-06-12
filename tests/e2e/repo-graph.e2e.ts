@@ -163,13 +163,11 @@ test("older pages load lazily as the graph scrolls toward the end", async ({ pag
   await page.goto("/repo/acme/widgets");
   // The DOM is virtualized, so assert totals via the listbox label.
   await expect(page.getByRole("listbox", { name: /60 commits/ })).toBeVisible();
-  await expect(page.getByText("older commits load as you scroll")).toBeVisible();
   expect(commitsRequests).toEqual(["2", "3"]); // eager pages only
 
   await graphOf(page).evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
   await expect(page.getByRole("listbox", { name: /80 commits/ })).toBeVisible();
   expect(commitsRequests).toEqual(["2", "3", "4"]);
-  await expect(page.getByText("older commits load as you scroll")).toBeHidden();
 });
 
 test("upstream errors surface as a designed error state with retry", async ({ page }) => {

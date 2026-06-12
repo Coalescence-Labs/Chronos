@@ -50,6 +50,7 @@ Chronos/
     ARCHITECTURE.md         # how it's built + OPEN DECISIONS
     DESIGN.md               # visual language + polish bar
     PRIVACY.md              # security + ZDR model
+    adr/                    # decision records (006 = rate limits & caching, proposed)
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
   app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /styleguide; /repo/[owner]/[repo] = graph view; /demo = synthetic graph, no network)
