@@ -3,6 +3,13 @@
  * Organic-futuristic-modernism: dimensional dark default, glass/gradient
  * surfaces, physics-informed motion. Components consume tokens only; no
  * hard-coded colors outside this file (enforced by tests/design-tokens.test.ts).
+ *
+ * Theming: :root carries the dark defaults; [data-theme="light"] below
+ * re-declares every color-bearing token. The boot script in app/layout.tsx
+ * always resolves the stored preference (System via matchMedia) to a concrete
+ * data-theme="dark|light" before first paint, so the attribute selector is
+ * the single light-mode block — no @media (prefers-color-scheme) mirror to
+ * keep in sync (lib/theme.ts owns the resolution logic).
  */
 
 :root {
@@ -103,6 +110,71 @@
   /* ---- interaction ---- */
   --touch-target: 44px;
   --focus-ring: 2px solid var(--accent);
+}
+
+/*
+ * Light theme — not inverted dark: cool paper surfaces with the same accent
+ * family pulled down to AA-legible depths. Lanes keep their dark-theme hue
+ * order (blue, teal, violet, pink, amber, sky, lime, orange) so a repo reads
+ * the same in both themes, but each is deepened to hold ≥3:1 on light
+ * surfaces (contrast enforced by tests/theme.test.ts).
+ */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* ---- color: depth layers (deepest → most raised) ---- */
+  --bg: #f1f4fa;
+  --bg-elevated: #fafbfe;
+  --bg-raised: #ffffff;
+  --fg: #1c2433;
+  --fg-muted: #4a5568;
+  --fg-subtle: #5f6b81;
+
+  /* ---- color: accents & semantics ---- */
+  --accent: #3050c8;
+  --accent-strong: #2440a8;
+  --accent-2: #6d28d9;
+  --success: #0d7d6e;
+  --warning: #9a6700;
+  --danger: #be123c;
+  --on-accent: #ffffff;
+  --accent-soft: rgba(48, 80, 200, 0.09);
+  --danger-soft: rgba(190, 18, 60, 0.08);
+  --selection: rgba(48, 80, 200, 0.22);
+
+  /* ---- color: graph lanes (cycle of 8; pair with shape cues, never color alone) ---- */
+  --lane-0: #3050c8;
+  --lane-1: #0d7d6e;
+  --lane-2: #7c3aed;
+  --lane-3: #db2777;
+  --lane-4: #b45309;
+  --lane-5: #0284c7;
+  --lane-6: #4d7c0f;
+  --lane-7: #c2410c;
+
+  /* ---- color: lines & glass ---- */
+  --border: rgba(28, 36, 51, 0.12);
+  --border-strong: rgba(28, 36, 51, 0.24);
+  --glass-bg: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.45) 45%,
+    rgba(48, 80, 200, 0.05)
+  );
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --aurora: radial-gradient(
+      52rem 30rem at 18% -12%,
+      rgba(48, 80, 200, 0.1),
+      transparent 60%
+    ),
+    radial-gradient(44rem 26rem at 86% -8%, rgba(109, 40, 217, 0.06), transparent 60%),
+    radial-gradient(36rem 24rem at 55% 112%, rgba(13, 125, 110, 0.05), transparent 65%);
+
+  /* ---- elevation / depth: daylight shadows, soft and diffuse ---- */
+  --shadow-1: 0 1px 2px rgba(28, 36, 51, 0.06), 0 2px 8px rgba(28, 36, 51, 0.05);
+  --shadow-2: 0 2px 4px rgba(28, 36, 51, 0.06), 0 10px 28px rgba(28, 36, 51, 0.09);
+  --shadow-3: 0 4px 8px rgba(28, 36, 51, 0.08), 0 24px 56px rgba(28, 36, 51, 0.14);
+  --glow-accent: 0 0 24px rgba(48, 80, 200, 0.18);
 }
 
 * {
