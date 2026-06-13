@@ -84,15 +84,26 @@ describe("GraphView accessibility", () => {
 
   test("branch and tag refs render as badges on their rows", () => {
     const html = render(history);
-    expect(html).toContain(">main</span>");
+    expect(html).toContain(">main</button>"); // branch badges are trace buttons
     expect(html).not.toContain(">HEAD<"); // HEAD duplicates the default branch
-    // Full name survives ellipsis via the tooltip.
-    expect(html).toContain('title="main"');
+  });
+
+  test("branch badges are trace controls; tags are plain markers (COA-84)", () => {
+    const tagged: RepoHistory = {
+      commits: history.commits,
+      refs: [...history.refs, { name: "v1.0.0", type: "tag", sha: "base" }],
+    };
+    const html = renderToStaticMarkup(<GraphView history={tagged} layout={layoutGraph(tagged)} />);
+    // Branch badge: a button that toggles the trace, not yet pressed.
+    expect(html).toMatch(/<button[^>]*data-ref-type="branch"[^>]*aria-pressed="false"[^>]*>main</);
+    expect(html).toContain('title="Trace main"');
+    // Tag badge: a non-interactive span keyed by its own name tooltip.
+    expect(html).toMatch(/<span[^>]*data-ref-type="tag"[^>]*title="v1.0.0"/);
   });
 
   test("branch badges wear their lane's color, tying label to line", () => {
-    const html = render(history); // main on lane 0, f's branch line on lane 1
-    const badge = html.match(/<span[^>]*data-ref-type="branch"[^>]*>main<\/span>/)![0];
+    const html = render(history); // main on lane 0
+    const badge = html.match(/<button[^>]*data-ref-type="branch"[^>]*>main<\/button>/)![0];
     expect(badge).toContain("var(--lane-0)");
   });
 
@@ -112,7 +123,7 @@ describe("GraphView accessibility", () => {
     expect(html).toMatch(/data-branch-role="main"[^>]*>main</);
     expect(html).toMatch(/data-branch-role="develop"[^>]*>develop</);
     // Anchor badges are filled with the lane color (dark text on color).
-    const main = html.match(/<span[^>]*data-branch-role="main"[^>]*>/)![0];
+    const main = html.match(/<button[^>]*data-branch-role="main"[^>]*>/)![0];
     expect(main).toContain("background:var(--lane-0)");
     expect(main).toContain("var(--on-accent)");
     // Short-lived branches and tags get no identity role.

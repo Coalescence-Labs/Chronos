@@ -40,6 +40,31 @@ test("scrolling past a tip pins its badge; clicking it jumps back", async ({ pag
   await expect(graph).toHaveJSProperty("scrollTop", 0);
 });
 
+test("clicking a branch badge traces its line; clicking again clears (COA-84)", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/demo");
+  const graph = page.getByRole("listbox", { name: /commit graph/i });
+  await expect(graph).toBeVisible();
+
+  const develop = page.getByRole("button", { name: /Trace develop/ });
+  if (isMobile) await develop.tap();
+  else await develop.click();
+
+  // Pressed state flips and some rows dim (off-line commits recede).
+  await expect(page.getByRole("button", { name: /Clear trace/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(await page.locator('[role="option"][data-dimmed]').count()).toBeGreaterThan(0);
+
+  const toggled = page.getByRole("button", { name: /Clear trace/ });
+  if (isMobile) await toggled.tap();
+  else await toggled.click();
+  await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
+});
+
 test("the home page links to the demo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /explore the demo repo/ }).click();

@@ -49,9 +49,9 @@ describe("ingestion → layout → render", () => {
     );
     expect(html.split('role="option"').length - 1).toBe(5);
     expect(html).toContain("feat: change for c5");
-    expect(html).toContain(">main</span>");
-    expect(html).toContain(">feature</span>");
-    expect(html).toContain(">v1.0.0</span>");
+    expect(html).toContain(">main</button>"); // branch badges are trace buttons
+    expect(html).toContain(">feature</button>");
+    expect(html).toContain(">v1.0.0</span>"); // tags stay plain markers
   });
 
   test("a heavy-merge history stays within the lane cap and renders", () => {
