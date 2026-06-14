@@ -32,6 +32,39 @@
   color: var(--fg-muted);
 }
 
+/* Glance-mode toggle: pushed to the trailing edge of the header. */
+.glanceToggle {
+  margin-left: auto;
+  align-self: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.glanceToggle:hover:not(:disabled) {
+  color: var(--fg);
+}
+
+.glanceToggle[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.glanceToggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .details {
   margin: 0;
   display: grid;

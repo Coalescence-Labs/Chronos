@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { branchLines, packShelves, pinnedLines } from "@/lib/graph";
-import type { GraphLayout, RepoHistory } from "@/lib/graph";
+import type { Capsule, GraphLayout, RepoHistory } from "@/lib/graph";
 import styles from "./graph.module.css";
 
 /**
@@ -103,6 +103,8 @@ export interface GraphViewProps {
   layout: GraphLayout;
   selectedSha?: string | null;
   onSelect?: (sha: string | null) => void;
+  /** Glance-mode capsules (COA-75), keyed by tip sha — drawn as folded pills. */
+  capsules?: Map<string, Capsule>;
   /**
    * Fired when the rendered window reaches the oldest loaded rows — the
    * hook for lazy paging. Re-fires after new rows arrive if still near the
@@ -116,6 +118,7 @@ export function GraphView({
   layout,
   selectedSha = null,
   onSelect,
+  capsules,
   onNearEnd,
 }: GraphViewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -424,6 +427,26 @@ export function GraphView({
               />
             ))}
             {visiblePlacements.map((placed) => {
+              // Glance capsule: a folded branch — draw a stadium pill, not a
+              // node, so it reads as "several commits collapsed here".
+              if (capsules?.has(placed.sha)) {
+                const w = nodeRadius * 3.2;
+                const h = nodeRadius * 2;
+                return (
+                  <rect
+                    key={placed.sha}
+                    x={xOf(placed.lane) - w / 2}
+                    y={yOf(placed.row) - h / 2}
+                    width={w}
+                    height={h}
+                    rx={h / 2}
+                    fill="var(--bg-elevated)"
+                    stroke={laneColor(placed.lane)}
+                    strokeWidth={2}
+                    strokeDasharray="3 2"
+                  />
+                );
+              }
               const isMerge = (commitsBySha.get(placed.sha)?.parents.length ?? 0) > 1;
               return (
                 <circle
@@ -492,6 +515,11 @@ export function GraphView({
                         </span>
                       );
                     })}
+                  </span>
+                )}
+                {capsules?.has(placed.sha) && (
+                  <span className={styles.capsuleCount}>
+                    {capsules.get(placed.sha)!.commitCount} commits
                   </span>
                 )}
                 <span className={styles.message}>{commit?.message}</span>

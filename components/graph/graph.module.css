@@ -77,6 +77,16 @@
   color: var(--fg-subtle);
 }
 
+/* Glance capsule row marker: "N commits" folded into one node. */
+.capsuleCount {
+  flex-shrink: 0;
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
 /* The message is the load-bearing text — on phones, author/date yield to it. */
 @media (max-width: 699px) {
   .byline {
