@@ -51,6 +51,47 @@
   color: var(--accent);
 }
 
+/* Theme control: segmented pill, one 44px target per choice. */
+.themeToggle {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight);
+}
+
+.themeOption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.themeOption:hover {
+  color: var(--fg);
+}
+
+.themeOption[aria-checked="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.themeOption:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
 .main {
   flex: 1;
   min-height: 0;

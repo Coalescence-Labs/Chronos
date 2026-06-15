@@ -41,8 +41,8 @@ describe("demo page", () => {
   test("renders the graph with no network", () => {
     const html = renderToString(<DemoPage />);
     expect(html).toContain('role="listbox"');
-    expect(html).toContain(">main</span>");
-    expect(html).toContain(">develop</span>");
+    expect(html).toContain(">main</button>");
+    expect(html).toContain(">develop</button>");
     expect(html).toContain("synthetic history");
   });
 });

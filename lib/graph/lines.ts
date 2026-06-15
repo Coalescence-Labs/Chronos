@@ -56,27 +56,41 @@ function refRank(name: string): number {
   return 2;
 }
 
-export function branchLines(history: RepoHistory, layout: GraphLayout): BranchLine[] {
+export interface BranchAttribution {
+  /** All named lines, sorted by tip row. */
+  lines: BranchLine[];
+  /** The owning line for every commit a line claimed (trace/highlight key). */
+  lineBySha: Map<string, BranchLine>;
+}
+
+export function attributeBranches(history: RepoHistory, layout: GraphLayout): BranchAttribution {
   const placementBySha = new Map(layout.placements.map((placed) => [placed.sha, placed]));
   const commitBySha = new Map<string, CommitNode>();
   for (const commit of history.commits) {
     if (!commitBySha.has(commit.sha)) commitBySha.set(commit.sha, commit);
   }
 
-  const claimed = new Set<string>();
+  const lineBySha = new Map<string, BranchLine>();
   const lines: BranchLine[] = [];
 
   const claim = (name: string, source: BranchLine["source"], tipSha: string) => {
     const tip = placementBySha.get(tipSha);
-    if (!tip || claimed.has(tipSha)) return;
-    let lastRow = tip.row;
+    if (!tip || lineBySha.has(tipSha)) return;
+    const line: BranchLine = {
+      name,
+      source,
+      tipSha,
+      tipRow: tip.row,
+      lastRow: tip.row,
+      lane: tip.lane,
+    };
     let sha: string | undefined = tipSha;
-    while (sha !== undefined && placementBySha.has(sha) && !claimed.has(sha)) {
-      claimed.add(sha);
-      lastRow = placementBySha.get(sha)!.row;
+    while (sha !== undefined && placementBySha.has(sha) && !lineBySha.has(sha)) {
+      lineBySha.set(sha, line);
+      line.lastRow = placementBySha.get(sha)!.row;
       sha = commitBySha.get(sha)?.parents[0];
     }
-    lines.push({ name, source, tipSha, tipRow: tip.row, lastRow, lane: tip.lane });
+    lines.push(line);
   };
 
   // Live refs claim first; trunk before develop before everything else, so
@@ -95,7 +109,11 @@ export function branchLines(history: RepoHistory, layout: GraphLayout): BranchLi
     if (name) claim(name, "merge", commit.parents[1]!);
   }
 
-  return lines.sort((a, b) => a.tipRow - b.tipRow);
+  return { lines: lines.sort((a, b) => a.tipRow - b.tipRow), lineBySha };
+}
+
+export function branchLines(history: RepoHistory, layout: GraphLayout): BranchLine[] {
+  return attributeBranches(history, layout).lines;
 }
 
 /**

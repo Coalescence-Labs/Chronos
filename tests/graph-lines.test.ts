@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { branchLines, layoutGraph, mergedBranchName, packShelves, pinnedLines } from "@/lib/graph";
+import {
+  attributeBranches,
+  branchLines,
+  layoutGraph,
+  mergedBranchName,
+  packShelves,
+  pinnedLines,
+} from "@/lib/graph";
 import type { RepoHistory } from "@/lib/graph";
 import { commit, withHead } from "./fixtures/history";
 
@@ -82,6 +89,35 @@ describe("branchLines", () => {
     const lines = branchLines(folded, layoutGraph(folded));
     expect(lines.map((l) => l.name).sort()).toEqual(["develop", "main"]);
     expect(lines.every((l) => l.source === "ref")).toBe(true);
+  });
+});
+
+describe("attributeBranches lineBySha (trace foundation, COA-84)", () => {
+  // m (merge of feature/x via f) ← t1 ← base on main; f ← base.
+  const history = withHead([
+    { ...commit("m", ["t1", "f"], 0), message: "Merge branch 'feature/x'" },
+    commit("t1", ["base"], 1),
+    commit("f", ["base"], 2),
+    commit("base", [], 3),
+  ]);
+  const layout = layoutGraph(history);
+  const { lineBySha } = attributeBranches(history, layout);
+
+  test("every claimed commit maps to its owning line", () => {
+    expect(lineBySha.get("m")!.name).toBe("main");
+    expect(lineBySha.get("t1")!.name).toBe("main");
+    expect(lineBySha.get("base")!.name).toBe("main"); // trunk first-parent chain
+    expect(lineBySha.get("f")!.name).toBe("feature/x"); // recovered merged line
+  });
+
+  test("the merged side commit belongs to the merged line, not the trunk", () => {
+    expect(lineBySha.get("f")).not.toBe(lineBySha.get("m"));
+    // shared identity by reference is how the renderer groups a traced line
+    expect(lineBySha.get("m")).toBe(lineBySha.get("t1"));
+  });
+
+  test("branchLines stays a thin wrapper over attributeBranches", () => {
+    expect(branchLines(history, layout)).toEqual(attributeBranches(history, layout).lines);
   });
 });
 
