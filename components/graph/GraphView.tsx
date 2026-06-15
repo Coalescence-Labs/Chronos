@@ -164,15 +164,14 @@ export function GraphView({
     [layout.placements, selectedSha],
   );
 
-  // Branch trace (COA-84): an explicit badge click pins a line; otherwise the
-  // selected commit's line is traced. The traced line renders at full
-  // strength while everything else dims, so one branch can be followed
-  // through a busy graph.
-  const [tracedTip, setTracedTip] = useState<string | null>(null);
-  const tracedLine = useMemo(() => {
-    const tip = tracedTip ?? selectedSha;
-    return tip ? (lineBySha.get(tip) ?? null) : null;
-  }, [tracedTip, selectedSha, lineBySha]);
+  // Branch trace (COA-84): the selected commit's line is highlighted while
+  // everything else dims, so one branch can be followed through a busy graph.
+  // Selection is the single source of truth — clicking a branch badge selects
+  // its tip — so toggling/clearing can never resurrect a stale highlight.
+  const tracedLine = useMemo(
+    () => (selectedSha ? (lineBySha.get(selectedSha) ?? null) : null),
+    [selectedSha, lineBySha],
+  );
   const tracedShas = useMemo(() => {
     if (!tracedLine) return null;
     const shas = new Set<string>();
@@ -185,9 +184,11 @@ export function GraphView({
   const edgeDimmed = (fromSha: string, toSha: string, kind: EdgeKind) =>
     tracedLine !== null && lineBySha.get(kind === "merge" ? toSha : fromSha) !== tracedLine;
 
-  const toggleTrace = useCallback((tip: string) => {
-    setTracedTip((prev) => (prev === tip ? null : tip));
-  }, []);
+  // Clicking a branch badge selects/deselects its tip (which traces the line).
+  const toggleTrace = useCallback(
+    (tip: string) => onSelect?.(tip === selectedSha ? null : tip),
+    [onSelect, selectedSha],
+  );
 
   /** Zoom keeping the content under `anchorY` (viewport px) stationary. */
   const setZoomAnchored = useCallback((nextRaw: number, anchorY?: number) => {
@@ -266,6 +267,17 @@ export function GraphView({
     };
   }, [setZoomAnchored]);
 
+  // Escape clears the trace from anywhere, not just when the graph is focused
+  // (you trace a branch, then reach for Escape without clicking back in).
+  useEffect(() => {
+    if (!selectedSha) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onSelect?.(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selectedSha, onSelect]);
+
   const handleScroll = useCallback(() => {
     if (scrollFrame.current) return;
     scrollFrame.current = requestAnimationFrame(() => {
@@ -301,7 +313,6 @@ export function GraphView({
     (event: React.KeyboardEvent) => {
       if (rowCount === 0) return;
       if (event.key === "Escape") {
-        setTracedTip(null);
         onSelect?.(null);
         return;
       }
@@ -385,6 +396,9 @@ export function GraphView({
         tabIndex={0}
         onScroll={handleScroll}
         onKeyDown={handleKeyDown}
+        // Clicking empty graph space (rows and badges stopPropagation) clears
+        // the selection/trace back to the default view.
+        onClick={() => onSelect?.(null)}
       >
         {pinned.length > 0 && (
           // Sticky badges: redundant with the real ref rows (which stay the
@@ -405,8 +419,9 @@ export function GraphView({
                     borderColor: laneColor(line.lane),
                   }}
                   title={`${line.name} — jump to the tip`}
-                  onClick={() => {
-                    setTracedTip(line.tipSha);
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelect?.(line.tipSha);
                     scrollToRow(line.tipRow);
                   }}
                 >
@@ -495,7 +510,10 @@ export function GraphView({
                 className={styles.row}
                 data-dimmed={isDimmed(placed.sha) || undefined}
                 style={{ top: placed.row * rowHeight, height: rowHeight, paddingLeft: padLeft }}
-                onClick={() => onSelect?.(placed.sha === selectedSha ? null : placed.sha)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelect?.(placed.sha === selectedSha ? null : placed.sha);
+                }}
               >
                 {labels && (
                   <span className={styles.refs} style={{ left: refsLeft }}>

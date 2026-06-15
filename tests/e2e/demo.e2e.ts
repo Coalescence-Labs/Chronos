@@ -65,6 +65,39 @@ test("clicking a branch badge traces its line; clicking again clears (COA-84)", 
   await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
 });
 
+test("switching branches then untoggling clears — no stale highlight resurfaces", async ({
+  page,
+}) => {
+  await page.goto("/demo");
+  await expect(page.getByRole("listbox", { name: /commit graph/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /Trace main/ }).click();
+  await page.getByRole("button", { name: /Trace develop/ }).click(); // switch
+  await expect(page.getByRole("button", { name: /Clear trace of develop/ })).toBeVisible();
+  // Untoggle the active branch → back to default, NOT back to main.
+  await page.getByRole("button", { name: /Clear trace of develop/ }).click();
+  await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Clear trace/ })).toHaveCount(0);
+});
+
+test("clicking empty graph space and Escape both clear the trace", async ({ page }) => {
+  await page.goto("/demo");
+  const graph = page.getByRole("listbox", { name: /commit graph/i });
+  await expect(graph).toBeVisible();
+
+  // Background click clears.
+  await page.getByRole("button", { name: /Trace develop/ }).click();
+  await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
+  await graph.click({ position: { x: 5, y: 5 } }); // empty top-left gutter
+  await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
+
+  // Escape clears, even without clicking back into the graph first.
+  await page.getByRole("button", { name: /Trace develop/ }).click();
+  await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
+});
+
 test("the home page links to the demo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /explore the demo repo/ }).click();
