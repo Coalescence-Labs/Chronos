@@ -7,7 +7,7 @@
  * keep them in sync when the palette changes (tests/theme.test.ts checks).
  */
 export const CHROME_BG = "#0a0c10";
-export const CHROME_BG_LIGHT = "#f1f4fa";
+export const CHROME_BG_LIGHT = "#f7f4ed";
 
 /** localStorage key for the persisted preference. The single source of truth. */
 export const THEME_STORAGE_KEY = "chronos-theme";
