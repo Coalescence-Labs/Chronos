@@ -8,8 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { branchLines, packShelves, pinnedLines } from "@/lib/graph";
-import type { GraphLayout, RepoHistory } from "@/lib/graph";
+import { attributeBranches, packShelves, pinnedLines } from "@/lib/graph";
+import type { EdgeKind, GraphLayout, RepoHistory } from "@/lib/graph";
 import styles from "./graph.module.css";
 
 /**
@@ -136,7 +136,10 @@ export function GraphView({
     () => new Map(history.commits.map((commit) => [commit.sha, commit])),
     [history.commits],
   );
-  const lines = useMemo(() => branchLines(history, layout), [history, layout]);
+  const { lines, lineBySha } = useMemo(
+    () => attributeBranches(history, layout),
+    [history, layout],
+  );
 
   const labelsBySha = useMemo(() => {
     const map = new Map<string, RefLabel[]>();
@@ -159,6 +162,32 @@ export function GraphView({
   const selectedRow = useMemo(
     () => (selectedSha ? layout.placements.findIndex((p) => p.sha === selectedSha) : -1),
     [layout.placements, selectedSha],
+  );
+
+  // Branch trace (COA-84): the selected commit's line is highlighted while
+  // everything else dims, so one branch can be followed through a busy graph.
+  // Selection is the single source of truth — clicking a branch badge selects
+  // its tip — so toggling/clearing can never resurrect a stale highlight.
+  const tracedLine = useMemo(
+    () => (selectedSha ? (lineBySha.get(selectedSha) ?? null) : null),
+    [selectedSha, lineBySha],
+  );
+  const tracedShas = useMemo(() => {
+    if (!tracedLine) return null;
+    const shas = new Set<string>();
+    for (const [sha, line] of lineBySha) if (line === tracedLine) shas.add(sha);
+    return shas;
+  }, [tracedLine, lineBySha]);
+  const isDimmed = (sha: string) => tracedShas !== null && !tracedShas.has(sha);
+  // Edge ownership: first-parent edges belong to the child's line; merge
+  // edges (and the fork-point join) belong to the merged branch's line.
+  const edgeDimmed = (fromSha: string, toSha: string, kind: EdgeKind) =>
+    tracedLine !== null && lineBySha.get(kind === "merge" ? toSha : fromSha) !== tracedLine;
+
+  // Clicking a branch badge selects/deselects its tip (which traces the line).
+  const toggleTrace = useCallback(
+    (tip: string) => onSelect?.(tip === selectedSha ? null : tip),
+    [onSelect, selectedSha],
   );
 
   /** Zoom keeping the content under `anchorY` (viewport px) stationary. */
@@ -237,6 +266,17 @@ export function GraphView({
       el.removeEventListener("touchmove", onTouchMove);
     };
   }, [setZoomAnchored]);
+
+  // Escape clears the trace from anywhere, not just when the graph is focused
+  // (you trace a branch, then reach for Escape without clicking back in).
+  useEffect(() => {
+    if (!selectedSha) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onSelect?.(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selectedSha, onSelect]);
 
   const handleScroll = useCallback(() => {
     if (scrollFrame.current) return;
@@ -356,6 +396,9 @@ export function GraphView({
         tabIndex={0}
         onScroll={handleScroll}
         onKeyDown={handleKeyDown}
+        // Clicking empty graph space (rows and badges stopPropagation) clears
+        // the selection/trace back to the default view.
+        onClick={() => onSelect?.(null)}
       >
         {pinned.length > 0 && (
           // Sticky badges: redundant with the real ref rows (which stay the
@@ -376,7 +419,11 @@ export function GraphView({
                     borderColor: laneColor(line.lane),
                   }}
                   title={`${line.name} — jump to the tip`}
-                  onClick={() => scrollToRow(line.tipRow)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelect?.(line.tipSha);
+                    scrollToRow(line.tipRow);
+                  }}
                 >
                   ↑ {line.name}
                 </span>
@@ -407,6 +454,7 @@ export function GraphView({
                 stroke={laneColor(edge.viaLane)}
                 strokeWidth={edgeWidth}
                 strokeLinecap="round"
+                opacity={edgeDimmed(edge.fromSha, edge.toSha, edge.kind) ? 0.12 : 1}
               />
             ))}
             {visibleOpenEdges.map((edge) => (
@@ -420,7 +468,7 @@ export function GraphView({
                 strokeWidth={edgeWidth}
                 strokeDasharray="2 5"
                 strokeLinecap="round"
-                opacity={0.55}
+                opacity={isDimmed(edge.fromSha) ? 0.1 : 0.55}
               />
             ))}
             {visiblePlacements.map((placed) => {
@@ -434,6 +482,7 @@ export function GraphView({
                   fill={isMerge ? "var(--bg-elevated)" : laneColor(placed.lane)}
                   stroke={laneColor(placed.lane)}
                   strokeWidth={isMerge ? 2 : 0}
+                  opacity={isDimmed(placed.sha) ? 0.18 : 1}
                 />
               );
             })}
@@ -459,8 +508,12 @@ export function GraphView({
                 aria-posinset={placed.row + 1}
                 aria-setsize={rowCount}
                 className={styles.row}
+                data-dimmed={isDimmed(placed.sha) || undefined}
                 style={{ top: placed.row * rowHeight, height: rowHeight, paddingLeft: padLeft }}
-                onClick={() => onSelect?.(placed.sha === selectedSha ? null : placed.sha)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelect?.(placed.sha === selectedSha ? null : placed.sha);
+                }}
               >
                 {labels && (
                   <span className={styles.refs} style={{ left: refsLeft }}>
@@ -479,17 +532,40 @@ export function GraphView({
                           : role
                             ? { background: color, borderColor: color, color: "var(--on-accent)" }
                             : { color, borderColor: color };
+                      // Tags are point markers; branch/merged labels name a
+                      // line, so clicking one traces it (COA-84).
+                      if (label.type === "tag") {
+                        return (
+                          <span
+                            key={label.name}
+                            className={styles.badge}
+                            data-ref-type={label.type}
+                            title={label.name}
+                          >
+                            {label.name}
+                          </span>
+                        );
+                      }
+                      const traced = tracedLine?.tipSha === placed.sha;
                       return (
-                        <span
+                        <button
                           key={label.name}
+                          type="button"
                           className={styles.badge}
                           data-ref-type={label.type}
                           data-branch-role={role}
-                          title={label.name}
+                          data-traced={traced || undefined}
+                          title={traced ? `${label.name} — clear trace` : `Trace ${label.name}`}
+                          aria-label={traced ? `Clear trace of ${label.name}` : `Trace ${label.name}`}
+                          aria-pressed={traced}
                           style={identity}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleTrace(placed.sha);
+                          }}
                         >
                           {label.name}
-                        </span>
+                        </button>
                       );
                     })}
                   </span>
