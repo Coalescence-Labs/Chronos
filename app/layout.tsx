@@ -30,7 +30,8 @@ export default function RootLayout({
     // before React hydrates, which is an intentional server/client mismatch.
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Applies the persisted theme before first paint — see lib/theme.ts. */}
+        {/* Applies the persisted theme + sets the single theme-color meta
+            before first paint — see lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <Analytics />
       </head>

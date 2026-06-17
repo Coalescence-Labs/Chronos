@@ -189,18 +189,29 @@
   box-sizing: border-box;
 }
 
+/* Solid theme background on the root so the mobile safe-area bands (under the
+   status bar and the home indicator) are the theme color, not black. */
+html {
+  background-color: var(--bg);
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--bg);
-  background-image: var(--aurora);
-  background-attachment: fixed;
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-base);
   -webkit-font-smoothing: antialiased;
+}
+
+/* The aurora lives on the body. No `background-attachment: fixed` — iOS Safari
+   mishandles it and can leave the safe areas unpainted (black). */
+body {
+  min-height: 100dvh;
+  background-color: var(--bg);
+  background-image: var(--aurora);
 }
 
 ::selection {
