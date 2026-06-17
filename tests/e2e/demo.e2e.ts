@@ -16,9 +16,10 @@ test("the demo repo renders and inspects without any network", async ({ page, is
   await expect(page.getByText("main", { exact: true })).toBeVisible();
   await expect(page.getByText("develop", { exact: true })).toBeVisible();
 
-  const row = page.getByRole("option", { name: /Release v0\.3\.0/ });
-  if (isMobile) await row.tap();
-  else await row.click();
+  // The message/hash side of a row opens the commit view (the graph side traces).
+  const message = page.getByText("Release v0.3.0", { exact: true });
+  if (isMobile) await message.tap();
+  else await message.click();
   await expect(page.getByRole("complementary", { name: /Commit/ })).toContainText("v0.3.0");
 
   expect(apiCalls).toBe(0);
@@ -106,22 +107,51 @@ test("switching branches then untoggling clears — no stale highlight resurface
   await expect(page.getByRole("button", { name: /Clear trace/ })).toHaveCount(0);
 });
 
-test("clicking empty graph space and Escape both clear the trace", async ({ page }) => {
+test("Escape clears an active trace from anywhere", async ({ page }) => {
   await page.goto("/demo");
-  const graph = page.getByRole("listbox", { name: /commit graph/i });
-  await expect(graph).toBeVisible();
+  await expect(page.getByRole("listbox", { name: /commit graph/i })).toBeVisible();
 
-  // Background click clears.
-  await page.getByRole("button", { name: /Trace develop/ }).click();
-  await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
-  await graph.click({ position: { x: 5, y: 5 } }); // empty top-left gutter
-  await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
-
-  // Escape clears, even without clicking back into the graph first.
   await page.getByRole("button", { name: /Trace develop/ }).click();
   await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
+});
+
+test("the graph side of a row traces; the message side opens the commit", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/demo");
+  const release = page.getByRole("option", { name: /Release v0\.4\.0/ });
+  const box = (await release.boundingBox())!;
+
+  // Tap the far-left graph/lane gutter → highlights the branch (no commit view).
+  if (isMobile) await release.tap({ position: { x: 4, y: box.height / 2 } });
+  else await release.click({ position: { x: 4, y: box.height / 2 } });
+  await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
+  await expect(page.getByRole("complementary", { name: /Commit/ })).toBeHidden();
+
+  // Tap the message text → opens the commit view.
+  const message = page.getByText("Release v0.4.0", { exact: true });
+  if (isMobile) await message.tap();
+  else await message.click();
+  await expect(page.getByRole("complementary", { name: /Commit/ })).toBeVisible();
+});
+
+test("long-press a commit peeks it (no commit view); Escape collapses", async ({ page }) => {
+  await page.goto("/demo");
+  const row = page.getByRole("option", { name: /Spike: summarize a branch with ZDR-only AI/ });
+  await expect(row).toBeVisible();
+  await expect(row).not.toHaveAttribute("data-expanded", "true");
+
+  // Long-press: pointer down, hold past the 450ms threshold, release.
+  await row.dispatchEvent("pointerdown", { clientX: 300, clientY: 0 });
+  await expect(row).toHaveAttribute("data-expanded", "true"); // peeked inline…
+  await row.dispatchEvent("pointerup", {});
+  await expect(page.getByRole("complementary", { name: /Commit/ })).toBeHidden(); // …no overlay
+
+  await page.keyboard.press("Escape");
+  await expect(row).not.toHaveAttribute("data-expanded", "true"); // collapsed
 });
 
 test("the home page links to the demo", async ({ page }) => {

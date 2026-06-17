@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { GraphView } from "@/components/graph/GraphView";
 import { InspectionSurface } from "@/components/ui";
@@ -36,6 +36,7 @@ export interface GraphExplorerProps {
 export function GraphExplorer({ history, owner, repo, status, onNearEnd }: GraphExplorerProps) {
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [glance, setGlance] = useState(false);
+  const [reflowing, setReflowing] = useState(false);
   const [maxLanes, setMaxLanes] = useState(DEFAULT_MAX_LANES);
 
   useEffect(() => {
@@ -45,6 +46,20 @@ export function GraphExplorer({ history, owner, repo, status, onNearEnd }: Graph
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  // Toggling Glance restructures the graph: rows/nodes glide to new positions
+  // while the edges (whose paths can't tween) fade out and reform. `reflowing`
+  // marks that brief window. Skips the initial mount.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    setReflowing(true);
+    const timer = setTimeout(() => setReflowing(false), 280);
+    return () => clearTimeout(timer);
+  }, [glance]);
 
   // One glance transform per history; reused to both gate the toggle (applied
   // is false when no default branch) and supply the glanced view when on.
@@ -99,6 +114,7 @@ export function GraphExplorer({ history, owner, repo, status, onNearEnd }: Graph
         history={view}
         layout={layout}
         capsules={capsules}
+        reflowing={reflowing}
         selectedSha={selectedSha}
         onSelect={setSelectedSha}
         onNearEnd={onNearEnd}

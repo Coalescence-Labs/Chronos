@@ -105,6 +105,9 @@ export interface GraphViewProps {
   onSelect?: (sha: string | null) => void;
   /** Glance-mode capsules (COA-75), keyed by tip sha — drawn as folded pills. */
   capsules?: Map<string, Capsule>;
+  /** True briefly while a Glance toggle restructures the graph: edges fade so
+   *  they reform instead of snapping while nodes/rows glide to new positions. */
+  reflowing?: boolean;
   /**
    * Fired when the rendered window reaches the oldest loaded rows — the
    * hook for lazy paging. Re-fires after new rows arrive if still near the
@@ -119,6 +122,7 @@ export function GraphView({
   selectedSha = null,
   onSelect,
   capsules,
+  reflowing = false,
   onNearEnd,
 }: GraphViewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -133,7 +137,6 @@ export function GraphView({
   const laneWidth = BASE_LANE_WIDTH * zoom;
   const graphWidth = Math.max(layout.laneCount, 1) * laneWidth + laneWidth / 2;
   const rowCount = layout.placements.length;
-  const totalHeight = Math.max(rowCount, 1) * rowHeight;
 
   const commitsBySha = useMemo(
     () => new Map(history.commits.map((commit) => [commit.sha, commit])),
@@ -169,11 +172,15 @@ export function GraphView({
 
   // Branch trace (COA-84): the selected commit's line is highlighted while
   // everything else dims, so one branch can be followed through a busy graph.
-  // Selection is the single source of truth — clicking a branch badge selects
-  // its tip — so toggling/clearing can never resurrect a stale highlight.
+  // everything else dims. Trace is its own state (a branch tip), separate
+  // from commit selection: tapping the graph/lane side of a row or a branch
+  // badge highlights the branch; tapping the message/hash side opens the
+  // commit. Being the single highlight source (no fallback to selection)
+  // keeps toggling clean — untoggling never resurrects a stale line.
+  const [tracedTip, setTracedTip] = useState<string | null>(null);
   const tracedLine = useMemo(
-    () => (selectedSha ? (lineBySha.get(selectedSha) ?? null) : null),
-    [selectedSha, lineBySha],
+    () => (tracedTip ? (lineBySha.get(tracedTip) ?? null) : null),
+    [tracedTip, lineBySha],
   );
   const tracedShas = useMemo(() => {
     if (!tracedLine) return null;
@@ -187,11 +194,65 @@ export function GraphView({
   const edgeDimmed = (fromSha: string, toSha: string, kind: EdgeKind) =>
     tracedLine !== null && lineBySha.get(kind === "merge" ? toSha : fromSha) !== tracedLine;
 
-  // Clicking a branch badge selects/deselects its tip (which traces the line).
-  const toggleTrace = useCallback(
-    (tip: string) => onSelect?.(tip === selectedSha ? null : tip),
-    [onSelect, selectedSha],
+  // Trace the line a commit belongs to (toggle); used by the graph/lane side
+  // of a row and by branch badges. No-op for commits on no named line.
+  const traceCommit = useCallback(
+    (sha: string) => {
+      const tip = lineBySha.get(sha)?.tipSha;
+      if (tip) setTracedTip((prev) => (prev === tip ? null : tip));
+    },
+    [lineBySha],
   );
+  const toggleTrace = useCallback((tip: string) => {
+    setTracedTip((prev) => (prev === tip ? null : tip));
+  }, []);
+
+  // Long-press peeks the full (otherwise-ellipsized) subject inline, without
+  // opening the commit view — useful on phones where subjects truncate. The
+  // expanded row grows and pushes the rows/nodes below it down (real reflow),
+  // so `expandedExtra` (measured) feeds the row→y mapping used by both layers.
+  const [expandedSha, setExpandedSha] = useState<string | null>(null);
+  const [measuredHeight, setMeasuredHeight] = useState(0);
+  const expandedRow = useMemo(
+    () => (expandedSha ? layout.placements.findIndex((p) => p.sha === expandedSha) : -1),
+    [expandedSha, layout.placements],
+  );
+  // Callback ref on the expanded row measures its grown height in the commit
+  // phase (before paint, no flash) — not a layout effect, so no setState-in-
+  // effect cascade. The subject font doesn't scale with zoom, so the measured
+  // height stays valid; the px gap below is derived against the live rowHeight.
+  const measureExpanded = useCallback((el: HTMLDivElement | null) => {
+    if (el) setMeasuredHeight(el.offsetHeight);
+  }, []);
+  const expandedExtra = expandedRow >= 0 ? Math.max(0, measuredHeight - rowHeight) : 0;
+
+  const clearAll = useCallback(() => {
+    setTracedTip(null);
+    setExpandedSha(null);
+    onSelect?.(null);
+  }, [onSelect]);
+
+  const pressTimer = useRef(0);
+  const pressOrigin = useRef<{ x: number; y: number; sha: string } | null>(null);
+  const suppressClick = useRef(false);
+
+  const startPress = useCallback((sha: string, event: React.PointerEvent) => {
+    pressOrigin.current = { x: event.clientX, y: event.clientY, sha };
+    suppressClick.current = false;
+    clearTimeout(pressTimer.current);
+    pressTimer.current = window.setTimeout(() => {
+      suppressClick.current = true; // swallow the click that follows the press
+      setExpandedSha((prev) => (prev === sha ? null : sha));
+    }, 450);
+  }, []);
+  const movePress = useCallback((event: React.PointerEvent) => {
+    const origin = pressOrigin.current;
+    if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) {
+      clearTimeout(pressTimer.current);
+    }
+  }, []);
+  const endPress = useCallback(() => clearTimeout(pressTimer.current), []);
+  useEffect(() => () => clearTimeout(pressTimer.current), []);
 
   /** Zoom keeping the content under `anchorY` (viewport px) stationary. */
   const setZoomAnchored = useCallback((nextRaw: number, anchorY?: number) => {
@@ -270,18 +331,22 @@ export function GraphView({
     };
   }, [setZoomAnchored]);
 
-  // Escape clears the trace from anywhere, not just when the graph is focused
-  // (you trace a branch, then reach for Escape without clicking back in).
+  // Escape clears trace/selection/peek from anywhere, not just when the graph
+  // is focused (you trace a branch, then reach for Escape without clicking in).
   useEffect(() => {
-    if (!selectedSha) return;
+    if (!selectedSha && !tracedTip && !expandedSha) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onSelect?.(null);
+      if (event.key !== "Escape") return;
+      setTracedTip(null);
+      setExpandedSha(null);
+      onSelect?.(null);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [selectedSha, onSelect]);
+  }, [selectedSha, tracedTip, expandedSha, onSelect]);
 
   const handleScroll = useCallback(() => {
+    setExpandedSha(null); // a peek doesn't follow the scroll — collapse it
     if (scrollFrame.current) return;
     scrollFrame.current = requestAnimationFrame(() => {
       scrollFrame.current = 0;
@@ -316,7 +381,7 @@ export function GraphView({
     (event: React.KeyboardEvent) => {
       if (rowCount === 0) return;
       if (event.key === "Escape") {
-        onSelect?.(null);
+        clearAll();
         return;
       }
       const pageRows = Math.max(1, Math.floor(viewportHeight / rowHeight) - 1);
@@ -347,7 +412,7 @@ export function GraphView({
       onSelect?.(layout.placements[next]!.sha);
       scrollRowIntoView(next);
     },
-    [rowCount, viewportHeight, rowHeight, selectedRow, layout.placements, onSelect, scrollRowIntoView],
+    [rowCount, viewportHeight, rowHeight, selectedRow, layout.placements, onSelect, scrollRowIntoView, clearAll],
   );
 
   const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS);
@@ -355,11 +420,20 @@ export function GraphView({
     rowCount,
     Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS,
   );
-  const windowTop = startRow * rowHeight;
-  const windowHeight = Math.max(endRow - startRow, 1) * rowHeight;
+  // An expanded (long-press) row adds `expandedExtra` px; rows and graph nodes
+  // below it shift down by that, so both layers reflow together.
+  const offsetBelow = (row: number) =>
+    expandedRow >= 0 && row > expandedRow ? expandedExtra : 0;
+  const rowTop = (row: number) => row * rowHeight + offsetBelow(row);
+  const totalHeight = Math.max(
+    rowCount * rowHeight + (expandedRow >= 0 ? expandedExtra : 0),
+    rowHeight,
+  );
+  const windowTop = rowTop(startRow);
+  const windowHeight = Math.max(rowTop(endRow) - windowTop, rowHeight);
 
   const xOf = (lane: number) => lane * laneWidth + laneWidth / 2;
-  const yOf = (row: number) => (row - startRow) * rowHeight + rowHeight / 2;
+  const yOf = (row: number) => rowTop(row) - windowTop + rowHeight / 2;
 
   const nearEnd = rowCount > 0 && endRow >= rowCount - OVERSCAN_ROWS;
   useEffect(() => {
@@ -401,7 +475,7 @@ export function GraphView({
         onKeyDown={handleKeyDown}
         // Clicking empty graph space (rows and badges stopPropagation) clears
         // the selection/trace back to the default view.
-        onClick={() => onSelect?.(null)}
+        onClick={() => clearAll()}
       >
         {pinned.length > 0 && (
           // Sticky badges: redundant with the real ref rows (which stay the
@@ -434,7 +508,10 @@ export function GraphView({
             )}
           </div>
         )}
-        <div className={styles.canvas} style={{ height: totalHeight }}>
+        <div
+          className={`${styles.canvas}${reflowing ? ` ${styles.reflowing}` : ""}`}
+          style={{ height: totalHeight }}
+        >
           <svg
             className={styles.edges}
             style={{ top: windowTop }}
@@ -457,7 +534,7 @@ export function GraphView({
                 stroke={laneColor(edge.viaLane)}
                 strokeWidth={edgeWidth}
                 strokeLinecap="round"
-                opacity={edgeDimmed(edge.fromSha, edge.toSha, edge.kind) ? 0.12 : 1}
+                opacity={reflowing ? 0 : edgeDimmed(edge.fromSha, edge.toSha, edge.kind) ? 0.12 : 1}
               />
             ))}
             {visibleOpenEdges.map((edge) => (
@@ -471,7 +548,7 @@ export function GraphView({
                 strokeWidth={edgeWidth}
                 strokeDasharray="2 5"
                 strokeLinecap="round"
-                opacity={isDimmed(edge.fromSha) ? 0.1 : 0.55}
+                opacity={reflowing ? 0 : isDimmed(edge.fromSha) ? 0.1 : 0.55}
               />
             ))}
             {visiblePlacements.map((placed) => {
@@ -483,6 +560,7 @@ export function GraphView({
                 return (
                   <rect
                     key={placed.sha}
+                    className={styles.node}
                     x={xOf(placed.lane) - w / 2}
                     y={yOf(placed.row) - h / 2}
                     width={w}
@@ -493,6 +571,7 @@ export function GraphView({
                     strokeWidth={2}
                     strokeDasharray="3 2"
                     opacity={isDimmed(placed.sha) ? 0.18 : 1}
+                    style={{ transform: placed.sha === selectedSha ? "scale(1.3)" : undefined }}
                   />
                 );
               }
@@ -500,6 +579,7 @@ export function GraphView({
               return (
                 <circle
                   key={placed.sha}
+                  className={styles.node}
                   cx={xOf(placed.lane)}
                   cy={yOf(placed.row)}
                   r={nodeRadius}
@@ -507,6 +587,7 @@ export function GraphView({
                   stroke={laneColor(placed.lane)}
                   strokeWidth={isMerge ? 2 : 0}
                   opacity={isDimmed(placed.sha) ? 0.18 : 1}
+                  style={{ transform: placed.sha === selectedSha ? "scale(1.6)" : undefined }}
                 />
               );
             })}
@@ -527,16 +608,39 @@ export function GraphView({
               <div
                 key={placed.sha}
                 id={`gv-${placed.sha}`}
+                ref={placed.sha === expandedSha ? measureExpanded : undefined}
                 role="option"
                 aria-selected={placed.sha === selectedSha}
                 aria-posinset={placed.row + 1}
                 aria-setsize={rowCount}
-                className={styles.row}
+                className={`${styles.row}${placed.sha === expandedSha ? ` ${styles.expanded}` : ""}`}
                 data-dimmed={isDimmed(placed.sha) || undefined}
-                style={{ top: placed.row * rowHeight, height: rowHeight, paddingLeft: padLeft }}
+                data-expanded={placed.sha === expandedSha || undefined}
+                style={{
+                  top: rowTop(placed.row),
+                  height: placed.sha === expandedSha ? undefined : rowHeight,
+                  minHeight: rowHeight,
+                  paddingLeft: padLeft,
+                }}
+                onPointerDown={(event) => startPress(placed.sha, event)}
+                onPointerMove={movePress}
+                onPointerUp={endPress}
+                onPointerLeave={endPress}
+                onContextMenu={(event) => event.preventDefault()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onSelect?.(placed.sha === selectedSha ? null : placed.sha);
+                  if (suppressClick.current) {
+                    suppressClick.current = false; // this click ended a long-press
+                    return;
+                  }
+                  // A normal click while a peek is open collapses it first
+                  // (clicking any other commit/branch dismisses the expansion).
+                  if (expandedSha) setExpandedSha(null);
+                  // Graph/lane side highlights the branch; the message/hash
+                  // side opens the commit (touch-friendly split, COA mobile).
+                  const x = event.clientX - event.currentTarget.getBoundingClientRect().left;
+                  if (x < padLeft) traceCommit(placed.sha);
+                  else onSelect?.(placed.sha === selectedSha ? null : placed.sha);
                 }}
               >
                 {labels && (
