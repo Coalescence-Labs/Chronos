@@ -178,6 +178,53 @@ test("the commit hash is hidden in the row meta on phones", async ({ page, isMob
   await expect(row.locator("text=/^[0-9a-f]{7}$/")).toHaveCount(0);
 });
 
+test("theme toggle collapses to an icon on phones and expands on tap", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "the collapse behavior is phone-only");
+  await page.goto("/demo");
+
+  const trigger = page.getByRole("button", { name: /Change theme/ });
+  await expect(trigger).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Light theme" })).toBeHidden();
+
+  await trigger.tap();
+  const light = page.getByRole("radio", { name: "Light theme" });
+  await expect(light).toBeVisible();
+  await light.tap();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  // Stays open after selecting; tapping elsewhere collapses it.
+  await page.getByRole("heading", { level: 1 }).tap();
+  await expect(page.getByRole("radio", { name: "Light theme" })).toBeHidden();
+  await expect(trigger).toBeVisible();
+});
+
+test("theme toggle stays fully expanded on wide screens", async ({ page, isMobile }) => {
+  test.skip(isMobile, "wide screens never collapse the toggle");
+  await page.goto("/demo");
+  for (const name of ["System theme", "Dark theme", "Light theme"]) {
+    await expect(page.getByRole("radio", { name })).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: /Change theme/ })).toBeHidden();
+});
+
+test("the theme-color meta tracks the active theme (mobile status bar)", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "uses the always-expanded desktop toggle to switch themes");
+  await page.goto("/demo");
+  const meta = page.locator('meta[name="theme-color"]');
+  await expect(meta).toHaveCount(1); // exactly one, JS-managed
+
+  await page.getByRole("radio", { name: "Dark theme" }).click();
+  await expect(meta).toHaveAttribute("content", "#0a0c10"); // --bg dark
+  await page.getByRole("radio", { name: "Light theme" }).click();
+  await expect(meta).toHaveAttribute("content", "#f7f4ed"); // --bg light (Sumi-e paper)
+});
+
 test("the home page links to the demo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /explore the demo repo/ }).click();

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   isThemePreference,
   resolveTheme,
+  syncThemeColor,
   THEME_PREFERENCES,
   THEME_STORAGE_KEY,
   type ThemePreference,
@@ -17,6 +18,10 @@ import styles from "./shell.module.css";
  * <html data-theme> in sync afterwards (including live OS changes while on
  * "System"). Server render assumes "system" and corrects itself on mount via
  * useSyncExternalStore, so hydration never mismatches.
+ *
+ * On phones the control collapses to just the active theme's icon to save
+ * header space; tapping it expands the three options, and an outside tap or
+ * Escape collapses it again. On wider screens it's always expanded (CSS).
  */
 
 const listeners = new Set<() => void>();
@@ -108,17 +113,40 @@ const OPTIONS: Array<{ value: ThemePreference; label: string; icon: React.ReactN
 
 export function ThemeToggle() {
   const preference = useSyncExternalStore(subscribe, readPreference, () => "system" as const);
+  const [expanded, setExpanded] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: light)");
     const apply = () => {
-      document.documentElement.dataset.theme = resolveTheme(preference, media.matches);
+      const resolved = resolveTheme(preference, media.matches);
+      document.documentElement.dataset.theme = resolved;
+      syncThemeColor(resolved); // keep the mobile status bar matched to the surface
     };
     apply();
     if (preference !== "system") return;
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [preference]);
+
+  // Collapse the expanded (mobile) control on an outside tap or Escape.
+  useEffect(() => {
+    if (!expanded) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setExpanded(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpanded(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
+
+  const active = OPTIONS.find((option) => option.value === preference) ?? OPTIONS[0]!;
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const delta =
@@ -137,27 +165,36 @@ export function ThemeToggle() {
   };
 
   return (
-    <div
-      className={styles.themeToggle}
-      role="radiogroup"
-      aria-label="Theme"
-      onKeyDown={onKeyDown}
-    >
-      {OPTIONS.map(({ value, label, icon }) => (
-        <button
-          key={value}
-          type="button"
-          role="radio"
-          aria-checked={preference === value}
-          tabIndex={preference === value ? 0 : -1}
-          className={styles.themeOption}
-          aria-label={label}
-          title={label}
-          onClick={() => writePreference(value)}
-        >
-          {icon}
-        </button>
-      ))}
+    <div className={styles.themeToggle} data-expanded={expanded || undefined} ref={rootRef}>
+      {/* Collapsed trigger (phones only, via CSS): shows the active theme's
+          icon and expands the options. Outside the radiogroup for valid ARIA. */}
+      <button
+        type="button"
+        className={styles.themeTrigger}
+        aria-expanded={expanded}
+        aria-label={`Theme: ${active.label}. Change theme`}
+        title="Change theme"
+        onClick={() => setExpanded((open) => !open)}
+      >
+        {active.icon}
+      </button>
+      <div className={styles.themeOptions} role="radiogroup" aria-label="Theme" onKeyDown={onKeyDown}>
+        {OPTIONS.map(({ value, label, icon }) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={preference === value}
+            tabIndex={preference === value ? 0 : -1}
+            className={styles.themeOption}
+            aria-label={label}
+            title={label}
+            onClick={() => writePreference(value)}
+          >
+            {icon}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
