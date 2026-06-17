@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { GraphView } from "@/components/graph/GraphView";
-import { InspectionSurface } from "@/components/ui";
+import { CopyButton, InspectionSurface } from "@/components/ui";
 import { applyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
 import type { Capsule, RepoHistory } from "@/lib/graph";
 import styles from "./repo.module.css";
@@ -133,7 +133,11 @@ export function GraphExplorer({ history, owner, repo, status, onNearEnd }: Graph
             <dt>Date</dt>
             <dd>{new Date(selected.date).toLocaleString()}</dd>
             <dt>SHA</dt>
-            <dd className={styles.mono}>{selected.sha}</dd>
+            <dd>
+              <CopyButton value={selected.sha} label="Copy full SHA">
+                {selected.sha}
+              </CopyButton>
+            </dd>
             <dt>{selected.parents.length === 1 ? "Parent" : "Parents"}</dt>
             <dd className={styles.mono}>
               {selected.parents.length === 0

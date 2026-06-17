@@ -155,9 +155,11 @@
   color: var(--fg-muted);
 }
 
-/* The message is the load-bearing text — on phones, author/date yield to it. */
+/* The message is the load-bearing text — on phones the whole meta column
+   (hash · author · date) yields to it; the hash is one tap away in the
+   commit view. */
 @media (max-width: 699px) {
-  .byline {
+  .meta {
     display: none;
   }
 }

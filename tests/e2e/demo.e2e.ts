@@ -154,6 +154,30 @@ test("long-press a commit peeks it (no commit view); Escape collapses", async ({
   await expect(row).not.toHaveAttribute("data-expanded", "true"); // collapsed
 });
 
+test("tapping the SHA in the commit view copies it", async ({ page, context, browserName }) => {
+  test.skip(browserName !== "chromium", "clipboard permission API is chromium-only here");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/demo");
+
+  await page.getByText("Release v0.4.0", { exact: true }).click(); // open the commit view
+  const copy = page.getByRole("button", { name: "Copy full SHA" });
+  await expect(copy).toBeVisible();
+  await copy.click();
+
+  await expect(copy).toContainText("Copied"); // feedback
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clip).toMatch(/^[0-9a-f]{40}$/); // the full sha landed on the clipboard
+});
+
+test("the commit hash is hidden in the row meta on phones", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the hash column only collapses at the phone breakpoint");
+  await page.goto("/demo");
+  const row = page.getByRole("option", { name: /Release v0\.4\.0/ });
+  await expect(row).toBeVisible();
+  // The 7-char short sha shown in the row meta is not rendered on phones.
+  await expect(row.locator("text=/^[0-9a-f]{7}$/")).toHaveCount(0);
+});
+
 test("the home page links to the demo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /explore the demo repo/ }).click();
