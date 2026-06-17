@@ -225,6 +225,26 @@ test("the theme-color meta tracks the active theme (mobile status bar)", async (
   await expect(meta).toHaveAttribute("content", "#f7f4ed"); // --bg light (Sumi-e paper)
 });
 
+test("graph animations are neutralized under prefers-reduced-motion (COA-95)", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/demo");
+  const graph = page.getByRole("listbox", { name: /commit graph/i });
+  await expect(graph).toBeVisible();
+
+  // The global override (app/globals.css) zeroes transition durations.
+  const rowDuration = await page
+    .getByRole("option")
+    .first()
+    .evaluate((el) => Number.parseFloat(getComputedStyle(el).transitionDuration));
+  expect(rowDuration).toBeLessThanOrEqual(0.001); // effectively instant
+
+  // Behavior still works with motion off: trace dims, Glance reflows.
+  await page.getByRole("button", { name: /Trace develop/ }).click();
+  await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
+  await page.getByRole("button", { name: "Glance" }).click();
+  await expect(page.getByRole("listbox", { name: /Commit graph, 23 commits/ })).toBeVisible();
+});
+
 test("the home page links to the demo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /explore the demo repo/ }).click();
