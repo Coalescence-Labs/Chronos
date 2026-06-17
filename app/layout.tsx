@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { satoshi } from "./fonts";
@@ -31,6 +32,7 @@ export default function RootLayout({
       <head>
         {/* Applies the persisted theme before first paint — see lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <Analytics />
       </head>
       <body className={satoshi.variable}>
         {children}
