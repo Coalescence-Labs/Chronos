@@ -99,36 +99,12 @@ describe("theme boot script", () => {
     expect(layout).toContain('viewportFit: "cover"'); // surface extends under the status bar
   });
 
-  test("points theme-color at the resolved background (pre-paint, no flash)", () => {
-    type MetaStub = { attrs: Record<string, string>; setAttribute(k: string, v: string): void };
-    const run = (stored: string | null, systemLight: boolean) => {
-      const state: { meta: MetaStub | null } = { meta: null }; // holder avoids TS narrowing
-      const doc = {
-        documentElement: { dataset: {} as Record<string, string> },
-        querySelector: () => state.meta,
-        createElement: (): MetaStub => ({
-          attrs: {},
-          setAttribute(key: string, value: string) {
-            this.attrs[key] = value;
-          },
-        }),
-        head: {
-          appendChild: (m: MetaStub) => {
-            state.meta = m;
-          },
-        },
-      };
-      new Function("localStorage", "matchMedia", "document", THEME_INIT_SCRIPT)(
-        { getItem: () => stored },
-        () => ({ matches: systemLight }),
-        doc,
-      );
-      return state.meta?.attrs.content;
-    };
-    expect(run("dark", true)).toBe(CHROME_BG);
-    expect(run("light", false)).toBe(CHROME_BG_LIGHT);
-    expect(run(null, true)).toBe(CHROME_BG_LIGHT); // system → light
-    expect(run(null, false)).toBe(CHROME_BG); // system → dark
+  test("the boot script does not touch theme-color (Next renders it; no duplicate)", () => {
+    // theme-color is a single React-managed static meta; mutating it pre-paint
+    // would make React re-insert a duplicate on hydration. The boot script
+    // must only set data-theme.
+    expect(THEME_INIT_SCRIPT).not.toContain("theme-color");
+    expect(THEME_INIT_SCRIPT).not.toContain("createElement");
   });
 });
 

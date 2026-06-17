@@ -206,10 +206,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The aurora lives on the body. No `background-attachment: fixed` — iOS Safari
-   mishandles it and can leave the safe areas unpainted (black). */
 body {
   min-height: 100dvh;
+  background-color: var(--bg);
+}
+
+/* Full-bleed background: a fixed layer covering the entire viewport — including
+   both safe areas (status bar / home indicator) — so the gradient runs edge to
+   edge with no seam. Content sits above it with safe-area padding (see the
+   shell). Fixed avoids iOS `background-attachment` quirks and dvh gaps. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   background-color: var(--bg);
   background-image: var(--aurora);
 }
