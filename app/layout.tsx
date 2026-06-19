@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Analytics } from "@vercel/analytics/next";
+import { ChronosAnalytics } from "@/components/analytics/ChronosAnalytics";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { CHROME_BG, THEME_INIT_SCRIPT } from "@/lib/theme";
 import { satoshi } from "./fonts";
@@ -34,14 +34,14 @@ export default function RootLayout({
     // before React hydrates, which is an intentional server/client mismatch.
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Applies the persisted theme + sets the single theme-color meta
-            before first paint — see lib/theme.ts. */}
+        {/* Applies the persisted theme before first paint — see lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        <Analytics />
       </head>
       <body className={satoshi.variable}>
         {children}
         <ServiceWorkerRegistrar />
+        {/* Analytics + Speed Insights with URL scrubbing & kill switch (COA-96). */}
+        <ChronosAnalytics />
       </body>
     </html>
   );
