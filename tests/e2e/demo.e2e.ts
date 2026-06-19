@@ -245,6 +245,24 @@ test("graph animations are neutralized under prefers-reduced-motion (COA-95)", a
   await expect(page.getByRole("listbox", { name: /Commit graph, 23 commits/ })).toBeVisible();
 });
 
+test("long-press reveals a long branch name in full (COA-99)", async ({ page }) => {
+  await page.goto("/demo");
+  const longName = "feature/ai-branch-summaries-zdr-spike";
+  const badge = page.getByRole("button", { name: `Trace ${longName}` });
+  await expect(badge).toBeVisible();
+
+  const isClipped = (el: Element) => el.scrollWidth - el.clientWidth > 1;
+  expect(await badge.evaluate(isClipped)).toBe(true); // collapsed: ellipsized
+
+  const row = page.getByRole("option", { name: /Sketch consent surface for AI calls/ });
+  await row.dispatchEvent("pointerdown", { clientX: 300, clientY: 0 });
+  await expect(row).toHaveAttribute("data-expanded", "true");
+  await row.dispatchEvent("pointerup", {});
+
+  // Expanded: the badge shows the whole name (wraps, not clipped).
+  await expect.poll(() => badge.evaluate(isClipped)).toBe(false);
+});
+
 test("the home page links to the demo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /explore the demo repo/ }).click();

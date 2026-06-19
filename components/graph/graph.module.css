@@ -105,9 +105,13 @@
 }
 
 /* Long-press peek: the row grows to show the full subject and pushes the rows
-   below it down (real reflow — its extra height feeds the row→y mapping). */
+   below it down (real reflow — its extra height feeds the row→y mapping).
+   It stacks vertically (COA-99) so a branch badge sits on its own line above
+   the message and can show its full name. */
 .row.expanded {
+  flex-direction: column;
   align-items: flex-start;
+  gap: var(--space-1);
   padding-top: var(--space-2);
   padding-bottom: var(--space-2);
   background: var(--accent-soft);
@@ -117,6 +121,21 @@
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
+}
+
+/* In the peek, badges leave their absolute lane anchor and flow at the top of
+   the stack, and the branch name expands in full (no 9rem clamp / ellipsis). */
+.row.expanded .refs {
+  position: static;
+  transform: none;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.row.expanded .badge {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .row[aria-selected="true"] {
