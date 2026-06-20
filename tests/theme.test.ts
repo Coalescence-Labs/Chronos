@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   CHROME_BG,
   CHROME_BG_LIGHT,
+  chromeColor,
   isThemePreference,
   resolveTheme,
   THEME_INIT_SCRIPT,
@@ -43,6 +44,11 @@ describe("theme preference model", () => {
   test("system follows prefers-color-scheme", () => {
     expect(resolveTheme("system", true)).toBe("light");
     expect(resolveTheme("system", false)).toBe("dark");
+  });
+
+  test("chromeColor maps the resolved theme to its --bg", () => {
+    expect(chromeColor("dark")).toBe(CHROME_BG);
+    expect(chromeColor("light")).toBe(CHROME_BG_LIGHT);
   });
 });
 
@@ -90,7 +96,39 @@ describe("theme boot script", () => {
     expect(layout).toContain("THEME_INIT_SCRIPT");
     expect(layout).toContain("dangerouslySetInnerHTML");
     expect(layout).toContain("suppressHydrationWarning");
-    expect(layout).toContain("CHROME_BG_LIGHT");
+    expect(layout).toContain('viewportFit: "cover"'); // surface extends under the status bar
+  });
+
+  test("points theme-color at the resolved background (pre-paint, no flash)", () => {
+    type MetaStub = { attrs: Record<string, string>; setAttribute(k: string, v: string): void };
+    const run = (stored: string | null, systemLight: boolean) => {
+      const state: { meta: MetaStub | null } = { meta: null }; // holder avoids TS narrowing
+      const doc = {
+        documentElement: { dataset: {} as Record<string, string> },
+        querySelector: () => state.meta,
+        createElement: (): MetaStub => ({
+          attrs: {},
+          setAttribute(key: string, value: string) {
+            this.attrs[key] = value;
+          },
+        }),
+        head: {
+          appendChild: (m: MetaStub) => {
+            state.meta = m;
+          },
+        },
+      };
+      new Function("localStorage", "matchMedia", "document", THEME_INIT_SCRIPT)(
+        { getItem: () => stored },
+        () => ({ matches: systemLight }),
+        doc,
+      );
+      return state.meta?.attrs.content;
+    };
+    expect(run("dark", true)).toBe(CHROME_BG);
+    expect(run("light", false)).toBe(CHROME_BG_LIGHT);
+    expect(run(null, true)).toBe(CHROME_BG_LIGHT); // system → light
+    expect(run(null, false)).toBe(CHROME_BG); // system → dark
   });
 });
 

@@ -71,9 +71,10 @@ const FEATURES: FeatureSpec[] = [
     releaseAfter: "v0.4.0",
   },
   {
+    // Staged on develop but not yet released → Glance folds it to a capsule.
     name: "feature/open-edges",
     by: "margaret",
-    commits: ["Dashed stubs for unloaded parents"],
+    commits: ["Dashed stubs for unloaded parents", "Complete edges on backfill"],
   },
 ];
 

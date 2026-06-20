@@ -15,6 +15,8 @@ export {
   pinnedLines,
 } from "./lines";
 export type { BranchAttribution, BranchLine } from "./lines";
+export { applyGlance } from "./glance";
+export type { Capsule, GlanceFlags, GlanceResult } from "./glance";
 export type {
   EdgeKind,
   GraphEdge,

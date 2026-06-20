@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AppShell } from "@/components/shell/AppShell";
 import {
   Button,
+  CopyButton,
   EmptyState,
   ErrorState,
   InspectionSurface,
@@ -18,6 +19,20 @@ describe("ui primitives", () => {
       expect(renderToStaticMarkup(<Button variant={variant}>x</Button>)).toContain(">x</button>");
     }
     expect(renderToStaticMarkup(<Button disabled>x</Button>)).toContain("disabled");
+  });
+
+  test("CopyButton is a labelled button showing its value and a copy hint", () => {
+    const html = renderToStaticMarkup(
+      <CopyButton value="abc123def456" label="Copy full SHA">
+        abc123def456
+      </CopyButton>,
+    );
+    expect(html).toContain("<button");
+    expect(html).toContain('type="button"');
+    expect(html).toContain('aria-label="Copy full SHA"');
+    expect(html).toContain("abc123def456");
+    expect(html).toContain("Copy"); // hint (becomes "Copied ✓" after a copy)
+    expect(html).toContain('aria-live="polite"');
   });
 
   test("Surface renders children at every level", () => {

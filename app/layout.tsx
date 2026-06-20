@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
-import { CHROME_BG, CHROME_BG_LIGHT, THEME_INIT_SCRIPT } from "@/lib/theme";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { satoshi } from "./fonts";
 import "./globals.css";
 
@@ -14,12 +15,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Tracks the system scheme; an explicit in-app override only retints the
-  // browser chrome, never the app surface itself (tokens own that).
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: CHROME_BG_LIGHT },
-    { media: "(prefers-color-scheme: dark)", color: CHROME_BG },
-  ],
+  // viewport-fit=cover lets the surface extend under the status bar / dynamic
+  // island. theme-color is owned by the boot script + ThemeToggle (a single
+  // JS-managed <meta>) so the mobile status bar tracks the *resolved* active
+  // theme — even on an explicit in-app override, not just the system scheme.
   viewportFit: "cover",
 };
 
@@ -33,6 +32,7 @@ export default function RootLayout({
       <head>
         {/* Applies the persisted theme before first paint — see lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <Analytics />
       </head>
       <body className={satoshi.variable}>
         {children}

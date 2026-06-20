@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { GraphView } from "@/components/graph/GraphView";
-import { InspectionSurface } from "@/components/ui";
-import { DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
-import type { RepoHistory } from "@/lib/graph";
+import { CopyButton, InspectionSurface } from "@/components/ui";
+import { applyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
+import type { Capsule, RepoHistory } from "@/lib/graph";
 import styles from "./repo.module.css";
 
 /**
@@ -21,6 +21,9 @@ import styles from "./repo.module.css";
 const PHONE_MAX_LANES = 8;
 const PHONE_BREAKPOINT = 700;
 
+const GLANCE_ON = { hideMergedIntoDefault: true, collapseMergedIntoNonDefault: true };
+const NO_CAPSULES: Map<string, Capsule> = new Map();
+
 export interface GraphExplorerProps {
   history: RepoHistory;
   owner: string;
@@ -32,6 +35,8 @@ export interface GraphExplorerProps {
 
 export function GraphExplorer({ history, owner, repo, status, onNearEnd }: GraphExplorerProps) {
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
+  const [glance, setGlance] = useState(false);
+  const [reflowing, setReflowing] = useState(false);
   const [maxLanes, setMaxLanes] = useState(DEFAULT_MAX_LANES);
 
   useEffect(() => {
@@ -42,18 +47,39 @@ export function GraphExplorer({ history, owner, repo, status, onNearEnd }: Graph
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  const layout = useMemo(() => layoutGraph(history, { maxLanes }), [history, maxLanes]);
+  // Toggling Glance restructures the graph: rows/nodes glide to new positions
+  // while the edges (whose paths can't tween) fade out and reform. `reflowing`
+  // marks that brief window. Skips the initial mount.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    setReflowing(true);
+    const timer = setTimeout(() => setReflowing(false), 280);
+    return () => clearTimeout(timer);
+  }, [glance]);
+
+  // One glance transform per history; reused to both gate the toggle (applied
+  // is false when no default branch) and supply the glanced view when on.
+  const glanced = useMemo(() => applyGlance(history, GLANCE_ON), [history]);
+  const canGlance = glanced.applied;
+  const view = glance && canGlance ? glanced.history : history;
+  const capsules = glance && canGlance ? glanced.capsules : NO_CAPSULES;
+
+  const layout = useMemo(() => layoutGraph(view, { maxLanes }), [view, maxLanes]);
 
   const selected = useMemo(
-    () => (selectedSha ? history.commits.find((c) => c.sha === selectedSha) : undefined),
-    [history, selectedSha],
+    () => (selectedSha ? view.commits.find((c) => c.sha === selectedSha) : undefined),
+    [view, selectedSha],
   );
   const selectedRefs = useMemo(
     () =>
       selectedSha
-        ? history.refs.filter((ref) => ref.sha === selectedSha && ref.type !== "head")
+        ? view.refs.filter((ref) => ref.sha === selectedSha && ref.type !== "head")
         : [],
-    [history, selectedSha],
+    [view, selectedSha],
   );
 
   return (
@@ -69,10 +95,26 @@ export function GraphExplorer({ history, owner, repo, status, onNearEnd }: Graph
             {status}
           </p>
         )}
+        <button
+          type="button"
+          className={styles.glanceToggle}
+          aria-pressed={glance}
+          disabled={!canGlance}
+          title={
+            canGlance
+              ? "Hide merged branches and collapse staged ones"
+              : "Glance needs an identifiable default branch"
+          }
+          onClick={() => setGlance((on) => !on)}
+        >
+          Glance
+        </button>
       </header>
       <GraphView
-        history={history}
+        history={view}
         layout={layout}
+        capsules={capsules}
+        reflowing={reflowing}
         selectedSha={selectedSha}
         onSelect={setSelectedSha}
         onNearEnd={onNearEnd}
@@ -91,7 +133,11 @@ export function GraphExplorer({ history, owner, repo, status, onNearEnd }: Graph
             <dt>Date</dt>
             <dd>{new Date(selected.date).toLocaleString()}</dd>
             <dt>SHA</dt>
-            <dd className={styles.mono}>{selected.sha}</dd>
+            <dd>
+              <CopyButton value={selected.sha} label="Copy full SHA">
+                {selected.sha}
+              </CopyButton>
+            </dd>
             <dt>{selected.parents.length === 1 ? "Parent" : "Parents"}</dt>
             <dd className={styles.mono}>
               {selected.parents.length === 0

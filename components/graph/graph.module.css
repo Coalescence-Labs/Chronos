@@ -34,11 +34,48 @@
   min-width: 100%;
 }
 
+/* While Glance restructures the graph, surviving rows and nodes glide to
+   their new positions (the edges fade and reform over the same window).
+   Scoped to the reflow so scroll and zoom stay instant. */
+.reflowing .row {
+  transition:
+    top var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.reflowing .node {
+  transition:
+    transform var(--duration-base) var(--ease-spring),
+    cx var(--duration-base) var(--ease-out),
+    cy var(--duration-base) var(--ease-out),
+    x var(--duration-base) var(--ease-out),
+    y var(--duration-base) var(--ease-out);
+}
+
 .edges {
   position: absolute;
   left: 0;
   display: block;
   pointer-events: none;
+}
+
+/* Micro-animation: when a trace dims/undims nodes and edges, fade rather than
+   snap. Only the virtualized on-screen elements transition (~dozens), so it's
+   cheap; fresh-mounted rows render at their target opacity (no transition on
+   mount). prefers-reduced-motion zeroes these via the global override. */
+.edges :is(circle, rect, line, path) {
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/* The selected/active node springs forward as a focal point — a small,
+   physics-informed lift (movement, not just a color change). Scales about
+   its own centre; reduced-motion neutralizes it via the global override. */
+.node {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform var(--duration-base) var(--ease-spring);
 }
 
 .row {
@@ -51,10 +88,35 @@
   padding-right: var(--space-3);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .row:hover {
   background: var(--accent-soft);
+}
+
+/* Long-press must not select text or fire the OS callout on touch. */
+.row {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* Long-press peek: the row grows to show the full subject and pushes the rows
+   below it down (real reflow — its extra height feeds the row→y mapping). */
+.row.expanded {
+  align-items: flex-start;
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  background: var(--accent-soft);
+}
+
+.row.expanded .message {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .row[aria-selected="true"] {
@@ -83,9 +145,21 @@
   color: var(--fg-subtle);
 }
 
-/* The message is the load-bearing text — on phones, author/date yield to it. */
+/* Glance capsule row marker: "N commits" folded into one node. */
+.capsuleCount {
+  flex-shrink: 0;
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* The message is the load-bearing text — on phones the whole meta column
+   (hash · author · date) yields to it; the hash is one tap away in the
+   commit view. */
 @media (max-width: 699px) {
-  .byline {
+  .meta {
     display: none;
   }
 }
@@ -117,6 +191,7 @@
   line-height: 1.6;
   color: var(--accent-strong);
   background: var(--bg-raised);
+  transition: box-shadow var(--duration-fast) var(--ease-out);
 }
 
 /* Branch/merged badges are <button>s (click to trace) — reset button chrome. */

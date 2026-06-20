@@ -16,9 +16,10 @@ test("the demo repo renders and inspects without any network", async ({ page, is
   await expect(page.getByText("main", { exact: true })).toBeVisible();
   await expect(page.getByText("develop", { exact: true })).toBeVisible();
 
-  const row = page.getByRole("option", { name: /Release v0\.3\.0/ });
-  if (isMobile) await row.tap();
-  else await row.click();
+  // The message/hash side of a row opens the commit view (the graph side traces).
+  const message = page.getByText("Release v0.3.0", { exact: true });
+  if (isMobile) await message.tap();
+  else await message.click();
   await expect(page.getByRole("complementary", { name: /Commit/ })).toContainText("v0.3.0");
 
   expect(apiCalls).toBe(0);
@@ -38,6 +39,32 @@ test("scrolling past a tip pins its badge; clicking it jumps back", async ({ pag
   await pinnedDevelop.click();
   await expect(pinnedDevelop).toHaveCount(0); // back at the tip → unpinned
   await expect(graph).toHaveJSProperty("scrollTop", 0);
+});
+
+test("Glance mode hides landed branches and folds staged ones (COA-75)", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/demo");
+  // Full history first (DOM is virtualized, so assert totals via the label).
+  await expect(page.getByRole("listbox", { name: /Commit graph, 40 commits/ })).toBeVisible();
+  await expect(page.getByText(/^2 commits$/)).toHaveCount(0);
+
+  const glance = page.getByRole("button", { name: "Glance" });
+  await expect(glance).toBeEnabled();
+  if (isMobile) await glance.tap();
+  else await glance.click();
+  await expect(glance).toHaveAttribute("aria-pressed", "true");
+
+  // Landed features drop out; a develop-staged feature folds to a capsule.
+  await expect(page.getByRole("listbox", { name: /Commit graph, 23 commits/ })).toBeVisible();
+  await expect(page.getByText(/^2 commits$/)).toBeVisible();
+  // develop's own trunk stays expanded.
+  await expect(page.getByText("Merge feature/open-edges into develop")).toBeVisible();
+
+  if (isMobile) await glance.tap();
+  else await glance.click();
+  await expect(page.getByRole("listbox", { name: /Commit graph, 40 commits/ })).toBeVisible();
 });
 
 test("clicking a branch badge traces its line; clicking again clears (COA-84)", async ({
@@ -80,22 +107,122 @@ test("switching branches then untoggling clears — no stale highlight resurface
   await expect(page.getByRole("button", { name: /Clear trace/ })).toHaveCount(0);
 });
 
-test("clicking empty graph space and Escape both clear the trace", async ({ page }) => {
+test("Escape clears an active trace from anywhere", async ({ page }) => {
   await page.goto("/demo");
-  const graph = page.getByRole("listbox", { name: /commit graph/i });
-  await expect(graph).toBeVisible();
+  await expect(page.getByRole("listbox", { name: /commit graph/i })).toBeVisible();
 
-  // Background click clears.
-  await page.getByRole("button", { name: /Trace develop/ }).click();
-  await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
-  await graph.click({ position: { x: 5, y: 5 } }); // empty top-left gutter
-  await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
-
-  // Escape clears, even without clicking back into the graph first.
   await page.getByRole("button", { name: /Trace develop/ }).click();
   await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator('[role="option"][data-dimmed]')).toHaveCount(0);
+});
+
+test("the graph side of a row traces; the message side opens the commit", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/demo");
+  const release = page.getByRole("option", { name: /Release v0\.4\.0/ });
+  const box = (await release.boundingBox())!;
+
+  // Tap the far-left graph/lane gutter → highlights the branch (no commit view).
+  if (isMobile) await release.tap({ position: { x: 4, y: box.height / 2 } });
+  else await release.click({ position: { x: 4, y: box.height / 2 } });
+  await expect(page.locator('[role="option"][data-dimmed]').first()).toBeVisible();
+  await expect(page.getByRole("complementary", { name: /Commit/ })).toBeHidden();
+
+  // Tap the message text → opens the commit view.
+  const message = page.getByText("Release v0.4.0", { exact: true });
+  if (isMobile) await message.tap();
+  else await message.click();
+  await expect(page.getByRole("complementary", { name: /Commit/ })).toBeVisible();
+});
+
+test("long-press a commit peeks it (no commit view); Escape collapses", async ({ page }) => {
+  await page.goto("/demo");
+  const row = page.getByRole("option", { name: /Spike: summarize a branch with ZDR-only AI/ });
+  await expect(row).toBeVisible();
+  await expect(row).not.toHaveAttribute("data-expanded", "true");
+
+  // Long-press: pointer down, hold past the 450ms threshold, release.
+  await row.dispatchEvent("pointerdown", { clientX: 300, clientY: 0 });
+  await expect(row).toHaveAttribute("data-expanded", "true"); // peeked inline…
+  await row.dispatchEvent("pointerup", {});
+  await expect(page.getByRole("complementary", { name: /Commit/ })).toBeHidden(); // …no overlay
+
+  await page.keyboard.press("Escape");
+  await expect(row).not.toHaveAttribute("data-expanded", "true"); // collapsed
+});
+
+test("tapping the SHA in the commit view copies it", async ({ page, context, browserName }) => {
+  test.skip(browserName !== "chromium", "clipboard permission API is chromium-only here");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/demo");
+
+  await page.getByText("Release v0.4.0", { exact: true }).click(); // open the commit view
+  const copy = page.getByRole("button", { name: "Copy full SHA" });
+  await expect(copy).toBeVisible();
+  await copy.click();
+
+  await expect(copy).toContainText("Copied"); // feedback
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clip).toMatch(/^[0-9a-f]{40}$/); // the full sha landed on the clipboard
+});
+
+test("the commit hash is hidden in the row meta on phones", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the hash column only collapses at the phone breakpoint");
+  await page.goto("/demo");
+  const row = page.getByRole("option", { name: /Release v0\.4\.0/ });
+  await expect(row).toBeVisible();
+  // The 7-char short sha shown in the row meta is not rendered on phones.
+  await expect(row.locator("text=/^[0-9a-f]{7}$/")).toHaveCount(0);
+});
+
+test("theme toggle collapses to an icon on phones and expands on tap", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "the collapse behavior is phone-only");
+  await page.goto("/demo");
+
+  const trigger = page.getByRole("button", { name: /Change theme/ });
+  await expect(trigger).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Light theme" })).toBeHidden();
+
+  await trigger.tap();
+  const light = page.getByRole("radio", { name: "Light theme" });
+  await expect(light).toBeVisible();
+  await light.tap();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  // Stays open after selecting; tapping elsewhere collapses it.
+  await page.getByRole("heading", { level: 1 }).tap();
+  await expect(page.getByRole("radio", { name: "Light theme" })).toBeHidden();
+  await expect(trigger).toBeVisible();
+});
+
+test("theme toggle stays fully expanded on wide screens", async ({ page, isMobile }) => {
+  test.skip(isMobile, "wide screens never collapse the toggle");
+  await page.goto("/demo");
+  for (const name of ["System theme", "Dark theme", "Light theme"]) {
+    await expect(page.getByRole("radio", { name })).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: /Change theme/ })).toBeHidden();
+});
+
+test("the theme-color meta tracks the active theme (mobile status bar)", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "uses the always-expanded desktop toggle to switch themes");
+  await page.goto("/demo");
+  const meta = page.locator('meta[name="theme-color"]');
+  await expect(meta).toHaveCount(1); // exactly one, JS-managed
+
+  await page.getByRole("radio", { name: "Dark theme" }).click();
+  await expect(meta).toHaveAttribute("content", "#0a0c10"); // --bg dark
+  await page.getByRole("radio", { name: "Light theme" }).click();
+  await expect(meta).toHaveAttribute("content", "#f7f4ed"); // --bg light (Sumi-e paper)
 });
 
 test("the home page links to the demo", async ({ page }) => {

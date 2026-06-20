@@ -1,5 +1,7 @@
 export { Button } from "./Button";
 export type { ButtonProps, ButtonVariant } from "./Button";
+export { CopyButton } from "./CopyButton";
+export type { CopyButtonProps } from "./CopyButton";
 export { InspectionSurface } from "./InspectionSurface";
 export type { InspectionSurfaceProps } from "./InspectionSurface";
 export { Surface } from "./Surface";
