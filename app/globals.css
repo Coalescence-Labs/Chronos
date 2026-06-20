@@ -189,18 +189,39 @@
   box-sizing: border-box;
 }
 
+/* Solid theme background on the root so the mobile safe-area bands (under the
+   status bar and the home indicator) are the theme color, not black. */
+html {
+  background-color: var(--bg);
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--bg);
-  background-image: var(--aurora);
-  background-attachment: fixed;
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-base);
   -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+  background-color: var(--bg);
+}
+
+/* Full-bleed background: a fixed layer covering the entire viewport — including
+   both safe areas (status bar / home indicator) — so the gradient runs edge to
+   edge with no seam. Content sits above it with safe-area padding (see the
+   shell). Fixed avoids iOS `background-attachment` quirks and dvh gaps. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--bg);
+  background-image: var(--aurora);
 }
 
 ::selection {

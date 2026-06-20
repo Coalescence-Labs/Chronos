@@ -39,6 +39,22 @@ How it works and what this document binds:
 
 Default bias remains: minimize what *rests* on our servers, and never retain or train on repo data.
 
+## Analytics (Vercel Web Analytics + Speed Insights)
+
+Cookieless, anonymous, first-party product analytics (no third party, no cross-day/cross-site identifier). The full design + event catalog is in [ANALYTICS.md](ANALYTICS.md). The binding rules:
+
+- **No repo identity, ever.** Page-view URLs are scrubbed to their **route template** before anything is sent — `/repo/[owner]/[repo]`, never the filled-in owner/name — by a `beforeSend` hook over a fixed route **allowlist** (`lib/analytics.ts` `scrubUrl`). Unrecognized paths are **dropped** (fail closed). Query strings and hashes are always discarded.
+- **No PII, no repo content.** We collect only anonymous aggregates (coarse geo/device from Vercel) plus, in future, a typed allowlist of enums/counts/durations (COA-97/98) — never commit messages, SHAs, branch/tag names, authors, tokens, or free text. Sizes are bucketed.
+- **One chokepoint.** All analytics flow through `lib/analytics.ts`; components never call the Vercel SDK directly, so the data surface is auditable in one file.
+- **Off switch.** `NEXT_PUBLIC_ANALYTICS_ENABLED=false` disables analytics entirely (for self-hosting / opt-out).
+
+### Privacy pre-flight — COA-96 (analytics)
+1. **What leaves:** anonymous page-view events (templated path, referrer, coarse geo/device; cookieless daily hash) → Vercel. No repo identifiers (scrubbed) and no repo content.
+2. **Where:** Vercel Web Analytics + Speed Insights (`/_vercel/insights`, `/_vercel/speed-insights`).
+3. **Minimum:** path templated to the route, query/hash dropped, allowlist fail-closed; this is the smallest payload that still answers the product questions.
+4. **Retention/training:** product analytics, not an AI path — no ZDR question; cookieless, aggregated, no training.
+5. **Consent:** cookieless/anonymous (no consent banner needed); disclosed in the public [PRIVACY.md](../PRIVACY.md). Opt-out via the env switch.
+
 ## The native companion as a privacy feature
 
 The phase-2 `zero-native` desktop app exists largely *for* privacy: it reads the local `.git` directly, so for local repos **nothing is uploaded at all**. When weighing features, remember this is the gold-standard mode and the web app should not regress the privacy story for users who could use local mode.

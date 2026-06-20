@@ -16,8 +16,9 @@ export {
   DEFAULT_MAX_BRANCH_TIPS,
   DEFAULT_MAX_PAGES,
   fetchPublicRepoHistory,
+  refreshRepoHistory,
 } from "./client";
-export type { IngestOptions, IngestResult } from "./client";
+export type { IngestOptions, IngestResult, RefreshOptions, RefreshResult } from "./client";
 export { INGEST_ERROR_STATUS, IngestError } from "./errors";
 export type { IngestErrorCode } from "./errors";
 export { parseRepoInput } from "./github/parse";

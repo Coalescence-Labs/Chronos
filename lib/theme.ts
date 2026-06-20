@@ -41,13 +41,9 @@ export function chromeColor(theme: ResolvedTheme): string {
  */
 export function syncThemeColor(theme: ResolvedTheme): void {
   if (typeof document === "undefined") return;
-  let meta = document.querySelector('meta[name="theme-color"]');
-  if (!meta) {
-    meta = document.createElement("meta");
-    meta.setAttribute("name", "theme-color");
-    document.head.appendChild(meta);
-  }
-  meta.setAttribute("content", chromeColor(theme));
+  // Update the meta rendered in the initial HTML (app/layout.tsx) — never
+  // create one, so iOS Safari's honored static meta is never duplicated.
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", chromeColor(theme));
 }
 
 /**
@@ -55,9 +51,8 @@ export function syncThemeColor(theme: ResolvedTheme): void {
  * without a flash. "System" is resolved here (and re-resolved live by
  * ThemeToggle when the OS preference changes) so data-theme is always a
  * concrete value and [data-theme="light"] in app/globals.css stays the only
- * light-mode block. It also points theme-color at the active background so
- * the mobile status bar matches from the first paint. Anything unexpected
- * falls through to the dark default.
+ * light-mode block. Anything unexpected falls through to the dark default.
+ * (theme-color is handled separately — see the note below the script.)
  */
 export const THEME_INIT_SCRIPT = `(function () {
   try {
@@ -67,12 +62,9 @@ export const THEME_INIT_SCRIPT = `(function () {
       preference === "light" ||
       (preference === "system" && matchMedia("(prefers-color-scheme: light)").matches);
     document.documentElement.dataset.theme = light ? "light" : "dark";
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.setAttribute("name", "theme-color");
-      document.head.appendChild(meta);
-    }
-    meta.setAttribute("content", light ? ${JSON.stringify(CHROME_BG_LIGHT)} : ${JSON.stringify(CHROME_BG)});
   } catch (_) {}
 })();`;
+// Note: theme-color is rendered statically by Next (app/layout.tsx viewport)
+// so iOS Safari honors it from the initial HTML; ThemeToggle updates that
+// single meta via syncThemeColor() after mount. The boot script must NOT
+// touch it — mutating a React-managed meta pre-hydration duplicates it.

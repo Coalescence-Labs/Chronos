@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
 import type { RepoHistory } from "@/lib/graph";
-import { fetchPublicRepoHistory, IngestError } from "@/lib/ingest";
+import { fetchPublicRepoHistory, IngestError, refreshRepoHistory } from "@/lib/ingest";
 import type { IngestResult } from "@/lib/ingest";
 import { GraphExplorer } from "./GraphExplorer";
 
@@ -46,9 +46,16 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const [failed, setFailed] = useState<FailedState | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  // A note after a manual refresh ("up to date" / "updated"), tagged with the
+  // request it belongs to so it clears itself when the repo/attempt changes.
+  const [refreshNote, setRefreshNote] = useState<{ key: string; note: string } | null>(null);
   // The lazy-paging continuation for the *current* request; null while a
   // page fetch is in flight so onNearEnd (fired per render) can't double-load.
   const loadMoreRef = useRef<IngestResult["loadMore"] | null>(null);
+  // Latest live history, so refresh can re-sync tips without depending on
+  // `loaded` (which would re-create the callback every render).
+  const historyRef = useRef<RepoHistory | null>(null);
 
   const requestKey = `${owner}/${repo}#${attempt}`;
   const requestKeyRef = useRef(requestKey);
@@ -57,10 +64,12 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
     let cancelled = false;
     requestKeyRef.current = requestKey;
     loadMoreRef.current = null;
+    historyRef.current = null;
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
       onProgress: (h) => {
         if (!cancelled) {
+          historyRef.current = h;
           setLoaded({
             key: requestKey,
             history: snapshot(h),
@@ -74,6 +83,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       .then((result) => {
         if (cancelled) return;
         loadMoreRef.current = result.loadMore ?? null;
+        historyRef.current = result.history;
         setLoaded({
           key: requestKey,
           history: snapshot(result.history),
@@ -109,6 +119,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       .then((result) => {
         if (requestKeyRef.current !== requestKey) return; // navigated away
         loadMoreRef.current = result.loadMore ?? null;
+        historyRef.current = result.history;
         setLoaded({
           key: requestKey,
           history: snapshot(result.history),
@@ -124,8 +135,38 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       .finally(() => setLoadingMore(false));
   }, [requestKey]);
 
+  // Manual re-sync of branch tips (COA-100). Updates the loaded history in
+  // place — same components, so the viewport's scroll position and any active
+  // trace/selection (GraphExplorer state) survive. Lazy paging is untouched:
+  // the loadMore cursor still walks older history from where it left off.
+  const handleRefresh = useCallback(() => {
+    const base = historyRef.current;
+    if (!base || refreshing) return;
+    setRefreshing(true);
+    setRefreshNote(null);
+    refreshRepoHistory(`${owner}/${repo}`, base)
+      .then((result) => {
+        if (requestKeyRef.current !== requestKey) return; // navigated away
+        historyRef.current = result.history;
+        setLoaded((prev) =>
+          prev && prev.key === requestKey
+            ? { ...prev, history: snapshot(result.history) }
+            : prev,
+        );
+        setRefreshNote({ key: requestKey, note: result.changed ? "updated just now" : "up to date" });
+      })
+      .catch(() => {
+        if (requestKeyRef.current === requestKey)
+          setRefreshNote({ key: requestKey, note: "couldn't refresh" });
+      })
+      .finally(() => {
+        if (requestKeyRef.current === requestKey) setRefreshing(false);
+      });
+  }, [owner, repo, requestKey, refreshing]);
+
   const history = loaded?.key === requestKey ? loaded.history : null;
   const error = failed?.key === requestKey ? failed.error : null;
+  const note = refreshNote?.key === requestKey ? refreshNote.note : null;
 
   if (error) {
     return (
@@ -154,6 +195,8 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       owner={owner}
       repo={repo}
       onNearEnd={handleNearEnd}
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
       status={
         <>
           {history.commits.length.toLocaleString()} commits
@@ -165,6 +208,8 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             !loaded.hasMore &&
             loaded.truncated &&
             " · showing the most recent pages of a longer history"}
+          {refreshing && " · refreshing…"}
+          {!refreshing && note && ` · ${note}`}
         </>
       }
     />

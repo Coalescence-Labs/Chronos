@@ -170,6 +170,172 @@ test("older pages load lazily as the graph scrolls toward the end", async ({ pag
   expect(commitsRequests).toEqual(["2", "3", "4"]);
 });
 
+test("retry recovers from a failed initial load (COA-92)", async ({ page }) => {
+  let attempts = 0;
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      attempts++;
+      if (attempts === 1) {
+        return route.fulfill({
+          status: 502,
+          json: { error: { code: "upstream", message: "Something went wrong." } },
+        });
+      }
+      return route.fulfill({ json: repoResponse });
+    }
+    return route.fulfill({ json: { commits: [], nextPage: null } });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  await expect(page.getByRole("alert").filter({ hasText: /repository/ })).toBeVisible();
+  await page.getByRole("button", { name: "Try again" }).click();
+
+  await expect(graphOf(page)).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(5);
+  expect(attempts).toBe(2);
+});
+
+test("a failed loadMore re-arms and succeeds on the next scroll (COA-92)", async ({ page }) => {
+  const trunkPage = (n: number, last: boolean) =>
+    Array.from({ length: 20 }, (_, j) => {
+      const i = (n - 1) * 20 + j;
+      return commit(`a${i}`, last && i === n * 20 - 1 ? [] : [`a${i + 1}`], i, `Change ${i}`);
+    });
+  const pageRequests: number[] = [];
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      return route.fulfill({
+        json: {
+          repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+          history: {
+            commits: trunkPage(1, false),
+            refs: [
+              { name: "HEAD", type: "head", sha: "a0" },
+              { name: "main", type: "branch", sha: "a0" },
+            ],
+          },
+          nextPage: 2,
+        },
+      });
+    }
+    const n = Number(url.searchParams.get("page"));
+    pageRequests.push(n);
+    // The first lazy page (4) fails once, then succeeds on retry.
+    if (n === 4 && pageRequests.filter((p) => p === 4).length === 1) {
+      return route.fulfill({
+        status: 429,
+        json: { error: { code: "rate-limited", message: "Slow down.", retryAfterSeconds: 1 } },
+      });
+    }
+    return route.fulfill({
+      json: { commits: trunkPage(n, n === 4), nextPage: n === 4 ? null : n + 1 },
+    });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  const graph = graphOf(page);
+  await expect(page.getByRole("listbox", { name: /60 commits/ })).toBeVisible(); // pages 1–3 eager
+
+  // Reach the bottom → page 4 loadMore fails → stays at 60 (re-armed, no crash).
+  await graph.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await expect.poll(() => pageRequests.filter((p) => p === 4).length).toBe(1);
+  await expect(page.getByRole("listbox", { name: /60 commits/ })).toBeVisible();
+
+  // Scroll away and back to re-trigger → page 4 retried → succeeds → 80.
+  await graph.evaluate((el) => el.scrollTo({ top: 0 }));
+  await graph.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await expect(page.getByRole("listbox", { name: /80 commits/ })).toBeVisible();
+  expect(pageRequests.filter((p) => p === 4).length).toBe(2); // failed once, then succeeded
+});
+
+test("refresh re-syncs a moved branch tip in place (COA-100)", async ({ page, isMobile }) => {
+  let repoCalls = 0;
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      repoCalls++;
+      // First load: 5 commits, main@c5. After refresh: main advanced to c6.
+      if (repoCalls === 1) return route.fulfill({ json: repoResponse });
+      return route.fulfill({
+        json: {
+          repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+          history: {
+            commits: [commit("c6", ["c5"], -1, "Add refresh button"), ...repoResponse.history.commits],
+            refs: [
+              { name: "HEAD", type: "head", sha: "c6" },
+              { name: "main", type: "branch", sha: "c6" },
+              { name: "feature", type: "branch", sha: "c3" },
+              { name: "v1.0.0", type: "tag", sha: "c2" },
+            ],
+          },
+          nextPage: null,
+        },
+      });
+    }
+    return route.fulfill({ json: { commits: [], nextPage: null } });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  await expect(page.getByText("5 commits")).toBeVisible();
+
+  const refresh = page.getByRole("button", { name: /Refresh/ });
+  if (isMobile) await refresh.tap();
+  else await refresh.click();
+
+  // The new tip merges into the existing view: count grows, commit renders.
+  await expect(page.getByRole("listbox", { name: /6 commits/ })).toBeVisible();
+  await expect(page.getByText("Add refresh button")).toBeVisible();
+  await expect(page.getByText(/updated just now/)).toBeVisible();
+});
+
+test("refreshing an unchanged repo costs one request and says up to date (COA-100)", async ({
+  page,
+}) => {
+  let repoCalls = 0;
+  let commitCalls = 0;
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      repoCalls++;
+      return route.fulfill({ json: repoResponse });
+    }
+    commitCalls++;
+    return route.fulfill({ json: { commits: [], nextPage: null } });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  await expect(page.getByText("5 commits")).toBeVisible();
+  expect(repoCalls).toBe(1); // initial load; every tip already in trunk
+  expect(commitCalls).toBe(0);
+
+  await page.getByRole("button", { name: /Refresh/ }).click();
+  await expect(page.getByText(/up to date/)).toBeVisible();
+  expect(repoCalls).toBe(2); // exactly one more /api/repo — the happy path
+  expect(commitCalls).toBe(0); // nothing moved → no per-tip pages
+});
+
+test("an empty repository shows the empty state, not an error", async ({ page }) => {
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) =>
+    route.fulfill({
+      json: {
+        repo: { owner: "acme", repo: "blank", defaultBranch: "main" },
+        history: { commits: [], refs: [] },
+        nextPage: null,
+      },
+    }),
+  );
+  await page.goto("/repo/acme/blank");
+  await expect(page.getByText("No commits yet")).toBeVisible();
+  await expect(page.getByRole("listbox")).toHaveCount(0); // no graph, no error
+});
+
 test("upstream errors surface as a designed error state with retry", async ({ page }) => {
   await page.unroute("**/api/repo**");
   await page.route("**/api/repo**", (route) =>

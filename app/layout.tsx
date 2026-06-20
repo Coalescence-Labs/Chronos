@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Analytics } from "@vercel/analytics/next";
+import { ChronosAnalytics } from "@/components/analytics/ChronosAnalytics";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
-import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { CHROME_BG, THEME_INIT_SCRIPT } from "@/lib/theme";
 import { satoshi } from "./fonts";
 import "./globals.css";
 
@@ -15,10 +15,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // viewport-fit=cover lets the surface extend under the status bar / dynamic
-  // island. theme-color is owned by the boot script + ThemeToggle (a single
-  // JS-managed <meta>) so the mobile status bar tracks the *resolved* active
-  // theme — even on an explicit in-app override, not just the system scheme.
+  // Primary: viewport-fit=cover + the full-bleed background (globals.css
+  // body::before) run the gradient under the status bar / home indicator on
+  // modern browsers, seamlessly.
+  // Fallback: a single static theme-color (dark baseline) for older OSes and
+  // Android Chrome's toolbar where the full-bleed doesn't reach. It's rendered
+  // once here and only *updated* post-mount by ThemeToggle (syncThemeColor) —
+  // the boot script never touches it, which previously caused a duplicate.
+  themeColor: CHROME_BG,
   viewportFit: "cover",
 };
 
@@ -32,11 +36,12 @@ export default function RootLayout({
       <head>
         {/* Applies the persisted theme before first paint — see lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        <Analytics />
       </head>
       <body className={satoshi.variable}>
         {children}
         <ServiceWorkerRegistrar />
+        {/* Analytics + Speed Insights with URL scrubbing & kill switch (COA-96). */}
+        <ChronosAnalytics />
       </body>
     </html>
   );
