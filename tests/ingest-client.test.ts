@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { CommitsPageResponse, RepoResponse } from "@/lib/ingest/api";
 import { IngestError } from "@/lib/ingest/errors";
-import { fetchPublicRepoHistory } from "@/lib/ingest/client";
-import type { CommitNode } from "@/lib/graph/types";
+import { fetchPublicRepoHistory, refreshRepoHistory } from "@/lib/ingest/client";
+import type { CommitNode, RepoHistory } from "@/lib/graph/types";
 
 function node(sha: string, parents: string[] = []): CommitNode {
   return { sha, parents, author: "Ada Lovelace", date: "2026-06-01T12:00:00Z", message: sha };
@@ -187,6 +187,102 @@ describe("fetchPublicRepoHistory", () => {
     });
     await fetchPublicRepoHistory("acme/widgets", { fetchImpl }).catch((error) => {
       expect(error).toBeInstanceOf(IngestError);
+    });
+  });
+});
+
+describe("refreshRepoHistory", () => {
+  // A history as it would sit loaded in the UI: trunk paged deeper than page 1.
+  const loaded: RepoHistory = {
+    commits: [node("c3", ["c2"]), node("c2", ["c1"]), node("c1", ["c0"]), node("c0")],
+    refs: [{ name: "main", type: "branch", sha: "c3" }],
+  };
+
+  test("the happy path (nothing moved) costs a single /api/repo request", async () => {
+    const { fetchImpl, calls } = bffMock(initial, {}); // initial = main@c3, page 1 = c3,c2
+    const result = await refreshRepoHistory("acme/widgets", loaded, { fetchImpl });
+
+    expect(calls).toEqual(["/api/repo?repo=acme%2Fwidgets"]);
+    expect(result.changed).toBe(false);
+    // Older paged history is untouched; nothing duplicated.
+    expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0"]);
+    expect(result.history.refs).toEqual(loaded.refs);
+  });
+
+  test("a moved tip + new commit lands on top, refs swap, still one request", async () => {
+    const advanced: RepoResponse = {
+      ...initial,
+      history: {
+        commits: [node("c4", ["c3"]), node("c3", ["c2"])],
+        refs: [{ name: "main", type: "branch", sha: "c4" }],
+      },
+      nextPage: 2,
+    };
+    const { fetchImpl, calls } = bffMock(advanced, {});
+    const result = await refreshRepoHistory("acme/widgets", loaded, { fetchImpl });
+
+    expect(calls).toEqual(["/api/repo?repo=acme%2Fwidgets"]);
+    expect(result.changed).toBe(true);
+    expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0", "c4"]);
+    expect(result.history.refs).toEqual([{ name: "main", type: "branch", sha: "c4" }]);
+  });
+
+  test("a tip advanced beyond the trunk page costs one extra page to anchor it", async () => {
+    const withFeature: RepoResponse = {
+      ...initial,
+      history: {
+        commits: [node("c3", ["c2"]), node("c2", ["c1"])],
+        refs: [
+          { name: "main", type: "branch", sha: "c3" },
+          { name: "feature/x", type: "branch", sha: "f2" }, // not in the trunk page
+        ],
+      },
+      nextPage: null,
+    };
+    const calls: string[] = [];
+    const fetchImpl = ((input: RequestInfo | URL) => {
+      const url = new URL(input.toString(), "http://localhost");
+      calls.push(url.pathname + url.search);
+      if (url.pathname === "/api/repo") return Promise.resolve(Response.json(withFeature));
+      expect(url.searchParams.get("sha")).toBe("feature/x");
+      return Promise.resolve(
+        Response.json({
+          commits: [node("f2", ["f1"]), node("f1", ["c3"])],
+          nextPage: 2,
+        } satisfies CommitsPageResponse),
+      );
+    }) as typeof fetch;
+
+    const result = await refreshRepoHistory("acme/widgets", loaded, { fetchImpl });
+    expect(calls).toEqual([
+      "/api/repo?repo=acme%2Fwidgets",
+      "/api/repo/commits?repo=acme%2Fwidgets&sha=feature%2Fx&page=1",
+    ]);
+    expect(result.changed).toBe(true);
+    expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0", "f2", "f1"]);
+  });
+
+  test("reports the merged history once to onProgress", async () => {
+    const { fetchImpl } = bffMock(initial, {});
+    const progress: number[] = [];
+    await refreshRepoHistory("acme/widgets", loaded, {
+      fetchImpl,
+      onProgress: (h) => progress.push(h.commits.length),
+    });
+    expect(progress).toEqual([4]);
+  });
+
+  test("rethrows BFF errors as IngestError", async () => {
+    const fetchImpl = (() =>
+      Promise.resolve(
+        Response.json(
+          { error: { code: "rate-limited", message: "Try later." } },
+          { status: 429 },
+        ),
+      )) as unknown as typeof fetch;
+    await expect(refreshRepoHistory("acme/widgets", loaded, { fetchImpl })).rejects.toMatchObject({
+      name: "IngestError",
+      code: "rate-limited",
     });
   });
 });

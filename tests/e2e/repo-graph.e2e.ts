@@ -252,6 +252,74 @@ test("a failed loadMore re-arms and succeeds on the next scroll (COA-92)", async
   expect(pageRequests.filter((p) => p === 4).length).toBe(2); // failed once, then succeeded
 });
 
+test("refresh re-syncs a moved branch tip in place (COA-100)", async ({ page, isMobile }) => {
+  let repoCalls = 0;
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      repoCalls++;
+      // First load: 5 commits, main@c5. After refresh: main advanced to c6.
+      if (repoCalls === 1) return route.fulfill({ json: repoResponse });
+      return route.fulfill({
+        json: {
+          repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+          history: {
+            commits: [commit("c6", ["c5"], -1, "Add refresh button"), ...repoResponse.history.commits],
+            refs: [
+              { name: "HEAD", type: "head", sha: "c6" },
+              { name: "main", type: "branch", sha: "c6" },
+              { name: "feature", type: "branch", sha: "c3" },
+              { name: "v1.0.0", type: "tag", sha: "c2" },
+            ],
+          },
+          nextPage: null,
+        },
+      });
+    }
+    return route.fulfill({ json: { commits: [], nextPage: null } });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  await expect(page.getByText("5 commits")).toBeVisible();
+
+  const refresh = page.getByRole("button", { name: /Refresh/ });
+  if (isMobile) await refresh.tap();
+  else await refresh.click();
+
+  // The new tip merges into the existing view: count grows, commit renders.
+  await expect(page.getByRole("listbox", { name: /6 commits/ })).toBeVisible();
+  await expect(page.getByText("Add refresh button")).toBeVisible();
+  await expect(page.getByText(/updated just now/)).toBeVisible();
+});
+
+test("refreshing an unchanged repo costs one request and says up to date (COA-100)", async ({
+  page,
+}) => {
+  let repoCalls = 0;
+  let commitCalls = 0;
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      repoCalls++;
+      return route.fulfill({ json: repoResponse });
+    }
+    commitCalls++;
+    return route.fulfill({ json: { commits: [], nextPage: null } });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  await expect(page.getByText("5 commits")).toBeVisible();
+  expect(repoCalls).toBe(1); // initial load; every tip already in trunk
+  expect(commitCalls).toBe(0);
+
+  await page.getByRole("button", { name: /Refresh/ }).click();
+  await expect(page.getByText(/up to date/)).toBeVisible();
+  expect(repoCalls).toBe(2); // exactly one more /api/repo — the happy path
+  expect(commitCalls).toBe(0); // nothing moved → no per-tip pages
+});
+
 test("an empty repository shows the empty state, not an error", async ({ page }) => {
   await page.unroute("**/api/repo**");
   await page.route("**/api/repo**", (route) =>

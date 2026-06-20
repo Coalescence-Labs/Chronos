@@ -129,3 +129,87 @@ export async function fetchPublicRepoHistory(
 
   return makeResult();
 }
+
+export interface RefreshResult {
+  history: RepoHistory;
+  /** True if any ref moved or any new commit arrived since `existing`. */
+  changed: boolean;
+}
+
+export interface RefreshOptions {
+  /** Cap on moved-tip pages fetched to reconcile advanced branches. */
+  maxBranchTips?: number;
+  /** Called once the merged history is ready, for in-place re-render. */
+  onProgress?: (history: RepoHistory) => void;
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Re-sync a loaded history's *tips* (COA-100) without re-paging older history.
+ * Refresh is orthogonal to lazy paging: lazy paging walks toward the oldest
+ * commits, refresh re-reads the newest ones and the current ref positions.
+ *
+ * Cost: the happy path (nothing moved) is a *single* `/api/repo` request — it
+ * returns the fresh refs plus the newest default-branch page, which overlaps
+ * the loaded history, so no commit is missing and no follow-up fetch fires.
+ * Only a branch tip that advanced past that page costs one extra page each
+ * (capped by maxBranchTips), so its ref still lands on a real commit.
+ */
+export async function refreshRepoHistory(
+  input: string,
+  existing: RepoHistory,
+  options: RefreshOptions = {},
+): Promise<RefreshResult> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const repoParam = encodeURIComponent(input);
+
+  const initial = await getJson<RepoResponse>(fetchImpl, `/api/repo?repo=${repoParam}`);
+
+  // Keep the loaded (possibly deeply paged) history; layer the fresh page on
+  // top and swap in the fresh ref positions.
+  const bySha = new Map(existing.commits.map((commit) => [commit.sha, commit]));
+  const history: RepoHistory = {
+    commits: [...existing.commits],
+    refs: initial.history.refs,
+  };
+
+  let added = 0;
+  const merge = (commits: RepoHistory["commits"]): number => {
+    let count = 0;
+    for (const commit of commits) {
+      if (!bySha.has(commit.sha)) {
+        bySha.set(commit.sha, commit);
+        history.commits.push(commit);
+        count++;
+      }
+    }
+    added += count;
+    return count;
+  };
+
+  merge(initial.history.commits);
+
+  // A tip that advanced beyond the newest trunk page is now a ref with no
+  // loaded commit — fetch one page each so it still anchors to a real node.
+  const missingTips = history.refs
+    .filter((ref) => ref.type === "branch" && !bySha.has(ref.sha))
+    .slice(0, options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS);
+  for (const ref of missingTips) {
+    const page = await getJson<CommitsPageResponse>(
+      fetchImpl,
+      `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
+    );
+    merge(page.commits);
+  }
+
+  const changed = added > 0 || refsChanged(existing.refs, history.refs);
+  options.onProgress?.(history);
+  return { history, changed };
+}
+
+/** Refs differ if the set of (name → sha) bindings isn't identical. */
+function refsChanged(before: RepoHistory["refs"], after: RepoHistory["refs"]): boolean {
+  if (before.length !== after.length) return true;
+  const prior = new Map(before.map((ref) => [ref.name, ref.sha]));
+  return after.some((ref) => prior.get(ref.name) !== ref.sha);
+}

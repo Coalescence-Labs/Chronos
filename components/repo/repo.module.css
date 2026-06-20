@@ -32,9 +32,54 @@
   color: var(--fg-muted);
 }
 
-/* Glance-mode toggle: pushed to the trailing edge of the header. */
-.glanceToggle {
+/* Header controls, pushed to the trailing edge as a group. */
+.actions {
   margin-left: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Refresh: re-sync branch tips (COA-100). Square icon button at touch size. */
+.refreshButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.refreshButton:hover:not(:disabled) {
+  color: var(--fg);
+}
+
+.refreshButton:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Glance-mode toggle. */
+.glanceToggle {
   align-self: center;
   min-height: var(--touch-target);
   padding: 0 var(--space-4);
