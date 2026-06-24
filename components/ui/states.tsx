@@ -32,9 +32,9 @@ function GraphGlyph({ className }: { className?: string }) {
   );
 }
 
-export function LoadingState({ label = "Reading history…" }: { label?: string }) {
+export function LoadingState({ label = "Reading history…", fill }: { label?: string; fill?: boolean }) {
   return (
-    <div className={styles.state} role="status">
+    <div className={`${styles.state}${fill ? ` ${styles.fill}` : ""}`} role="status">
       <div className={styles.orbits} aria-hidden="true">
         <span className={styles.orbit} />
         <span className={styles.orbit} />
@@ -49,11 +49,13 @@ export interface EmptyStateProps {
   title: string;
   hint?: string;
   action?: ReactNode;
+  /** Grow to fill (and center within) a flex parent — for full-screen use. */
+  fill?: boolean;
 }
 
-export function EmptyState({ title, hint, action }: EmptyStateProps) {
+export function EmptyState({ title, hint, action, fill }: EmptyStateProps) {
   return (
-    <div className={styles.state}>
+    <div className={`${styles.state}${fill ? ` ${styles.fill}` : ""}`}>
       <GraphGlyph className={styles.glyph} />
       <h2 className={styles.title}>{title}</h2>
       {hint && <p className={styles.detail}>{hint}</p>}
@@ -67,6 +69,8 @@ export interface ErrorStateProps {
   message: string;
   onRetry?: () => void;
   retryLabel?: string;
+  /** Grow to fill (and center within) a flex parent — for full-screen use. */
+  fill?: boolean;
 }
 
 export function ErrorState({
@@ -74,9 +78,10 @@ export function ErrorState({
   message,
   onRetry,
   retryLabel = "Try again",
+  fill,
 }: ErrorStateProps) {
   return (
-    <div className={styles.state} role="alert">
+    <div className={`${styles.state}${fill ? ` ${styles.fill}` : ""}`} role="alert">
       <GraphGlyph className={styles.errorGlyph} />
       <h2 className={styles.title}>{title}</h2>
       <p className={styles.detail}>{message}</p>

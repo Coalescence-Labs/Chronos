@@ -8,6 +8,14 @@
   text-align: center;
 }
 
+/* Full-screen usage (the repo screen's loading/empty/error): grow to fill the
+   flex parent (.main) so the content centers in the viewport instead of
+   sitting at the top with a void below — and never forces a scroll. */
+.fill {
+  flex: 1;
+  min-height: 0;
+}
+
 .title {
   margin: 0;
   font-size: var(--text-lg);
