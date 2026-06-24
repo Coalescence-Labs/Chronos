@@ -10,7 +10,8 @@
     "test:e2e": "playwright test",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "shot": "bun scripts/screenshot.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
