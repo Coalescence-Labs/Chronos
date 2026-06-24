@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun run shot)",
+      "Bash(bun run shot *)",
+      "Bash(bun scripts/screenshot.mjs *)",
+      "Read(/tmp/chronos-shots/**)",
+      "Bash(ls /tmp/chronos-shots)",
+      "Bash(ls /tmp/chronos-shots/*)",
+      "Bash(rm /tmp/chronos-shots/*)",
+      "Bash(rm -f /tmp/chronos-shots/*)"
+    ]
+  }
+}
