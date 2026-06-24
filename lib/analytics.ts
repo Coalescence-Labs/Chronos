@@ -53,6 +53,14 @@ export type RepoSource = "url" | "demo" | "github";
 /** Progressive-depth affordances we want to know are discovered/used. */
 export type InteractionKind = "glance" | "trace" | "inspect" | "peek";
 export type ThemeChoice = "system" | "dark" | "light";
+/** Coarse device class (no fingerprinting) — phone vs laptop perf differ. */
+export type DeviceClass = "phone" | "laptop";
+/** Time-to-first-graph buckets (ms): the "at a glance" latency promise. */
+export type MsBucket = "lt_500" | "500_1500" | "1500_4000" | "gt_4000";
+/** Layout-cost buckets (ms): finer, since layoutGraph is sub-frame work. */
+export type LayoutMsBucket = "lt_5" | "5_20" | "20_100" | "100_500" | "gt_500";
+/** Repo-size buckets (commit count) — always bucketed, never the exact size. */
+export type SizeBucket = "lt_100" | "100_1k" | "1k_10k" | "gt_10k";
 
 export type AnalyticsEvent =
   | { name: "repo_submitted"; props: { source: RepoSource } }
@@ -60,8 +68,38 @@ export type AnalyticsEvent =
   | { name: "lazy_page"; props: { depth: number } }
   | { name: "interaction"; props: { kind: InteractionKind } }
   | { name: "theme_change"; props: { theme: ThemeChoice } }
+  // Performance (COA-98). Time-to-first-graph is bucketed by device, not size
+  // — first paint is bounded by the first page, so it isn't size-dependent;
+  // the size dimension lives on layout_cost instead, where it's meaningful.
+  | { name: "graph_ready"; props: { device: DeviceClass; ms_bucket: MsBucket } }
+  | { name: "layout_cost"; props: { ms_bucket: LayoutMsBucket; size_bucket: SizeBucket } }
   | { name: "demo_view" }
   | { name: "rate_limited" };
+
+/** Bucket a time-to-first-graph duration (ms) to an enum — never the raw value. */
+export function msBucket(ms: number): MsBucket {
+  if (ms < 500) return "lt_500";
+  if (ms < 1500) return "500_1500";
+  if (ms < 4000) return "1500_4000";
+  return "gt_4000";
+}
+
+/** Bucket a layout duration (ms) to an enum. */
+export function layoutMsBucket(ms: number): LayoutMsBucket {
+  if (ms < 5) return "lt_5";
+  if (ms < 20) return "5_20";
+  if (ms < 100) return "20_100";
+  if (ms < 500) return "100_500";
+  return "gt_500";
+}
+
+/** Bucket a commit count to an enum — coarse enough never to fingerprint a repo. */
+export function sizeBucket(count: number): SizeBucket {
+  if (count < 100) return "lt_100";
+  if (count < 1_000) return "100_1k";
+  if (count < 10_000) return "1k_10k";
+  return "gt_10k";
+}
 
 type EventName = AnalyticsEvent["name"];
 type VercelProps = Record<string, string | number | boolean>;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
-import { track } from "@/lib/analytics";
+import { msBucket, track } from "@/lib/analytics";
 import type { RepoHistory } from "@/lib/graph";
 import { fetchPublicRepoHistory, IngestError, refreshRepoHistory } from "@/lib/ingest";
 import type { IngestResult } from "@/lib/ingest";
@@ -59,6 +59,10 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const historyRef = useRef<RepoHistory | null>(null);
   // How many lazy pages this request has pulled — reported with lazy_page.
   const pagesLoadedRef = useRef(0);
+  // Time-to-first-graph (COA-98): when this request started, and whether we've
+  // already reported its first paint (the first page with commits to draw).
+  const startedAtRef = useRef(0);
+  const firstPaintRef = useRef(false);
 
   const requestKey = `${owner}/${repo}#${attempt}`;
   const requestKeyRef = useRef(requestKey);
@@ -69,6 +73,8 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
     loadMoreRef.current = null;
     historyRef.current = null;
     pagesLoadedRef.current = 0;
+    firstPaintRef.current = false;
+    startedAtRef.current = performance.now();
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
       onProgress: (h) => {
@@ -81,6 +87,16 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             hasMore: false,
             complete: false,
           });
+          // Time-to-first-graph: the first page with commits is the first
+          // useful paint. Bucketed by device, never the repo or exact ms.
+          if (!firstPaintRef.current && h.commits.length > 0) {
+            firstPaintRef.current = true;
+            const device = window.innerWidth < 700 ? "phone" : "laptop";
+            track({
+              name: "graph_ready",
+              props: { device, ms_bucket: msBucket(performance.now() - startedAtRef.current) },
+            });
+          }
         }
       },
     })

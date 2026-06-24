@@ -171,12 +171,25 @@ Why this shape:
 
 | Metric | How captured | Why it's the bar |
 |---|---|---|
-| **Time-to-first-graph** | `graph_ready` custom event with `ms_bucket` + `device` + `size_bucket` | **Headline.** "At a glance" is a latency promise; bucketed by device + repo-size class so phone and big-repo regressions are visible without storing exact sizes |
-| **Layout cost** | duration bucket measured around `lib/graph` layout, sent as a prop | The layout engine is the highest-risk module (AGENTS §3); watch it for regressions |
+| **Time-to-first-graph** | `graph_ready { device, ms_bucket }` — emitted by `RepoScreen` when the first page with commits paints (measured from request start) | **Headline.** "At a glance" is a latency promise. Bucketed by **device** (phone vs laptop), **not** size: first paint is bounded by the first page, so it isn't size-dependent — the size dimension lives on `layout_cost` where it's meaningful. (Caveat: measures fetch+render from `RepoScreen` mount, not full navigation.) |
+| **Layout cost** | `layout_cost { ms_bucket, size_bucket }` — `GraphExplorer` times the synchronous `layoutGraph` pass and emits once per size bucket reached this mount | The layout engine is the highest-risk module (AGENTS §3) and the basis of the "no web worker yet" decision; `size_bucket` flags when a big repo pushes layout past frame budget and a worker becomes necessary |
 | **Core Web Vitals / RES** | `@vercel/speed-insights` `<SpeedInsights />`, auto, route-templated | Paint-level RUM that complements (not replaces) time-to-first-graph |
 | **Rate-limit incidence** | `rate_limited` event count ÷ `repo_submitted` | Capacity + caching signal |
 
-All buckets are coarse on purpose: they answer "is it fast enough / is it regressing" without ever recording a value precise enough to identify a repo.
+All buckets are coarse on purpose: they answer "is it fast enough / is it regressing" without ever recording a value precise enough to identify a repo. Both perf events go through the same `track()` chokepoint and typed union as COA-97 — only enums and bucketed counts, never a raw duration, size, or repo identifier.
+
+### Dashboards / queries (feeds COA-74 + the worker decision)
+
+In the Vercel **Web Analytics → Custom Events** view (filterable by event name + prop):
+
+- **Time-to-first-graph:** `graph_ready`, split by `ms_bucket`, segmented by `device`. Watch the share in `1500_4000` / `gt_4000` (phone especially) — that's the "at a glance" promise eroding.
+- **Layout cost:** `layout_cost`, `ms_bucket` distribution within each `size_bucket`. Any `100_500` / `gt_500` at `1k_10k`+ is the signal to move `layoutGraph` to a worker (ARCHITECTURE decision #2).
+- **Lazy-paging depth:** max `lazy_page.depth` distribution — validates the eager-3-pages default (ADR 006 / COA-74).
+- **Rate-limit incidence:** `count(rate_limited) ÷ count(repo_submitted)` — if non-trivial, it sharpens the COA-74 caching / app-token decision.
+
+### Speed Insights route-template check (manual gate)
+
+Speed Insights buckets by route, and Next App Router reports the **template** (`/repo/[owner]/[repo]`), not the filled-in path — so it inherits the no-repo-identity guarantee. **Verify once after deploy** in the Speed Insights dashboard that the routes list shows only `/`, `/repo/[owner]/[repo]`, `/demo`, `/styleguide` — never a concrete `/repo/owner/name`. (Manual, like the Lighthouse installability gate; it can't be asserted from a unit test against a live dashboard.)
 
 ---
 
@@ -195,7 +208,7 @@ All buckets are coarse on purpose: they answer "is it fast enough / is it regres
 |---|---|---|
 | **COA-96** | Finish the Web Analytics integration: add `beforeSend` path scrubbing (§4), create the `lib/analytics.ts` chokepoint + allowlist (§5), wire the env off-switch (§7), and **run the privacy pre-flight** for the analytics egress path. | **Immediate next step.** `@vercel/analytics@^2` is installed and `<Analytics />` is already mounted **without** `beforeSend` (`app/layout.tsx`), so today's build would record raw `/repo/owner/name` paths. Scrubbing closes that gap. |
 | **COA-97** | Instrument the custom events in §6 (`repo_submitted`, `render_result`, `lazy_page`, `interaction`, `theme_change`, `demo_view`, `rate_limited`) via the chokepoint `track()`. | **Done.** Typed `track()` + `AnalyticsEvent` union live in `lib/analytics.ts`; emitted from the URL form (`repo_submitted`), `RepoScreen` (`render_result` / `rate_limited` / `lazy_page`), `GraphView` + `GraphExplorer` (`interaction`: trace/peek/inspect/glance), `ThemeToggle` (`theme_change`), and `/demo` (`demo_view`). Payload contract is unit-tested in `tests/analytics.test.ts`. |
-| **COA-98** | Performance metrics: time-to-first-graph (headline), layout cost, rate-limit incidence; add `@vercel/speed-insights` `<SpeedInsights />` and **verify in the dashboard that only route templates appear** (no `/repo/owner/name`). | After COA-97. `@vercel/speed-insights` is a new dependency to add (not yet in `package.json`). |
+| **COA-98** | Performance metrics: time-to-first-graph (headline), layout cost, rate-limit incidence; `@vercel/speed-insights` `<SpeedInsights />` and **verify in the dashboard that only route templates appear** (no `/repo/owner/name`). | **Done.** `graph_ready` (RepoScreen) + `layout_cost` (GraphExplorer) emit through `track()` with bucketed ms/size enums; bucket boundaries unit-tested. `<SpeedInsights />` already mounted (COA-96); the route-template check is a documented manual post-deploy gate (above). Queries for all metrics documented above. |
 
 ### Pre-flight note
 

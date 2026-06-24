@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { ANALYTICS_ENABLED, analyticsPayload, scrubUrl } from "@/lib/analytics";
+import {
+  ANALYTICS_ENABLED,
+  analyticsPayload,
+  layoutMsBucket,
+  msBucket,
+  scrubUrl,
+  sizeBucket,
+} from "@/lib/analytics";
 import type { AnalyticsEvent } from "@/lib/analytics";
 
 /**
@@ -58,6 +65,8 @@ describe("analyticsPayload", () => {
     { name: "lazy_page", props: { depth: 3 } },
     { name: "interaction", props: { kind: "trace" } },
     { name: "theme_change", props: { theme: "dark" } },
+    { name: "graph_ready", props: { device: "laptop", ms_bucket: "lt_500" } },
+    { name: "layout_cost", props: { ms_bucket: "5_20", size_bucket: "1k_10k" } },
     { name: "demo_view" },
     { name: "rate_limited" },
   ];
@@ -90,5 +99,40 @@ describe("analyticsPayload", () => {
         if (typeof value === "string") expect(value).not.toMatch(identifierish);
       }
     }
+  });
+});
+
+/**
+ * Perf bucketing (COA-98): durations and sizes are always coarsened to enums
+ * before they reach `track()`, so no value precise enough to fingerprint a
+ * repo (or a user's exact timing) ever leaves the browser.
+ */
+describe("perf buckets", () => {
+  test("msBucket (time-to-first-graph) maps by boundary", () => {
+    expect(msBucket(0)).toBe("lt_500");
+    expect(msBucket(499)).toBe("lt_500");
+    expect(msBucket(500)).toBe("500_1500");
+    expect(msBucket(1499)).toBe("500_1500");
+    expect(msBucket(1500)).toBe("1500_4000");
+    expect(msBucket(3999)).toBe("1500_4000");
+    expect(msBucket(4000)).toBe("gt_4000");
+  });
+
+  test("layoutMsBucket maps by boundary", () => {
+    expect(layoutMsBucket(0)).toBe("lt_5");
+    expect(layoutMsBucket(5)).toBe("5_20");
+    expect(layoutMsBucket(20)).toBe("20_100");
+    expect(layoutMsBucket(100)).toBe("100_500");
+    expect(layoutMsBucket(500)).toBe("gt_500");
+  });
+
+  test("sizeBucket maps commit counts by boundary", () => {
+    expect(sizeBucket(0)).toBe("lt_100");
+    expect(sizeBucket(99)).toBe("lt_100");
+    expect(sizeBucket(100)).toBe("100_1k");
+    expect(sizeBucket(999)).toBe("100_1k");
+    expect(sizeBucket(1_000)).toBe("1k_10k");
+    expect(sizeBucket(9_999)).toBe("1k_10k");
+    expect(sizeBucket(10_000)).toBe("gt_10k");
   });
 });
