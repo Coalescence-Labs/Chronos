@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { GraphView } from "@/components/graph/GraphView";
 import { CopyButton, InspectionSurface } from "@/components/ui";
+import { track } from "@/lib/analytics";
 import { applyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
 import type { Capsule, RepoHistory } from "@/lib/graph";
 import styles from "./repo.module.css";
@@ -68,9 +69,16 @@ export function GraphExplorer({
       return;
     }
     setReflowing(true);
+    track({ name: "interaction", props: { kind: "glance" } }); // user toggled Glance
     const timer = setTimeout(() => setReflowing(false), 280);
     return () => clearTimeout(timer);
   }, [glance]);
+
+  // A commit opening in the inspector is an "inspect" interaction (whether via
+  // click, keyboard, or a pinned-badge jump); deselecting (→ null) isn't.
+  useEffect(() => {
+    if (selectedSha) track({ name: "interaction", props: { kind: "inspect" } });
+  }, [selectedSha]);
 
   // One glance transform per history; reused to both gate the toggle (applied
   // is false when no default branch) and supply the glanced view when on.

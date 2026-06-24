@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Button } from "@/components/ui";
+import { track } from "@/lib/analytics";
 import { IngestError, parseRepoInput } from "@/lib/ingest";
 import styles from "./url-form.module.css";
 
@@ -23,6 +24,8 @@ export function RepoUrlForm() {
     try {
       const { owner, repo } = parseRepoInput(value);
       setError(null);
+      // Source enum only — never the owner/repo the user typed (PRIVACY.md).
+      track({ name: "repo_submitted", props: { source: "url" } });
       router.push(`/repo/${owner}/${repo}`);
     } catch (cause) {
       setError(

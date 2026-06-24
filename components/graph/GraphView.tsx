@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { track } from "@/lib/analytics";
 import { attributeBranches, packShelves, pinnedLines } from "@/lib/graph";
 import type { Capsule, EdgeKind, GraphLayout, RepoHistory } from "@/lib/graph";
 import styles from "./graph.module.css";
@@ -207,6 +208,14 @@ export function GraphView({
     setTracedTip((prev) => (prev === tip ? null : tip));
   }, []);
 
+  // Count a trace whenever a line becomes highlighted (incl. switching lines);
+  // clearing (→ null) isn't an interaction. Emitting from an effect is the
+  // sanctioned "sync to an external system" pattern, and keeps the toggle
+  // reducers side-effect-free.
+  useEffect(() => {
+    if (tracedTip) track({ name: "interaction", props: { kind: "trace" } });
+  }, [tracedTip]);
+
   // Long-press peeks the full (otherwise-ellipsized) subject inline, without
   // opening the commit view — useful on phones where subjects truncate. The
   // expanded row grows and pushes the rows/nodes below it down (real reflow),
@@ -225,6 +234,11 @@ export function GraphView({
     if (el) setMeasuredHeight(el.offsetHeight);
   }, []);
   const expandedExtra = expandedRow >= 0 ? Math.max(0, measuredHeight - rowHeight) : 0;
+
+  // A long-press peek opening is a "peek" interaction (collapsing isn't).
+  useEffect(() => {
+    if (expandedSha) track({ name: "interaction", props: { kind: "peek" } });
+  }, [expandedSha]);
 
   const clearAll = useCallback(() => {
     setTracedTip(null);
