@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { GraphView } from "@/components/graph/GraphView";
 import { CopyButton, InspectionSurface } from "@/components/ui";
-import { track } from "@/lib/analytics";
+import { layoutMsBucket, sizeBucket, track } from "@/lib/analytics";
+import type { SizeBucket } from "@/lib/analytics";
 import { applyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
 import type { Capsule, RepoHistory } from "@/lib/graph";
 import styles from "./repo.module.css";
@@ -88,6 +89,24 @@ export function GraphExplorer({
   const capsules = glance && canGlance ? glanced.capsules : NO_CAPSULES;
 
   const layout = useMemo(() => layoutGraph(view, { maxLanes }), [view, maxLanes]);
+
+  // Layout cost (COA-98): report once per size bucket reached this mount — as a
+  // live repo streams in (100 → 2k → …) we capture cost at each scale, and for
+  // a static history (demo / fully-loaded) exactly once. The measurement runs
+  // its own timed layout pass inside the effect (where impure timing is fine —
+  // useMemo must stay pure); deduping keeps it to a handful of passes total.
+  const reportedSizesRef = useRef<Set<SizeBucket>>(new Set());
+  useEffect(() => {
+    const size = sizeBucket(view.commits.length);
+    if (reportedSizesRef.current.has(size)) return;
+    reportedSizesRef.current.add(size);
+    const start = performance.now();
+    layoutGraph(view, { maxLanes });
+    track({
+      name: "layout_cost",
+      props: { ms_bucket: layoutMsBucket(performance.now() - start), size_bucket: size },
+    });
+  }, [view, maxLanes]);
 
   const selected = useMemo(
     () => (selectedSha ? view.commits.find((c) => c.sha === selectedSha) : undefined),
