@@ -1,17 +1,35 @@
 import type { Metadata, Viewport } from "next";
 import { ChronosAnalytics } from "@/components/analytics/ChronosAnalytics";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import { CHROME_BG, THEME_INIT_SCRIPT } from "@/lib/theme";
 import { satoshi } from "./fonts";
 import "./globals.css";
 
+const TITLE_DEFAULT = `${SITE_NAME} — ${SITE_TAGLINE.replace(/\.$/, "").toLowerCase()}`;
+
 export const metadata: Metadata = {
-  title: "Chronos — see your git history at a glance",
-  description:
-    "A beautiful, fast git branch-graph visualizer. High information density, low cognitive load.",
-  applicationName: "Chronos",
+  // Absolute base for canonicals + OG/Twitter image URLs (COA-126).
+  metadataBase: new URL(SITE_URL),
+  // "%s — Chronos" for child routes; the home/default keeps the full tagline.
+  title: { default: TITLE_DEFAULT, template: `%s — ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chronos" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: SITE_NAME },
+  alternates: { canonical: "/" },
+  // Marketing surface is indexable by default; /repo/* and /styleguide opt out.
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: TITLE_DEFAULT,
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    // The branded card at app/opengraph-image is picked up automatically and
+    // is intentionally generic — safe to inherit on /repo/* (no repo identity).
+  },
+  twitter: { card: "summary_large_image", title: TITLE_DEFAULT, description: SITE_DESCRIPTION },
 };
 
 export const viewport: Viewport = {

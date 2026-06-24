@@ -43,10 +43,15 @@ describe("design tokens", () => {
 
   test("components and page styles contain no hard-coded colors", async () => {
     const glob = new Glob("**/*.{tsx,ts,css}");
+    // app/opengraph-image.tsx renders via next/og ImageResponse — outside the
+    // DOM, with no stylesheet/CSS variables in scope — so the branded social
+    // card carries literal hex by necessity (COA-126). The CSS/DOM surface
+    // still must use tokens; that's what this scan enforces everywhere else.
+    const exempt = new Set(["app/globals.css", "app/opengraph-image.tsx"]);
     const paths = [
       ...(await Array.fromAsync(glob.scan("components"))).map((p) => `components/${p}`),
       ...(await Array.fromAsync(glob.scan("app"))).map((p) => `app/${p}`),
-    ].filter((p) => p !== "app/globals.css" && !p.startsWith("app/api/"));
+    ].filter((p) => !exempt.has(p) && !p.startsWith("app/api/"));
 
     const violations: string[] = [];
     for (const path of paths) {

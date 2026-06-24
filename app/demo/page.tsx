@@ -10,8 +10,14 @@ import { DEMO_OWNER, DEMO_REPO, demoHistory } from "@/lib/demo/history";
  */
 
 export const metadata: Metadata = {
-  title: "Demo — Chronos",
+  title: "Demo", // → "Demo — Chronos" via the root title template
   description: "Explore the Chronos branch graph on a synthetic repository.",
+  alternates: { canonical: "/demo" },
+  openGraph: {
+    title: "Chronos — interactive demo",
+    description: "Explore the Chronos branch graph on a synthetic repository.",
+    url: "/demo",
+  },
 };
 
 export default function DemoPage() {

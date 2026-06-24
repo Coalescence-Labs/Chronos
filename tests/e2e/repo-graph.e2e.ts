@@ -320,6 +320,17 @@ test("refreshing an unchanged repo costs one request and says up to date (COA-10
   expect(commitCalls).toBe(0); // nothing moved → no per-tip pages
 });
 
+test("the repo route is noindex; the home route stays indexable (COA-126)", async ({ page }) => {
+  await page.goto("/repo/acme/widgets");
+  // Privacy + crawl-budget: /repo/* must never be indexed.
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+
+  await page.goto("/");
+  const robots = page.locator('meta[name="robots"]');
+  // Home is indexable — either no robots meta, or one without noindex.
+  if (await robots.count()) await expect(robots).not.toHaveAttribute("content", /noindex/);
+});
+
 test("an empty repository shows the empty state, not an error", async ({ page }) => {
   await page.unroute("**/api/repo**");
   await page.route("**/api/repo**", (route) =>

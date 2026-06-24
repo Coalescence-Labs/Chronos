@@ -3,12 +3,18 @@ import { CHROME_BG } from "@/lib/theme";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "Chronos — git history at a glance",
     short_name: "Chronos",
     description:
       "A beautiful, fast git branch-graph visualizer. High information density, low cognitive load.",
+    lang: "en",
+    dir: "ltr",
+    categories: ["developer", "productivity", "utilities"],
     start_url: "/",
+    scope: "/",
     display: "standalone",
+    orientation: "any",
     background_color: CHROME_BG,
     theme_color: CHROME_BG,
     icons: [
