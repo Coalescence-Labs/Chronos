@@ -1,4 +1,5 @@
-import type { RepoHistory } from "@/lib/graph/types";
+import { pruneUnreachable } from "@/lib/graph/reachability";
+import type { CommitNode, RepoHistory } from "@/lib/graph/types";
 import type { CommitsPageResponse, IngestErrorBody, RepoResponse } from "./api";
 import { IngestError } from "./errors";
 
@@ -60,7 +61,6 @@ export async function fetchPublicRepoHistory(
   const repoParam = encodeURIComponent(input);
 
   const initial = await getJson<RepoResponse>(fetchImpl, `/api/repo?repo=${repoParam}`);
-  const bySha = new Map(initial.history.commits.map((commit) => [commit.sha, commit]));
   const history: RepoHistory = {
     commits: [...initial.history.commits],
     refs: initial.history.refs,
@@ -68,10 +68,14 @@ export async function fetchPublicRepoHistory(
   options.onProgress?.(history);
 
   const merge = (commits: RepoHistory["commits"]): number => {
+    // The dedupe set is rebuilt per call: a refresh (COA-127) may prune or
+    // add commits in this shared history object between pages, so a
+    // long-lived map would go stale and corrupt later merges.
+    const known = new Set(history.commits.map((commit) => commit.sha));
     let added = 0;
     for (const commit of commits) {
-      if (!bySha.has(commit.sha)) {
-        bySha.set(commit.sha, commit);
+      if (!known.has(commit.sha)) {
+        known.add(commit.sha);
         history.commits.push(commit);
         added++;
       }
@@ -101,8 +105,9 @@ export async function fetchPublicRepoHistory(
   // branch tips that haven't merged yet would never load — and a ref without
   // its commit can't appear in the graph. Load one page per missing tip;
   // deeper parents render as open edges until merged history picks them up.
+  const loadedShas = new Set(history.commits.map((commit) => commit.sha));
   const missingTips = history.refs
-    .filter((ref) => ref.type === "branch" && !bySha.has(ref.sha))
+    .filter((ref) => ref.type === "branch" && !loadedShas.has(ref.sha))
     .slice(0, options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS);
   for (const ref of missingTips) {
     const page = await getJson<CommitsPageResponse>(
@@ -113,8 +118,14 @@ export async function fetchPublicRepoHistory(
   }
 
   async function loadMore(): Promise<IngestResult> {
-    if (nextPage !== null && nextPage <= maxPages) {
+    // Pages are numbered from the *current* tip: a refresh that advanced the
+    // branch shifts older history to higher page numbers, so a page can come
+    // back fully deduplicated. Skip ahead until new commits land (or the
+    // cap/end), so every call makes visible progress.
+    while (nextPage !== null && nextPage <= maxPages) {
+      const before = history.commits.length;
       nextPage = await fetchTrunkPage(nextPage);
+      if (history.commits.length > before) break;
     }
     return makeResult();
   }
@@ -132,28 +143,45 @@ export async function fetchPublicRepoHistory(
 
 export interface RefreshResult {
   history: RepoHistory;
-  /** True if any ref moved or any new commit arrived since `existing`. */
+  /** True if any ref moved, appeared, or disappeared since `existing`. */
   changed: boolean;
+  /** New commits that survived reconciliation. */
+  added: number;
+  /** Loaded commits dropped because no current ref reaches them. */
+  pruned: number;
 }
 
 export interface RefreshOptions {
+  /** Cap on trunk pages fetched to reconnect an advanced default branch. */
+  maxPages?: number;
   /** Cap on moved-tip pages fetched to reconcile advanced branches. */
   maxBranchTips?: number;
-  /** Called once the merged history is ready, for in-place re-render. */
+  /** Called once the reconciled history is ready, for in-place re-render. */
   onProgress?: (history: RepoHistory) => void;
   fetchImpl?: typeof fetch;
 }
 
 /**
- * Re-sync a loaded history's *tips* (COA-100) without re-paging older history.
- * Refresh is orthogonal to lazy paging: lazy paging walks toward the oldest
- * commits, refresh re-reads the newest ones and the current ref positions.
+ * Re-sync a loaded history with upstream (COA-100, reconciled per COA-127).
+ * The result is equivalent to a fresh load of the current upstream state —
+ * additions *and* removals — while updating `existing` in place so the
+ * viewport, selection, trace, and the lazy-paging continuation all survive.
  *
- * Cost: the happy path (nothing moved) is a *single* `/api/repo` request — it
- * returns the fresh refs plus the newest default-branch page, which overlaps
- * the loaded history, so no commit is missing and no follow-up fetch fires.
- * Only a branch tip that advanced past that page costs one extra page each
- * (capped by maxBranchTips), so its ref still lands on a real commit.
+ * Mechanics:
+ * 1. One `/api/repo` request. If no ref moved, nothing upstream changed —
+ *    return immediately (the COA-100 single-request happy-path guarantee).
+ * 2. Gap-fill: keep fetching trunk pages while the newly fetched history
+ *    still has parents that are neither loaded nor fetched — i.e. until the
+ *    new commits connect to the loaded graph (a large advance can outrun
+ *    page 1). Capped by maxPages; if the gap can't be closed, reconciliation
+ *    degrades to fresh-load semantics (disconnected old rows are pruned).
+ * 3. Back-fill branch tips that still lack a loaded commit, one page each,
+ *    exactly like the initial ingest (capped by maxBranchTips).
+ * 4. Reconcile: swap in the fresh refs, prune commits no current ref
+ *    reaches (deleted branches, rebases, force-pushes, squash-merges), and
+ *    restore newest-first order.
+ * 5. Apply atomically to `existing` — a mid-flight error leaves the loaded
+ *    graph untouched (no data loss).
  */
 export async function refreshRepoHistory(
   input: string,
@@ -164,47 +192,93 @@ export async function refreshRepoHistory(
   const repoParam = encodeURIComponent(input);
 
   const initial = await getJson<RepoResponse>(fetchImpl, `/api/repo?repo=${repoParam}`);
+  const freshRefs = initial.history.refs;
 
-  // Keep the loaded (possibly deeply paged) history; layer the fresh page on
-  // top and swap in the fresh ref positions.
-  const bySha = new Map(existing.commits.map((commit) => [commit.sha, commit]));
-  const history: RepoHistory = {
-    commits: [...existing.commits],
-    refs: initial.history.refs,
-  };
+  // Happy path: identical refs mean the upstream reachable state is
+  // identical too — page 1 from an unmoved tip holds nothing new. One
+  // request, no churn, the loaded object untouched.
+  if (!refsChanged(existing.refs, freshRefs)) {
+    return { history: existing, changed: false, added: 0, pruned: 0 };
+  }
 
-  let added = 0;
-  const merge = (commits: RepoHistory["commits"]): number => {
-    let count = 0;
+  const known = new Set(existing.commits.map((commit) => commit.sha));
+  const fetched: CommitNode[] = [];
+  const fetchedShas = new Set<string>();
+  const record = (commits: readonly CommitNode[]) => {
     for (const commit of commits) {
-      if (!bySha.has(commit.sha)) {
-        bySha.set(commit.sha, commit);
-        history.commits.push(commit);
-        count++;
+      if (!known.has(commit.sha) && !fetchedShas.has(commit.sha)) {
+        fetchedShas.add(commit.sha);
+        fetched.push(commit);
       }
     }
-    added += count;
-    return count;
   };
 
-  merge(initial.history.commits);
+  record(initial.history.commits);
 
-  // A tip that advanced beyond the newest trunk page is now a ref with no
-  // loaded commit — fetch one page each so it still anchors to a real node.
-  const missingTips = history.refs
-    .filter((ref) => ref.type === "branch" && !bySha.has(ref.sha))
+  // The newly fetched history is connected once every parent it references
+  // is either already loaded or itself fetched. Until then, still-reachable
+  // loaded rows below the gap would be indistinguishable from orphans and
+  // pruning would eat them — so keep paging the trunk toward the gap.
+  const dangling = () =>
+    fetched.some((commit) =>
+      commit.parents.some((parent) => !known.has(parent) && !fetchedShas.has(parent)),
+    );
+
+  const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
+  const branch = encodeURIComponent(initial.repo.defaultBranch);
+  let nextPage = initial.nextPage;
+  while (nextPage !== null && nextPage <= maxPages && dangling()) {
+    const page = await getJson<CommitsPageResponse>(
+      fetchImpl,
+      `/api/repo/commits?repo=${repoParam}&sha=${branch}&page=${nextPage}`,
+    );
+    record(page.commits);
+    nextPage = page.nextPage;
+  }
+
+  // A tip that moved beyond the fetched pages is a ref with no loaded
+  // commit — fetch one page each so it anchors to a real node, mirroring
+  // the initial ingest posture (deeper parents render as open edges).
+  const missingTips = freshRefs
+    .filter(
+      (ref) => ref.type === "branch" && !known.has(ref.sha) && !fetchedShas.has(ref.sha),
+    )
     .slice(0, options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS);
   for (const ref of missingTips) {
     const page = await getJson<CommitsPageResponse>(
       fetchImpl,
       `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
     );
-    merge(page.commits);
+    record(page.commits);
   }
 
-  const changed = added > 0 || refsChanged(existing.refs, history.refs);
-  options.onProgress?.(history);
-  return { history, changed };
+  // Reconcile: fresh refs decide reachability; whatever they can't reach is
+  // gone upstream (or never existed there) and goes here too.
+  const { history: reconciled, pruned } = pruneUnreachable({
+    commits: [...existing.commits, ...fetched],
+    refs: freshRefs,
+  });
+
+  // Restore the model contract's newest-first order (stable, so equal
+  // timestamps keep their relative page order); layout tie-breaks by it.
+  const time = (commit: CommitNode): number => {
+    const parsed = Date.parse(commit.date);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  const commits = [...reconciled.commits].sort((a, b) => time(b) - time(a));
+
+  const survivors = new Set(commits.map((commit) => commit.sha));
+  const added = fetched.filter((commit) => survivors.has(commit.sha)).length;
+
+  // Apply atomically to the live object: the lazy-paging continuation from
+  // fetchPublicRepoHistory closes over it, so mutating in place keeps the
+  // cursor and the rendered history coherent.
+  existing.commits.length = 0;
+  existing.commits.push(...commits);
+  existing.refs = freshRefs;
+
+  options.onProgress?.(existing);
+  return { history: existing, changed: true, added, pruned };
 }
 
 /** Refs differ if the set of (name → sha) bindings isn't identical. */

@@ -204,12 +204,15 @@ describe("refreshRepoHistory", () => {
 
     expect(calls).toEqual(["/api/repo?repo=acme%2Fwidgets"]);
     expect(result.changed).toBe(false);
-    // Older paged history is untouched; nothing duplicated.
+    expect(result.added).toBe(0);
+    expect(result.pruned).toBe(0);
+    // The loaded object comes back untouched — zero view churn.
+    expect(result.history).toBe(loaded);
     expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0"]);
     expect(result.history.refs).toEqual(loaded.refs);
   });
 
-  test("a moved tip + new commit lands on top, refs swap, still one request", async () => {
+  test("a moved tip + new commit lands, refs swap, still one request", async () => {
     const advanced: RepoResponse = {
       ...initial,
       history: {
@@ -219,12 +222,74 @@ describe("refreshRepoHistory", () => {
       nextPage: 2,
     };
     const { fetchImpl, calls } = bffMock(advanced, {});
-    const result = await refreshRepoHistory("acme/widgets", loaded, { fetchImpl });
+    const before = { commits: [...loaded.commits], refs: loaded.refs };
+    const result = await refreshRepoHistory("acme/widgets", before, { fetchImpl });
+
+    // The fetched page connects immediately (c3 is loaded) — no gap paging.
+    expect(calls).toEqual(["/api/repo?repo=acme%2Fwidgets"]);
+    expect(result.changed).toBe(true);
+    expect(result.added).toBe(1);
+    expect(result.pruned).toBe(0);
+    expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0", "c4"]);
+    expect(result.history.refs).toEqual([{ name: "main", type: "branch", sha: "c4" }]);
+    // Applied in place: the loaded object *is* the result.
+    expect(result.history).toBe(before);
+  });
+
+  test("a deleted branch's stranded commits are pruned to match a fresh load", async () => {
+    // Loaded: main@c3 plus an unmerged feature at f2 (f2 ← f1 ← c2).
+    const withFeature: RepoHistory = {
+      commits: [
+        node("c3", ["c2"]),
+        node("f2", ["f1"]),
+        node("c2", ["c1"]),
+        node("f1", ["c2"]),
+        node("c1", ["c0"]),
+        node("c0"),
+      ],
+      refs: [
+        { name: "main", type: "branch", sha: "c3" },
+        { name: "feature/x", type: "branch", sha: "f2" },
+      ],
+    };
+    // Upstream now: feature/x deleted without merging; main unmoved.
+    const { fetchImpl, calls } = bffMock(initial, {});
+    const result = await refreshRepoHistory("acme/widgets", withFeature, { fetchImpl });
 
     expect(calls).toEqual(["/api/repo?repo=acme%2Fwidgets"]);
     expect(result.changed).toBe(true);
-    expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0", "c4"]);
-    expect(result.history.refs).toEqual([{ name: "main", type: "branch", sha: "c4" }]);
+    expect(result.pruned).toBe(2);
+    expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0"]);
+    expect(result.history.refs).toEqual([{ name: "main", type: "branch", sha: "c3" }]);
+  });
+
+  test("gap-fill pages the trunk until the new history connects, then reconciles", async () => {
+    // Upstream advanced far: c7←c6 on page 1, c5←c4 on page 2, page 2's c4
+    // has parent c3 which is loaded — connected there, page 3 never fetched.
+    const far: RepoResponse = {
+      ...initial,
+      history: {
+        commits: [node("c7", ["c6"]), node("c6", ["c5"])],
+        refs: [{ name: "main", type: "branch", sha: "c7" }],
+      },
+      nextPage: 2,
+    };
+    const { fetchImpl, calls } = bffMock(far, {
+      2: { commits: [node("c5", ["c4"]), node("c4", ["c3"])], nextPage: 3 },
+      3: { commits: [node("c3", ["c2"]), node("c2", ["c1"])], nextPage: null },
+    });
+    const before = { commits: [...loaded.commits], refs: loaded.refs };
+    const result = await refreshRepoHistory("acme/widgets", before, { fetchImpl });
+
+    expect(calls).toEqual([
+      "/api/repo?repo=acme%2Fwidgets",
+      "/api/repo/commits?repo=acme%2Fwidgets&sha=main&page=2",
+    ]);
+    expect(result.added).toBe(4);
+    expect(result.pruned).toBe(0);
+    expect(result.history.commits.map((c) => c.sha)).toEqual([
+      "c3", "c2", "c1", "c0", "c7", "c6", "c5", "c4",
+    ]);
   });
 
   test("a tip advanced beyond the trunk page costs one extra page to anchor it", async () => {
@@ -253,7 +318,8 @@ describe("refreshRepoHistory", () => {
       );
     }) as typeof fetch;
 
-    const result = await refreshRepoHistory("acme/widgets", loaded, { fetchImpl });
+    const before = { commits: [...loaded.commits], refs: loaded.refs };
+    const result = await refreshRepoHistory("acme/widgets", before, { fetchImpl });
     expect(calls).toEqual([
       "/api/repo?repo=acme%2Fwidgets",
       "/api/repo/commits?repo=acme%2Fwidgets&sha=feature%2Fx&page=1",
@@ -262,14 +328,30 @@ describe("refreshRepoHistory", () => {
     expect(result.history.commits.map((c) => c.sha)).toEqual(["c3", "c2", "c1", "c0", "f2", "f1"]);
   });
 
-  test("reports the merged history once to onProgress", async () => {
-    const { fetchImpl } = bffMock(initial, {});
+  test("onProgress fires once on change, never on the happy path", async () => {
     const progress: number[] = [];
+    const { fetchImpl } = bffMock(initial, {});
     await refreshRepoHistory("acme/widgets", loaded, {
       fetchImpl,
       onProgress: (h) => progress.push(h.commits.length),
     });
-    expect(progress).toEqual([4]);
+    expect(progress).toEqual([]); // unchanged → no re-render needed
+
+    const advanced: RepoResponse = {
+      ...initial,
+      history: {
+        commits: [node("c4", ["c3"]), node("c3", ["c2"])],
+        refs: [{ name: "main", type: "branch", sha: "c4" }],
+      },
+      nextPage: null,
+    };
+    const { fetchImpl: fetchAdvanced } = bffMock(advanced, {});
+    const before = { commits: [...loaded.commits], refs: loaded.refs };
+    await refreshRepoHistory("acme/widgets", before, {
+      fetchImpl: fetchAdvanced,
+      onProgress: (h) => progress.push(h.commits.length),
+    });
+    expect(progress).toEqual([5]);
   });
 
   test("rethrows BFF errors as IngestError", async () => {
