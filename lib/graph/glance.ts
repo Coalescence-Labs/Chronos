@@ -1,5 +1,6 @@
 import { layoutGraph } from "./layout";
 import { branchLines } from "./lines";
+import { reachableFrom } from "./reachability";
 import type { CommitNode, RepoHistory } from "./types";
 
 /**
@@ -62,19 +63,6 @@ function defaultTipSha(history: RepoHistory): string | undefined {
   return history.refs.find((ref) => ref.type === "head")?.sha;
 }
 
-/** All commits reachable from a tip by walking every parent link. */
-function reachableFrom(tipSha: string, bySha: Map<string, CommitNode>): Set<string> {
-  const seen = new Set<string>();
-  const stack = [tipSha];
-  while (stack.length > 0) {
-    const sha = stack.pop()!;
-    if (seen.has(sha) || !bySha.has(sha)) continue;
-    seen.add(sha);
-    for (const parent of bySha.get(sha)!.parents) stack.push(parent);
-  }
-  return seen;
-}
-
 /** First-parent chain from a tip — the branch's own spine. */
 function firstParentChain(tipSha: string, bySha: Map<string, CommitNode>): Set<string> {
   const chain = new Set<string>();
@@ -106,7 +94,7 @@ export function applyGlance(
     return { history, capsules, applied: false };
   }
 
-  const reachableDefault = reachableFrom(defaultTip, bySha);
+  const reachableDefault = reachableFrom([defaultTip], bySha);
   const defaultSpine = firstParentChain(defaultTip, bySha);
 
   // Open (unmerged) non-default branches: their tips aren't in default's
@@ -154,7 +142,7 @@ export function applyGlance(
     const reachableOpen = new Set<string>();
     for (const tip of openTips) {
       if (reducedBySha.has(tip)) {
-        for (const sha of reachableFrom(tip, reducedBySha)) reachableOpen.add(sha);
+        for (const sha of reachableFrom([tip], reducedBySha)) reachableOpen.add(sha);
       }
     }
 

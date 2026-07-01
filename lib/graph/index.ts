@@ -17,6 +17,13 @@ export {
 export type { BranchAttribution, BranchLine } from "./lines";
 export { applyGlance } from "./glance";
 export type { Capsule, GlanceFlags, GlanceResult } from "./glance";
+export {
+  commitIndex,
+  pruneUnreachable,
+  reachableFrom,
+  reachableFromRefs,
+} from "./reachability";
+export type { PruneResult } from "./reachability";
 export type {
   EdgeKind,
   GraphEdge,
