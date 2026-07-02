@@ -320,6 +320,162 @@ test("refreshing an unchanged repo costs one request and says up to date (COA-10
   expect(commitCalls).toBe(0); // nothing moved → no per-tip pages
 });
 
+test("refresh prunes a squash-merged + deleted branch; selection survives (COA-127)", async ({
+  page,
+  isMobile,
+}) => {
+  // Before: an unmerged feature line (f2 ← f1) only its ref can reach.
+  // After: the branch was squash-merged (s1 on main) and deleted upstream.
+  const before = {
+    repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+    history: {
+      commits: [
+        commit("m3", ["m2"], 0, "Ship dashboard"),
+        commit("f2", ["f1"], 1, "Polish login form"),
+        commit("m2", ["m1"], 2, "Wire up storage"),
+        commit("f1", ["m2"], 3, "Add login form"),
+        commit("m1", [], 4, "Initial commit"),
+      ],
+      refs: [
+        { name: "HEAD", type: "head", sha: "m3" },
+        { name: "main", type: "branch", sha: "m3" },
+        { name: "feature/login", type: "branch", sha: "f2" },
+      ],
+    },
+    nextPage: null,
+  };
+  const after = {
+    repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+    history: {
+      commits: [
+        commit("s1", ["m3"], -1, "Add login (squash #42)"),
+        commit("m3", ["m2"], 0, "Ship dashboard"),
+        commit("m2", ["m1"], 2, "Wire up storage"),
+        commit("m1", [], 4, "Initial commit"),
+      ],
+      refs: [
+        { name: "HEAD", type: "head", sha: "s1" },
+        { name: "main", type: "branch", sha: "s1" },
+      ],
+    },
+    nextPage: null,
+  };
+  let repoCalls = 0;
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      repoCalls++;
+      return route.fulfill({ json: repoCalls === 1 ? before : after });
+    }
+    return route.fulfill({ json: { commits: [], nextPage: null } });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  await expect(page.getByText("5 commits")).toBeVisible();
+  await expect(page.getByText("Polish login form")).toBeVisible();
+
+  // Select a trunk commit that survives the refresh.
+  const row = page.getByRole("option", { name: /Wire up storage/ });
+  if (isMobile) await row.tap();
+  else await row.click();
+  await expect(page.getByRole("complementary", { name: /Commit m2/ })).toBeVisible();
+
+  // With the inspector panel open the laptop layout overlaps the header
+  // actions, so activate Refresh via keyboard — a real user path either way.
+  const refresh = page.getByRole("button", { name: /Refresh/ });
+  if (isMobile) await refresh.tap();
+  else {
+    await refresh.focus();
+    await page.keyboard.press("Enter");
+  }
+
+  // The stale feature line is gone, the squash commit is in, in place.
+  await expect(page.getByRole("listbox", { name: /4 commits/ })).toBeVisible();
+  await expect(page.getByText("Add login (squash #42)")).toBeVisible();
+  await expect(page.getByText("Polish login form")).toHaveCount(0);
+  await expect(page.getByText("Add login form")).toHaveCount(0);
+  await expect(page.getByText(/updated just now/)).toBeVisible();
+  // Selection survived the reconcile: the inspector is still on m2.
+  await expect(page.getByRole("complementary", { name: /Commit m2/ })).toBeVisible();
+});
+
+test("refresh replaces a rebased branch line without duplicates (COA-127)", async ({
+  page,
+  isMobile,
+}) => {
+  // Before: feature/x (f2 ← f1) forked at m1 while main sits at m2.
+  // After: the branch was rebased onto m2 — new shas r2 ← r1, old line gone.
+  const before = {
+    repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+    history: {
+      commits: [
+        commit("f2", ["f1"], 1, "Old: polish login"),
+        commit("f1", ["m1"], 2, "Old: add login"),
+        commit("m2", ["m1"], 3, "Wire up storage"),
+        commit("m1", [], 5, "Initial commit"),
+      ],
+      refs: [
+        { name: "HEAD", type: "head", sha: "m2" },
+        { name: "main", type: "branch", sha: "m2" },
+        { name: "feature/x", type: "branch", sha: "f2" },
+      ],
+    },
+    nextPage: null,
+  };
+  const afterRepo = {
+    repo: { owner: "acme", repo: "widgets", defaultBranch: "main" },
+    history: {
+      commits: [
+        commit("m2", ["m1"], 3, "Wire up storage"),
+        commit("m1", [], 5, "Initial commit"),
+      ],
+      refs: [
+        { name: "HEAD", type: "head", sha: "m2" },
+        { name: "main", type: "branch", sha: "m2" },
+        { name: "feature/x", type: "branch", sha: "r2" },
+      ],
+    },
+    nextPage: null,
+  };
+  const rebasedTipPage = {
+    commits: [
+      commit("r2", ["r1"], 0, "Rework: polish login"),
+      commit("r1", ["m2"], 1, "Rework: add login"),
+      commit("m2", ["m1"], 3, "Wire up storage"),
+    ],
+    nextPage: null,
+  };
+  let repoCalls = 0;
+  const tipRequests: string[] = [];
+  await page.unroute("**/api/repo**");
+  await page.route("**/api/repo**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/repo") {
+      repoCalls++;
+      return route.fulfill({ json: repoCalls === 1 ? before : afterRepo });
+    }
+    tipRequests.push(url.searchParams.get("sha") ?? "");
+    return route.fulfill({ json: rebasedTipPage });
+  });
+
+  await page.goto("/repo/acme/widgets");
+  await expect(page.getByText("4 commits")).toBeVisible();
+  await expect(page.getByText("Old: add login")).toBeVisible();
+
+  const refresh = page.getByRole("button", { name: /Refresh/ });
+  if (isMobile) await refresh.tap();
+  else await refresh.click();
+
+  // Old line pruned, rebased line in — never both, still 4 rows.
+  await expect(page.getByText("Rework: polish login")).toBeVisible();
+  await expect(page.getByText("Old: polish login")).toHaveCount(0);
+  await expect(page.getByText("Old: add login")).toHaveCount(0);
+  await expect(page.getByRole("listbox", { name: /4 commits/ })).toBeVisible();
+  expect(tipRequests).toEqual(["feature/x"]); // one page anchors the moved tip
+  await expect(page.getByText(/updated just now/)).toBeVisible();
+});
+
 test("an empty repository shows the empty state, not an error", async ({ page }) => {
   await page.unroute("**/api/repo**");
   await page.route("**/api/repo**", (route) =>
