@@ -55,6 +55,14 @@ Cookieless, anonymous, first-party product analytics (no third party, no cross-d
 4. **Retention/training:** product analytics, not an AI path — no ZDR question; cookieless, aggregated, no training.
 5. **Consent:** cookieless/anonymous (no consent banner needed); disclosed in the public [PRIVACY.md](../PRIVACY.md). Opt-out via the env switch.
 
+## Search indexing & link previews (COA-126)
+
+The repo view's URL contains the repo identity (`/repo/[owner]/[repo]`), so search/social must not expose *which repo someone viewed* — the same promise `scrubUrl` keeps for analytics:
+
+- **`/repo/*` is `noindex, nofollow`**, **disallowed in `robots.txt`**, and **excluded from `sitemap.xml`**. This keeps repo identity out of search indexes, and — because a crawler hitting `/repo/*` would trigger live BFF→GitHub calls — also protects the rate-limit budget (#caching / COA-74).
+- **Open Graph / Twitter cards are generic** (the branded app card). The `/repo/*` route sets no per-repo OG/title for sharing, so a pasted link never reveals the owner/repo in a preview. The `owner/repo` only appears in the visitor's own browser tab title.
+- Only the static marketing surface (`/`, `/demo`) is indexable.
+
 ## The native companion as a privacy feature
 
 The phase-2 `zero-native` desktop app exists largely *for* privacy: it reads the local `.git` directly, so for local repos **nothing is uploaded at all**. When weighing features, remember this is the gold-standard mode and the web app should not regress the privacy story for users who could use local mode.
