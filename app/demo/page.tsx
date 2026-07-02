@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { TrackMount } from "@/components/analytics/TrackMount";
 import { GraphExplorer } from "@/components/repo/GraphExplorer";
 import { AppShell } from "@/components/shell/AppShell";
 import { DEMO_OWNER, DEMO_REPO, demoHistory } from "@/lib/demo/history";
@@ -17,6 +18,7 @@ export const metadata: Metadata = {
 export default function DemoPage() {
   return (
     <AppShell>
+      <TrackMount event={{ name: "demo_view" }} />
       <GraphExplorer
         history={demoHistory()}
         owner={DEMO_OWNER}

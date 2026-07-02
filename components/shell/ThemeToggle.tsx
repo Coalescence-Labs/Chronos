@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { track } from "@/lib/analytics";
 import {
   isThemePreference,
   resolveTheme,
@@ -41,6 +42,8 @@ function writePreference(preference: ThemePreference) {
   } catch {
     // Storage unavailable (private mode): theme still applies for the session.
   }
+  // Only fires on an explicit user choice (click/arrow), never on mount.
+  track({ name: "theme_change", props: { theme: preference } });
   for (const listener of listeners) listener();
 }
 

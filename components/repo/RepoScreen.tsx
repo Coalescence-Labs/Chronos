@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
+import { msBucket, track } from "@/lib/analytics";
 import type { RepoHistory } from "@/lib/graph";
 import { fetchPublicRepoHistory, IngestError, refreshRepoHistory } from "@/lib/ingest";
 import type { IngestResult } from "@/lib/ingest";
@@ -56,6 +57,12 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   // Latest live history, so refresh can re-sync tips without depending on
   // `loaded` (which would re-create the callback every render).
   const historyRef = useRef<RepoHistory | null>(null);
+  // How many lazy pages this request has pulled — reported with lazy_page.
+  const pagesLoadedRef = useRef(0);
+  // Time-to-first-graph (COA-98): when this request started, and whether we've
+  // already reported its first paint (the first page with commits to draw).
+  const startedAtRef = useRef(0);
+  const firstPaintRef = useRef(false);
 
   const requestKey = `${owner}/${repo}#${attempt}`;
   const requestKeyRef = useRef(requestKey);
@@ -65,6 +72,9 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
     requestKeyRef.current = requestKey;
     loadMoreRef.current = null;
     historyRef.current = null;
+    pagesLoadedRef.current = 0;
+    firstPaintRef.current = false;
+    startedAtRef.current = performance.now();
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
       onProgress: (h) => {
@@ -77,6 +87,16 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             hasMore: false,
             complete: false,
           });
+          // Time-to-first-graph: the first page with commits is the first
+          // useful paint. Bucketed by device, never the repo or exact ms.
+          if (!firstPaintRef.current && h.commits.length > 0) {
+            firstPaintRef.current = true;
+            const device = window.innerWidth < 700 ? "phone" : "laptop";
+            track({
+              name: "graph_ready",
+              props: { device, ms_bucket: msBucket(performance.now() - startedAtRef.current) },
+            });
+          }
         }
       },
     })
@@ -91,16 +111,20 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           hasMore: result.loadMore !== undefined,
           complete: true,
         });
+        track({ name: "render_result", props: { ok: true } });
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
-          setFailed({
-            key: requestKey,
-            error:
-              cause instanceof Error
-                ? cause
-                : new IngestError("upstream", "Something went wrong."),
-          });
+          const error =
+            cause instanceof Error
+              ? cause
+              : new IngestError("upstream", "Something went wrong.");
+          setFailed({ key: requestKey, error });
+          // Failure rate by *code* (never the repo); rate limits get their own
+          // counter so we can size the COA-74 caching/app-token decision.
+          const code = error instanceof IngestError ? error.code : "upstream";
+          track({ name: "render_result", props: { ok: false, error: code } });
+          if (code === "rate-limited") track({ name: "rate_limited" });
         }
       });
 
@@ -127,6 +151,8 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           hasMore: result.loadMore !== undefined,
           complete: true,
         });
+        pagesLoadedRef.current += 1;
+        track({ name: "lazy_page", props: { depth: pagesLoadedRef.current } });
       })
       .catch(() => {
         // Transient (e.g. rate limit): re-arm so the next scroll retries.
