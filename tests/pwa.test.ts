@@ -42,13 +42,19 @@ describe("pwa manifest", () => {
 });
 
 describe("service worker privacy posture", () => {
-  test("sw.js never caches /api responses", async () => {
+  test("sw.js never caches /api responses and only caches the allowlisted shell", async () => {
     const source = await Bun.file("public/sw.js").text();
+    // /api short-circuits before any cache logic.
     expect(source).toContain('url.pathname.startsWith("/api/")');
-    expect(source).toContain("return false");
-    // Cache writes happen only behind the isCacheable allowlist.
+    expect(source).toMatch(/startsWith\("\/api\/"\)\)\s*return;/);
+    // Caching is gated to the shell + hashed static allowlist — anything else
+    // (notably /repo/* navigations, which would reveal a viewed repo) is
+    // network-only and never written to the cache.
+    expect(source).toContain("SHELL_PATHS");
+    expect(source).toContain("STATIC_PREFIXES");
+    expect(source).toMatch(/if \(!isStatic && !isShell\) return;/);
+    // Cache writes happen in exactly one place (the bounded helper).
     expect(source.split("cache.put").length - 1).toBe(1);
-    expect(source).toContain("isCacheable");
   });
 
   test("registration is production-only and silent", async () => {

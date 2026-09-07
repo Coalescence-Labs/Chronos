@@ -197,6 +197,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   if (error) {
     return (
       <ErrorState
+        fill
         title="Couldn't load that repository"
         message={error.message}
         onRetry={() => setAttempt((n) => n + 1)}
@@ -204,11 +205,12 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
     );
   }
   if (!history) {
-    return <LoadingState label={`Reading ${owner}/${repo}…`} />;
+    return <LoadingState fill label={`Reading ${owner}/${repo}…`} />;
   }
   if (history.commits.length === 0) {
     return (
       <EmptyState
+        fill
         title="No commits yet"
         hint="This repository exists but has no history to draw."
       />
