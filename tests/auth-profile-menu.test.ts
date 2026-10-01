@@ -47,11 +47,25 @@ describe("profile menu shell wiring", () => {
 
   test("AppShell keeps ThemeToggle in the footer, not the header", async () => {
     const source = await Bun.file("components/shell/AppShell.tsx").text();
-    expect(source).toContain("<footer");
+    expect(source).toContain("shellFooter");
     expect(source).toContain("ThemeToggle");
+    expect(source).not.toContain("AccountControlsGate />\n          <ThemeToggle");
     const headerBlock = source.slice(source.indexOf("<header"), source.indexOf("</header>"));
     expect(headerBlock).not.toContain("ThemeToggle");
+    expect(headerBlock).toContain("AccountControlsGate");
     const footerBlock = source.slice(source.indexOf("<footer"), source.indexOf("</footer>"));
     expect(footerBlock).toContain("ThemeToggle");
+    expect(footerBlock).not.toContain("AccountControls");
+    expect(footerBlock).not.toContain("Sign in");
+
+    const css = await Bun.file("components/shell/shell.module.css").text();
+    expect(css).toMatch(/\.shellFooter\s*\{[^}]*justify-content:\s*center/s);
+  });
+
+  test("AccountControls never mounts ThemeToggle (auth stays out of footer)", async () => {
+    const source = await Bun.file("components/auth/AccountControls.tsx").text();
+    expect(source).not.toContain("ThemeToggle");
+    expect(source).toContain("Sign in");
+    expect(source).toContain("ProfileMenu");
   });
 });

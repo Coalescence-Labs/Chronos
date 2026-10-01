@@ -134,14 +134,22 @@
   padding: 0 var(--space-5) var(--space-5);
 }
 
-/* Slim chrome strip: theme for all users, clears the home indicator. */
-.footer {
+/* Slim chrome strip: theme only (auth stays in the header). Always centered. */
+.shellFooter {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
+  width: 100%;
+  box-sizing: border-box;
   padding: var(--space-2) var(--space-5);
   padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footerTheme {
+  display: inline-flex;
+  justify-content: center;
+  margin-inline: auto;
 }

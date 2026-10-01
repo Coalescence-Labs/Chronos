@@ -54,8 +54,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main id="main" className={styles.main}>
         {children}
       </main>
-      <footer className={styles.footer}>
-        <ThemeToggle />
+      <footer className={styles.shellFooter} aria-label="Appearance">
+        <div className={styles.footerTheme}>
+          <ThemeToggle />
+        </div>
       </footer>
     </div>
   );

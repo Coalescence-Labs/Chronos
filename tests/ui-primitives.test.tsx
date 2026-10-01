@@ -93,6 +93,7 @@ describe("ui primitives", () => {
     expect(html).toContain("<main");
     expect(html).toContain("Chronos");
     expect(html).toContain("<footer");
+    expect(html).toContain('aria-label="Appearance"');
     expect(html).toContain('aria-label="Theme"');
   });
 });
