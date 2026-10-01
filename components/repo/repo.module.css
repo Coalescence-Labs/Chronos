@@ -78,7 +78,12 @@
   }
 }
 
-/* Glance-mode toggle. */
+/* Glance-mode toggle (COA-207).
+ *
+ * Product: GraphExplorer uses glanceToggle + glanceHoverB.
+ * CRITICAL: base pressed must NEVER be solid --accent / --on-accent — that is
+ * the white-on-navy light bug whenever a B/light override fails to win.
+ */
 .glanceToggle {
   align-self: center;
   min-height: var(--touch-target);
@@ -90,24 +95,77 @@
   font: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
+  /* Calm ease-in-out; --duration-base (240ms). Globals zero this under reduced-motion. */
   transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
+    background-color var(--duration-base) ease-in-out,
+    background-image var(--duration-base) ease-in-out,
+    border-color var(--duration-base) ease-in-out,
+    color var(--duration-base) ease-in-out,
+    box-shadow var(--duration-base) ease-in-out;
 }
 
-.glanceToggle:hover:not(:disabled) {
-  color: var(--fg);
-}
-
+/* Default pressed = subtle darken (token-safe). `background` shorthand wins hard. */
 .glanceToggle[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--fg) 8%, var(--bg-elevated));
+  border-color: var(--border-strong);
+  color: var(--fg);
+  box-shadow: none;
 }
 
 .glanceToggle:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ---- B Accent ink + lift (product) ---- */
+.glanceToggle.glanceHoverB:hover:not(:disabled) {
+  border-color: var(--accent);
+  background-color: var(--bg-raised);
+  background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
+  color: var(--accent);
+  box-shadow: var(--shadow-1);
+}
+
+/* Light active: explicit compound + :global so CSS modules can't drop theme scope. */
+:global(html[data-theme="light"]) .glanceToggle.glanceHoverB[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--fg) 8%, var(--bg-elevated));
+  border-color: var(--border-strong);
+  color: var(--fg);
+  box-shadow: none;
+}
+
+/* Dark active: solid --accent fill (owner request). */
+:global(html[data-theme="dark"]) .glanceToggle.glanceHoverB[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+/* Light active + hover: keep Option B lift. */
+:global(html[data-theme="light"]) .glanceToggle.glanceHoverB[aria-pressed="true"]:hover:not(:disabled) {
+  border-color: var(--accent);
+  background-color: var(--bg-raised);
+  background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
+  color: var(--accent);
+  box-shadow: var(--shadow-1);
+}
+
+/* Dark active + hover: lighten solid fill (--accent-strong is lighter in dark). */
+:global(html[data-theme="dark"]) .glanceToggle.glanceHoverB[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-1);
+}
+
+/* Styleguide-only: force hover visuals without a live pointer. */
+.glanceHoverB[data-force-hover="true"]:not([aria-pressed="true"]) {
+  border-color: var(--accent);
+  background-color: var(--bg-raised);
+  background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
+  color: var(--accent);
+  box-shadow: var(--shadow-1);
 }
 
 .details {

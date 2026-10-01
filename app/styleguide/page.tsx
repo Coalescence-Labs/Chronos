@@ -10,6 +10,7 @@ import {
   LoadingState,
   Surface,
 } from "@/components/ui";
+import repoStyles from "@/components/repo/repo.module.css";
 import styles from "./styleguide.module.css";
 
 /**
@@ -77,6 +78,51 @@ export default function Styleguide() {
             <Button variant="ghost" onClick={() => setInspectorOpen(true)}>
               Open inspector
             </Button>
+          </div>
+        </section>
+
+        <section className={styles.section} aria-labelledby="sg-glance">
+          <h2 id="sg-glance" className={styles.sectionTitle}>
+            Glance toggle (COA-207)
+          </h2>
+          <p className={styles.variantLead}>
+            Product control: accent-ink hover with lift + shadow. Light active is a
+            slight darken; dark active is solid <code>--accent</code>. Check both themes.
+          </p>
+          <div className={styles.variantCard} data-option-b-states>
+            <div className={styles.row}>
+              <div className={styles.stateSample}>
+                <span className={styles.stateLabel}>Idle</span>
+                <button
+                  type="button"
+                  className={`${repoStyles.glanceToggle} ${repoStyles.glanceHoverB}`}
+                  aria-pressed={false}
+                >
+                  Glance
+                </button>
+              </div>
+              <div className={styles.stateSample}>
+                <span className={styles.stateLabel}>Hover</span>
+                <button
+                  type="button"
+                  className={`${repoStyles.glanceToggle} ${repoStyles.glanceHoverB}`}
+                  aria-pressed={false}
+                  data-force-hover="true"
+                >
+                  Glance
+                </button>
+              </div>
+              <div className={styles.stateSample}>
+                <span className={styles.stateLabel}>Active</span>
+                <button
+                  type="button"
+                  className={`${repoStyles.glanceToggle} ${repoStyles.glanceHoverB}`}
+                  aria-pressed={true}
+                >
+                  Glance
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 

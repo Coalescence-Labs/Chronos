@@ -149,7 +149,7 @@ export function GraphExplorer({
           )}
           <button
             type="button"
-            className={styles.glanceToggle}
+            className={`${styles.glanceToggle} ${styles.glanceHoverB}`}
             aria-pressed={glance}
             disabled={!canGlance}
             title={
