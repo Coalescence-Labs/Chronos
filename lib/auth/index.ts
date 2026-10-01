@@ -13,7 +13,13 @@ export {
   sanitizeReturnPath,
   signInHrefForReturn,
 } from "./return-to";
-export { chronosSignOut, originFromRequestHost, requestAuthOrigin, sameOriginReturnUrl, sameOriginReturnUrlForHost } from "./sign-out";
+export {
+  originFromRequestHost,
+  requestAuthOrigin,
+  sameOriginReturnUrl,
+  sameOriginReturnUrlForHost,
+} from "./return-url";
+export { chronosSignOut } from "./sign-out";
 export {
   assertNoSecretsInPublicSession,
   sessionCookieLooksHardened,

@@ -4,7 +4,7 @@
  * IMPORTANT: Do **not** use `authAppOrigin()` / `absoluteAuthReturnUrl()` for
  * runtime sign-out redirects — `SITE_URL` defaults to production and would yank
  * localhost users to Vercel. Sign-out must use `sameOriginReturnUrlForHost` /
- * request Host, or `window.location.origin` on the client.
+ * request Host (`lib/auth/return-url`), or `window.location.origin` on the client.
  */
 
 import { SITE_URL } from "@/lib/site";

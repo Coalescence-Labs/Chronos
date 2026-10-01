@@ -1,9 +1,9 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { workosRedirectUri } from "./config";
-import { sanitizeReturnPath } from "./return-to";
+import { sameOriginReturnUrl } from "./return-url";
 
 const PKCE_COOKIE_PREFIX = "wos-auth-verifier";
 
@@ -46,60 +46,6 @@ function sessionCookieDeleteOptions(): {
     secure,
     ...(domain ? { domain } : {}),
   };
-}
-
-/**
- * Pure: derive request origin from Host / X-Forwarded-* (never SITE_URL).
- * Exported for unit tests — production logout must stay on the browser's host.
- */
-export function originFromRequestHost(
-  hostHeader: string | null | undefined,
-  forwardedProto: string | null | undefined = null,
-): string | null {
-  const host = (hostHeader || "").split(",")[0]?.trim();
-  if (!host) return null;
-
-  const proto =
-    forwardedProto?.split(",")[0]?.trim() ||
-    (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
-
-  return `${proto}://${host}`;
-}
-
-/** Absolute same-origin return URL from an explicit request host (testable). */
-export function sameOriginReturnUrlForHost(
-  hostHeader: string | null | undefined,
-  returnPath: string = "/",
-  forwardedProto: string | null | undefined = null,
-): string {
-  const path = sanitizeReturnPath(returnPath);
-  const origin = originFromRequestHost(hostHeader, forwardedProto);
-  if (!origin) {
-    return path === "/" ? "/" : path;
-  }
-  return path === "/" ? `${origin}/` : `${origin}${path}`;
-}
-
-/**
- * Origin of the *current request* (Host / X-Forwarded-*).
- * Never use SITE_URL or env redirect origin here — that can send local logout to Vercel.
- */
-export async function requestAuthOrigin(): Promise<string | null> {
-  const h = await headers();
-  return originFromRequestHost(
-    h.get("x-forwarded-host") || h.get("host"),
-    h.get("x-forwarded-proto"),
-  );
-}
-
-/** Build an absolute same-origin URL for post-logout landing. */
-export async function sameOriginReturnUrl(returnPath: string = "/"): Promise<string> {
-  const h = await headers();
-  return sameOriginReturnUrlForHost(
-    h.get("x-forwarded-host") || h.get("host"),
-    returnPath,
-    h.get("x-forwarded-proto"),
-  );
 }
 
 /**
