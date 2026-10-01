@@ -45,6 +45,16 @@ mock.module("@workos-inc/authkit-nextjs", () => ({
 }));
 
 mock.module("next/navigation", () => ({
+  useRouter: () => ({
+    push: () => {},
+    replace: () => {},
+    prefetch: () => {},
+    back: () => {},
+    forward: () => {},
+    refresh: () => {},
+  }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
   redirect: (url: string) => {
     const error = new Error(`REDIRECT:${url}`);
     (error as { digest?: string }).digest = `NEXT_REDIRECT;replace;${url};303`;

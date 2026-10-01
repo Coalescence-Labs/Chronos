@@ -1,11 +1,9 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
 import { layoutGraph, type RepoHistory } from "@/lib/graph";
 import { GraphView } from "@/components/graph/GraphView";
 
-// Home embeds RepoUrlForm, whose useRouter needs the App Router context that
-// plain renderToString doesn't provide.
-mock.module("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
+// next/navigation (useRouter / usePathname) is stubbed in tests/preload.ts.
 const { default: Home } = await import("@/app/page");
 
 describe("smoke", () => {
