@@ -68,27 +68,6 @@
   box-shadow: var(--glass-highlight);
 }
 
-/* Compact always-expanded pill for ProfileMenu (no mobile collapse). */
-.themeToggleMenu {
-  display: inline-flex;
-  width: 100%;
-  justify-content: stretch;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  background: var(--bg-elevated);
-  background-image: var(--glass-bg);
-  box-shadow: var(--glass-highlight);
-}
-
-.themeToggleMenu .themeOptions {
-  display: inline-flex;
-  width: 100%;
-}
-
-.themeToggleMenu .themeOption {
-  flex: 1;
-}
-
 .themeOptions {
   display: inline-flex;
 }

@@ -114,13 +114,10 @@ const OPTIONS: Array<{ value: ThemePreference; label: string; icon: React.ReactN
   { value: "light", label: "Light theme", icon: <LightIcon /> },
 ];
 
-export type ThemeToggleLayout = "header" | "menu";
-
-export function ThemeToggle({ layout = "header" }: { layout?: ThemeToggleLayout }) {
+export function ThemeToggle() {
   const preference = useSyncExternalStore(subscribe, readPreference, () => "system" as const);
   const [expanded, setExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const isMenu = layout === "menu";
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: light)");
@@ -136,9 +133,8 @@ export function ThemeToggle({ layout = "header" }: { layout?: ThemeToggleLayout 
   }, [preference]);
 
   // Collapse the expanded (mobile) control on an outside tap or Escape.
-  // Menu layout is always expanded — ProfileMenu owns Escape for the dropdown.
   useEffect(() => {
-    if (isMenu || !expanded) return;
+    if (!expanded) return;
     const onPointer = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setExpanded(false);
     };
@@ -151,7 +147,7 @@ export function ThemeToggle({ layout = "header" }: { layout?: ThemeToggleLayout 
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [expanded, isMenu]);
+  }, [expanded]);
 
   const active = OPTIONS.find((option) => option.value === preference) ?? OPTIONS[0]!;
 
@@ -172,26 +168,19 @@ export function ThemeToggle({ layout = "header" }: { layout?: ThemeToggleLayout 
   };
 
   return (
-    <div
-      className={isMenu ? styles.themeToggleMenu : styles.themeToggle}
-      data-expanded={!isMenu && expanded ? true : undefined}
-      ref={rootRef}
-    >
+    <div className={styles.themeToggle} data-expanded={expanded || undefined} ref={rootRef}>
       {/* Collapsed trigger (phones only, via CSS): shows the active theme's
-          icon and expands the options. Outside the radiogroup for valid ARIA.
-          Omitted in menu layout — options stay visible inside ProfileMenu. */}
-      {!isMenu ? (
-        <button
-          type="button"
-          className={styles.themeTrigger}
-          aria-expanded={expanded}
-          aria-label={`Theme: ${active.label}. Change theme`}
-          title="Change theme"
-          onClick={() => setExpanded((open) => !open)}
-        >
-          {active.icon}
-        </button>
-      ) : null}
+          icon and expands the options. Outside the radiogroup for valid ARIA. */}
+      <button
+        type="button"
+        className={styles.themeTrigger}
+        aria-expanded={expanded}
+        aria-label={`Theme: ${active.label}. Change theme`}
+        title="Change theme"
+        onClick={() => setExpanded((open) => !open)}
+      >
+        {active.icon}
+      </button>
       <div className={styles.themeOptions} role="radiogroup" aria-label="Theme" onKeyDown={onKeyDown}>
         {OPTIONS.map(({ value, label, icon }) => (
           <button

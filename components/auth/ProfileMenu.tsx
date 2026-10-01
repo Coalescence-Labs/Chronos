@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { profileDisplayName, profileInitial } from "@/lib/auth/profile-label";
-import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import styles from "./profile-menu.module.css";
 
 export type ProfileMenuUser = {
@@ -19,9 +18,8 @@ type ProfileMenuProps = {
 };
 
 /**
- * Top-bar profile control: compact avatar opens a menu with theme + Account +
- * Sign out. Mirrors ThemeToggle's outside-click / Escape collapse — no menu library.
- * Theme radios stay a radiogroup (not menuitems) so ARIA roles stay valid.
+ * Top-bar profile control: compact avatar opens a menu with Account + Sign out.
+ * Mirrors ThemeToggle's outside-click / Escape collapse — no menu library.
  */
 export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
@@ -71,8 +69,6 @@ export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
 
     const current = document.activeElement as HTMLElement | null;
     const index = current ? items.indexOf(current) : -1;
-    // Theme radiogroup owns its own arrow keys when focused.
-    if (index < 0) return;
 
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
@@ -141,12 +137,6 @@ export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
           <div className={styles.identity} role="presentation">
             <p className={styles.name}>{displayName}</p>
             {showEmailUnderName ? <p className={styles.email}>{user.email}</p> : null}
-          </div>
-          <div className={styles.themeSection} role="presentation">
-            <p className={styles.themeLabel} id={`${reactId}-theme`}>
-              Theme
-            </p>
-            <ThemeToggle layout="menu" />
           </div>
           <Link
             role="menuitem"

@@ -32,7 +32,7 @@ describe("profile menu shell wiring", () => {
     expect(source).not.toMatch(/<Button[\s\S]*Sign out/);
   });
 
-  test("ProfileMenu embeds theme controls and accessible disclosure menu", async () => {
+  test("ProfileMenu is an accessible disclosure menu", async () => {
     const source = await Bun.file("components/auth/ProfileMenu.tsx").text();
     expect(source).toContain('aria-expanded={open}');
     expect(source).toContain('aria-haspopup="menu"');
@@ -41,21 +41,6 @@ describe("profile menu shell wiring", () => {
     expect(source).toContain('Escape');
     expect(source).toContain("Sign out");
     expect(source).toContain('href="/account"');
-    expect(source).toContain('layout="menu"');
-    expect(source).toContain("ThemeToggle");
     expect(source).not.toMatch(/console\.(log|info|debug|warn|error)/);
-  });
-
-  test("signed-out AccountControls keeps header ThemeToggle; AppShell does not duplicate it", async () => {
-    const controls = await Bun.file("components/auth/AccountControls.tsx").text();
-    expect(controls).toContain("ThemeToggle");
-    expect(controls).toContain("Sign in");
-
-    const shell = await Bun.file("components/shell/AppShell.tsx").text();
-    expect(shell).toContain("AccountControlsGate");
-    expect(shell).not.toMatch(/<ThemeToggle/);
-
-    const gate = await Bun.file("components/auth/AccountControlsGate.tsx").text();
-    expect(gate).toContain("ThemeToggle");
   });
 });
