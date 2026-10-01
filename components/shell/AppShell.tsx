@@ -5,9 +5,11 @@ import styles from "./shell.module.css";
 import { ThemeToggle } from "./ThemeToggle";
 
 /**
- * Responsive page scaffold: header + content column, safe-area aware so the
+ * Responsive page scaffold: header + content + footer, safe-area aware so the
  * PWA feels native on phones. The inspection surface (components/ui)
  * overlays this shell as a sheet (phone) or side panel (laptop).
+ *
+ * Theme lives in the footer for everyone; header keeps brand + account only.
  */
 
 function BrandMark() {
@@ -47,12 +49,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
         <div className={styles.headerActions}>
           <AccountControlsGate />
-          <ThemeToggle />
         </div>
       </header>
       <main id="main" className={styles.main}>
         {children}
       </main>
+      <footer className={styles.footer}>
+        <ThemeToggle />
+      </footer>
     </div>
   );
 }

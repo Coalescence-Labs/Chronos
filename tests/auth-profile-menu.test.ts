@@ -32,15 +32,26 @@ describe("profile menu shell wiring", () => {
     expect(source).not.toMatch(/<Button[\s\S]*Sign out/);
   });
 
-  test("ProfileMenu is an accessible disclosure menu", async () => {
+  test("ProfileMenu is an accessible disclosure menu without theme controls", async () => {
     const source = await Bun.file("components/auth/ProfileMenu.tsx").text();
     expect(source).toContain('aria-expanded={open}');
     expect(source).toContain('aria-haspopup="menu"');
     expect(source).toContain('role="menu"');
     expect(source).toContain('role="menuitem"');
-    expect(source).toContain('Escape');
+    expect(source).toContain("Escape");
     expect(source).toContain("Sign out");
     expect(source).toContain('href="/account"');
+    expect(source).not.toContain("ThemeToggle");
     expect(source).not.toMatch(/console\.(log|info|debug|warn|error)/);
+  });
+
+  test("AppShell keeps ThemeToggle in the footer, not the header", async () => {
+    const source = await Bun.file("components/shell/AppShell.tsx").text();
+    expect(source).toContain("<footer");
+    expect(source).toContain("ThemeToggle");
+    const headerBlock = source.slice(source.indexOf("<header"), source.indexOf("</header>"));
+    expect(headerBlock).not.toContain("ThemeToggle");
+    const footerBlock = source.slice(source.indexOf("<footer"), source.indexOf("</footer>"));
+    expect(footerBlock).toContain("ThemeToggle");
   });
 });

@@ -19,7 +19,7 @@ type ProfileMenuProps = {
 
 /**
  * Top-bar profile control: compact avatar opens a menu with Account + Sign out.
- * Mirrors ThemeToggle's outside-click / Escape collapse — no menu library.
+ * Outside-click / Escape collapse — no menu library. Theme lives in AppShell footer.
  */
 export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);

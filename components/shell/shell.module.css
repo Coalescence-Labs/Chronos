@@ -130,7 +130,18 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  /* Bottom padding clears the home indicator; the full-bleed background shows
-     through the safe area behind it. */
-  padding: 0 var(--space-5) max(var(--space-6), env(safe-area-inset-bottom));
+  /* Horizontal inset only — footer owns bottom safe-area clearance. */
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+/* Slim chrome strip: theme for all users, clears the home indicator. */
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
 }

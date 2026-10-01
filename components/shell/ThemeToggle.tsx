@@ -13,7 +13,7 @@ import {
 import styles from "./shell.module.css";
 
 /**
- * Three-state theme control (System / Dark / Light) for the AppShell header.
+ * Three-state theme control (System / Dark / Light) for the AppShell footer.
  * The preference lives in localStorage under THEME_STORAGE_KEY; the boot
  * script in app/layout.tsx applies it pre-paint, this component keeps
  * <html data-theme> in sync afterwards (including live OS changes while on
@@ -21,7 +21,7 @@ import styles from "./shell.module.css";
  * useSyncExternalStore, so hydration never mismatches.
  *
  * On phones the control collapses to just the active theme's icon to save
- * header space; tapping it expands the three options, and an outside tap or
+ * space; tapping it expands the three options, and an outside tap or
  * Escape collapses it again. On wider screens it's always expanded (CSS).
  */
 
