@@ -42,6 +42,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture, including
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical architecture + open decisions |
 | [docs/DESIGN.md](docs/DESIGN.md) | Visual language, responsiveness, and the polish bar |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Security, privacy, and the ZDR AI model |
+| [docs/AUTH.md](docs/AUTH.md) | WorkOS AuthKit accounts, session posture, MFA/passkeys |
 
 ## Tech stack
 
@@ -56,8 +57,12 @@ Requires [Bun](https://bun.sh) ≥ 1.3.
 
 ```bash
 bun install
-bun run dev        # dev server at http://localhost:3005
+cp .env.example .env.local   # optional: fill WORKOS_* for signed-in accounts
+bun run dev                  # dev server at http://localhost:3005
 ```
+
+Optional accounts use WorkOS AuthKit (see [docs/AUTH.md](docs/AUTH.md)). Public
+repo paste works without any auth env vars.
 
 Other commands:
 

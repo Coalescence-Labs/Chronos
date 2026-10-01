@@ -6,7 +6,7 @@
     "dev": "next dev -p 3005",
     "build": "next build",
     "start": "next start -p 3005",
-    "test": "bun test",
+    "test": "bun test --preload ./tests/preload.ts",
     "test:e2e": "playwright test",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
@@ -16,6 +16,8 @@
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "@workos-inc/authkit-nextjs": "^4.4.0",
+    "@workos-inc/node": "^10",
     "next": "^16.2.7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

@@ -39,6 +39,41 @@ How it works and what this document binds:
 
 Default bias remains: minimize what *rests* on our servers, and never retain or train on repo data.
 
+## User accounts: WorkOS AuthKit (COA-200)
+
+Optional Chronos accounts are authenticated by **WorkOS AuthKit**. Public paste
+and `/demo` remain usable with **no account**. Engineering notes:
+[AUTH.md](AUTH.md).
+
+### Privacy pre-flight — COA-200 (accounts)
+
+1. **What leaves:** identity needed to authenticate — email, name (if provided),
+   profile picture URL (if provided), and auth-provider subject metadata for the
+   chosen method (email/password, GitHub social, Google social). MFA/passkey
+   enrollment metadata is held by WorkOS. **Not sent:** repo content, commit
+   messages, SHAs, branch names, or any GitHub *repo* OAuth token (that path is
+   separate — COA-79 / COA-202).
+2. **Where:** WorkOS AuthKit / User Management (`api.workos.com` and the hosted
+   AuthKit UI). Chronos receives the auth callback and seals the session locally.
+3. **Minimum:** only identity fields required to establish and display a signed-
+   in session (`/api/auth/me` is an allowlisted public user shape — no tokens).
+4. **Retention & training:** WorkOS retains account records as the IdP under
+   their DPA/ToS (operator must keep a current WorkOS agreement on file). Chronos
+   holds **no durable user database** in this slice — only an **encrypted
+   httpOnly, SameSite, Secure** session cookie (iron-session seal; recommended
+   max-age 7 days via `WORKOS_COOKIE_MAX_AGE`). Access/refresh tokens never reach
+   browser JS or logs. Not an AI path — no ZDR question for WorkOS auth.
+5. **Consent:** creating an account or signing in is the consent surface. The
+   `/account` page discloses the cookie posture. Anonymous viewing needs no
+   consent beyond the existing BFF proxy disclosure.
+6. **Least privilege:** WorkOS GitHub/Google connections are **login identity
+   only**. They are distinct from GitHub repo OAuth (decision #7 / COA-202).
+   Chronos still never requests write scopes for repo access.
+7. **Secrets:** `WORKOS_API_KEY` and `WORKOS_COOKIE_PASSWORD` are server-only;
+   never in the client bundle. Session secrets stay in the httpOnly cookie.
+8. **Untrusted input:** AuthKit-hosted UI handles credential capture; Chronos
+   renders allowlisted identity fields only.
+
 ## Analytics (Vercel Web Analytics + Speed Insights)
 
 Cookieless, anonymous, first-party product analytics (no third party, no cross-day/cross-site identifier). The full design + event catalog is in [ANALYTICS.md](ANALYTICS.md). The binding rules:

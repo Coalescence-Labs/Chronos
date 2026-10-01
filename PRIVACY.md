@@ -13,8 +13,9 @@ This page explains, in plain language, exactly what happens to data when you use
 | Do you store the repos I view? | **No.** Repo data passes through our server only to draw your graph, then it's gone. |
 | Do you log commit messages, branch names, SHAs, or authors? | **No.** None of it is written to logs. |
 | Do you train AI on my repo? | **No.** Never. |
-| Do I need an account? | **No.** Paste a public repo URL and go. |
-| Do you use tracking cookies? | **No.** Analytics is cookieless and anonymous. |
+| Do I need an account? | **No.** Paste a public repo URL and go. Accounts are optional. |
+| If I sign in, where does my identity go? | **WorkOS** (our auth provider). Chronos keeps only an encrypted session cookie — not your password, and not repo data. |
+| Do you use tracking cookies? | **No.** Analytics is cookieless and anonymous. Auth uses a secure session cookie only when you sign in. |
 | Do your analytics record *which* repo I looked at? | **No.** Repo names are scrubbed out before anything is recorded. |
 | Is it open source? | **Yes** — Apache 2.0. You can read or audit every line. |
 
@@ -55,11 +56,20 @@ If you'd rather send nothing at all, you can opt out in your own browser, and an
 
 ---
 
-## No accounts, no tracking
+## Accounts are optional
 
-Viewing a public repo takes **zero setup** — no sign-up, no login, no profile. Linking a GitHub account (when you choose to) is read-only and uses the minimum permissions needed; the access token stays securely on our server and is never exposed to the browser.
+Viewing a public repo takes **zero setup** — no sign-up, no login, no profile.
 
-There's no advertising, no third-party trackers, and no selling of data. There's nothing to sell, because we don't keep it.
+If you choose to create an account (email, GitHub, or Google via WorkOS), we use
+that identity only to keep you signed in. The session lives in an **encrypted
+httpOnly cookie** on our server path — auth tokens are never exposed to browser
+JavaScript. Signing in does **not** send repo history to WorkOS.
+
+Linking GitHub later for *repo access* (rate limits / private repos) is a
+separate, opt-in step with its own permissions — not the same as “Sign in with
+GitHub” for an account.
+
+There's no advertising, no third-party trackers, and no selling of data.
 
 ---
 

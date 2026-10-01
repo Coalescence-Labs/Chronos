@@ -51,10 +51,16 @@
   color: var(--accent);
 }
 
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
 /* Theme control: segmented pill, one 44px target per choice. */
 .themeToggle {
   display: inline-flex;
-  margin-left: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   background: var(--bg-elevated);

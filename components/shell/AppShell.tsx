@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AccountControls } from "@/components/auth/AccountControls";
 import styles from "./shell.module.css";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -44,7 +45,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <BrandMark />
           Chronos
         </Link>
-        <ThemeToggle />
+        <div className={styles.headerActions}>
+          <AccountControls />
+          <ThemeToggle />
+        </div>
       </header>
       <main id="main" className={styles.main}>
         {children}

@@ -1,0 +1,24 @@
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+}
+
+.link {
+  text-decoration: none;
+}
+
+.email {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.email:hover {
+  color: var(--fg);
+}

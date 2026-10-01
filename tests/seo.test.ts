@@ -38,10 +38,13 @@ describe("robots policy", () => {
   const result = robots();
   const rules = Array.isArray(result.rules) ? result.rules[0]! : result.rules!;
 
-  test("disallows /repo/, /styleguide, /api/ (privacy + budget)", () => {
+  test("disallows /repo/, /styleguide, /api/, and auth surfaces", () => {
     expect(rules.disallow).toContain("/repo/");
     expect(rules.disallow).toContain("/styleguide");
     expect(rules.disallow).toContain("/api/");
+    expect(rules.disallow).toContain("/account");
+    expect(rules.disallow).toContain("/sign-in");
+    expect(rules.disallow).toContain("/callback");
   });
 
   test("allows the marketing surface and points to the sitemap", () => {
