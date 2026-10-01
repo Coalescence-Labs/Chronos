@@ -53,6 +53,8 @@ describe("auth privacy posture", () => {
     expect(example).toContain("WORKOS_COOKIE_PASSWORD");
     expect(example).toContain("NEXT_PUBLIC_WORKOS_REDIRECT_URI");
     expect(example).toContain("WORKOS_COOKIE_MAX_AGE=604800");
+    expect(example).toContain("Auth is OPTIONAL");
+    expect(example).toContain("AuthKit reads THIS name only");
     expect(example).not.toMatch(/sk_live_|sk_test_[A-Za-z0-9]{20,}/);
   });
 });

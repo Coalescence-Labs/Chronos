@@ -41,7 +41,8 @@ describe("auth route handlers", () => {
   test("callback route uses handleAuth only", async () => {
     const source = await Bun.file("app/callback/route.ts").text();
     expect(source).toContain("handleAuth");
-    expect(source).toContain("export const GET");
+    expect(source).toContain("isAuthConfigured");
+    expect(source).toContain("export async function GET");
     expect(source).not.toMatch(/console\./);
   });
 

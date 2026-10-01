@@ -1,4 +1,6 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
+import type { NextRequest } from "next/server";
+import { isAuthConfigured } from "@/lib/auth";
 
 /**
  * WorkOS AuthKit callback — exchanges the auth code and seals the session
@@ -9,6 +11,16 @@ import { handleAuth } from "@workos-inc/authkit-nextjs";
  *
  * Never log the code, tokens, or user payload here.
  */
-export const GET = handleAuth({
+const authCallback = handleAuth({
   returnPathname: "/account",
 });
+
+export async function GET(request: NextRequest) {
+  if (!isAuthConfigured()) {
+    return Response.json(
+      { error: { code: "auth_not_configured", message: "WorkOS env vars are not set." } },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  return authCallback(request);
+}

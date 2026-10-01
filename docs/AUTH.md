@@ -47,6 +47,17 @@ localhost). Chronos sets `WORKOS_COOKIE_MAX_AGE=604800` (7 days) in
 `eagerAuth` stays **off** so no JWT is mirrored into a separate client-readable
 cookie.
 
+## Optional auth / no-env posture
+
+`proxy.ts` must **not** invoke AuthKit when WorkOS is unconfigured.
+`authkitProxy` throws (`You must provide a redirect URI…`) if
+`NEXT_PUBLIC_WORKOS_REDIRECT_URI` is empty — even with `eagerAuth: false`.
+Chronos gates with `isAuthConfigured()` and falls through to
+`NextResponse.next()` so anonymous paste/`/demo` work with zero WorkOS env.
+
+Redirect URI env name AuthKit actually reads:
+**`NEXT_PUBLIC_WORKOS_REDIRECT_URI`** (not `WORKOS_REDIRECT_URI`).
+
 ## GitHub login vs GitHub repo connection
 
 | Concern | Mechanism | Issue |
@@ -107,8 +118,9 @@ no Chronos-specific passkey code. Owner enables when ready to ship.
 
 ## Env reference
 
-See `.env.example`. Required: `WORKOS_CLIENT_ID`, `WORKOS_API_KEY`,
-`WORKOS_COOKIE_PASSWORD`, `NEXT_PUBLIC_WORKOS_REDIRECT_URI`.
+See `.env.example`. Required for auth (all or nothing): `WORKOS_CLIENT_ID`,
+`WORKOS_API_KEY`, `WORKOS_COOKIE_PASSWORD` (≥32 chars),
+`NEXT_PUBLIC_WORKOS_REDIRECT_URI`. Omit all of them to run anonymously.
 
 ## Out of scope here
 
