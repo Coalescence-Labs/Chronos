@@ -86,11 +86,14 @@ describe("ui primitives", () => {
     expect(closed).toContain('tabindex="-1"');
   });
 
-  test("AppShell provides a skip link and a main landmark", () => {
+  test("AppShell provides a skip link, main landmark, and footer theme control", () => {
     const html = renderToStaticMarkup(<AppShell>graph</AppShell>);
     expect(html).toContain("Skip to content");
     expect(html).toContain('id="main"');
     expect(html).toContain("<main");
     expect(html).toContain("Chronos");
+    expect(html).toContain("<footer");
+    expect(html).toContain('aria-label="Appearance"');
+    expect(html).toContain('aria-label="Theme"');
   });
 });

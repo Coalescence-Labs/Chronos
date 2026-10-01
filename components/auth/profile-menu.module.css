@@ -1,0 +1,127 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight);
+  color: var(--fg);
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.trigger:hover {
+  border-color: var(--border-strong);
+  color: var(--accent);
+}
+
+.trigger:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.trigger[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.avatarInitial {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  user-select: none;
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 30;
+  min-width: 11.5rem;
+  max-width: min(18rem, calc(100vw - var(--space-6)));
+  padding: var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  background-image: var(--glass-bg);
+  box-shadow: var(--shadow-2), var(--glass-highlight);
+}
+
+.identity {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-1);
+}
+
+.name {
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.email {
+  margin: var(--space-1) 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--accent-soft);
+  color: var(--fg);
+  outline: none;
+}
+
+.item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}

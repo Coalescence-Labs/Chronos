@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ChronosAnalytics } from "@/components/analytics/ChronosAnalytics";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import { CHROME_BG, THEME_INIT_SCRIPT } from "@/lib/theme";
@@ -56,10 +57,12 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className={satoshi.variable}>
-        {children}
-        <ServiceWorkerRegistrar />
-        {/* Analytics + Speed Insights with URL scrubbing & kill switch (COA-96). */}
-        <ChronosAnalytics />
+        <AuthProvider>
+          {children}
+          <ServiceWorkerRegistrar />
+          {/* Analytics + Speed Insights with URL scrubbing & kill switch (COA-96). */}
+          <ChronosAnalytics />
+        </AuthProvider>
       </body>
     </html>
   );

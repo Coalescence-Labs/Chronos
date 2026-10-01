@@ -18,6 +18,7 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - Two repo entry points: **paste a public GitHub repo URL** and **link GitHub (OAuth) → pick a repo**. (v1 is GitHub-only — see decision #3.)
 - **Ingestion is a server-side BFF proxy to the GitHub API** (decisions #3 + #7) — server proxies GitHub calls with **zero persistence/logging of repo data**; v1 is GitHub-only; large repos use progressive loading. (Originally client-side; flipped for the BFF token-security posture below.)
 - **GitHub OAuth uses the BFF pattern** (decision #7) — token held server-side in an encrypted httpOnly session, never exposed to browser JS; least scopes, read-only, never write. Private repos out of scope for v1 (would need a fresh privacy pre-flight).
+- **Optional Chronos user accounts use WorkOS AuthKit** (COA-200) — email/password, GitHub, Google via hosted AuthKit; sealed httpOnly session cookie; public paste remains anonymous. See [docs/AUTH.md](docs/AUTH.md). Distinct from GitHub *repo* OAuth (COA-79 / COA-202).
 - **Graph layout is a hybrid lane algorithm in our own pure `lib/graph`** (decision #1) — stable columns for active branches, compact reuse for stale, hard column cap for mobile. No render-coupled libs.
 - **Render is SVG with viewport virtualization** (decision #2) — render only on-screen rows; renderer stays behind the `components/graph` interface so it's swappable without touching `lib/graph`.
 - **Responsive**: must feel native on phone *and* laptop.
@@ -50,20 +51,25 @@ Chronos/
     ARCHITECTURE.md         # how it's built + OPEN DECISIONS
     DESIGN.md               # visual language + polish bar
     PRIVACY.md              # security + ZDR model
+    AUTH.md                 # WorkOS AuthKit accounts (COA-200)
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
-  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /styleguide; /repo/[owner]/[repo] = graph view; /demo = synthetic graph, no network)
+  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /callback + /sign-in AuthKit; /account; /styleguide; /repo/[owner]/[repo] = graph view; /demo = synthetic graph, no network)
   lib/
     graph/                  # pure layout engine (layout.ts, hybrid lanes) + normalized model (types.ts) — no DOM/network
     ingest/                 # source adapters -> normalized model (GitHub via BFF)
+    auth/                   # WorkOS AuthKit session helpers (public /me shape; no tokens to client)
     demo/                   # deterministic synthetic history backing /demo
     ai/                     # empty until decisions #4/#5 resolve
   components/
     graph/                  # GraphView: virtualized SVG renderer over layout output
     repo/                   # GraphExplorer (layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm
+    auth/                   # AuthProvider + minimal AccountControls (no multi-repo switcher)
     ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
     shell/                  # AppShell (responsive scaffold)
     pwa/                    # service-worker registration
+  proxy.ts                  # Next.js 16 AuthKit session refresh (auth optional; public routes stay open)
+  docs/AUTH.md              # WorkOS accounts, MFA/passkeys investigation, GitHub-login vs repo-OAuth split
   public/                   # fonts (Satoshi), PWA icons, sw.js
   scripts/                  # generate-icons.ts (regenerates PWA icons from tokens)
   tests/                    # bun test suites (boundaries, ingest, design tokens, pwa, graph layout/view/pipeline)

@@ -30,7 +30,10 @@
 .header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
+  width: 100%;
+  box-sizing: border-box;
   padding: var(--space-4) var(--space-5);
   padding-top: calc(var(--space-4) + env(safe-area-inset-top));
 }
@@ -40,6 +43,7 @@
   align-items: center;
   gap: var(--space-2);
   min-height: var(--touch-target);
+  flex-shrink: 0;
   color: var(--fg);
   text-decoration: none;
   font-size: var(--text-lg);
@@ -51,10 +55,19 @@
   color: var(--accent);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  min-height: var(--touch-target);
+}
+
 /* Theme control: segmented pill, one 44px target per choice. */
 .themeToggle {
   display: inline-flex;
-  margin-left: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   background: var(--bg-elevated);
@@ -124,7 +137,26 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  /* Bottom padding clears the home indicator; the full-bleed background shows
-     through the safe area behind it. */
-  padding: 0 var(--space-5) max(var(--space-6), env(safe-area-inset-bottom));
+  /* Horizontal inset only — footer owns bottom safe-area clearance. */
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+/* Slim chrome strip: theme only (auth stays in the header). Always centered. */
+.shellFooter {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-5);
+  padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footerTheme {
+  display: inline-flex;
+  justify-content: center;
+  margin-inline: auto;
 }
