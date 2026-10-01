@@ -2,12 +2,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AccountControlsGate } from "@/components/auth/AccountControlsGate";
 import styles from "./shell.module.css";
-import { ThemeToggle } from "./ThemeToggle";
 
 /**
  * Responsive page scaffold: header + content column, safe-area aware so the
  * PWA feels native on phones. The inspection surface (components/ui)
  * overlays this shell as a sheet (phone) or side panel (laptop).
+ *
+ * Theme toggle lives in AccountControlsGate: header when signed out /
+ * unconfigured; inside ProfileMenu when signed in.
  */
 
 function BrandMark() {
@@ -47,7 +49,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
         <div className={styles.headerActions}>
           <AccountControlsGate />
-          <ThemeToggle />
         </div>
       </header>
       <main id="main" className={styles.main}>
