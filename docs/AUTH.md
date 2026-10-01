@@ -52,7 +52,13 @@ If the dashboard **Logout redirect URI** is missing or does not **exactly** matc
 even though Chronos is already signed out.
 
 **Chronos therefore uses local sign-out** (`chronosSignOut` / `signOutAction`):
-clear `wos-session` (+ PKCE cookies) and `redirect("/")` — no WorkOS bounce.
+clear `wos-session` (+ PKCE cookies) and redirect using the **request Host**
+(`sameOriginReturnUrl`) so localhost stays on `http://localhost:3005/`. The
+client also hard-navigates to `window.location.origin/` after sign-out.
+
+Do **not** rely on `NEXT_PUBLIC_SITE_URL` / `SITE_URL` for logout destinations —
+that constant defaults to the production host and is SEO-only. Logout never
+reads it. (Callback URI env is unrelated; keep your local callback as-is.)
 
 Optional dashboard Logout URIs (only needed if you switch back to AuthKit
 hosted logout):

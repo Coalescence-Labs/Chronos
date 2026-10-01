@@ -16,9 +16,10 @@ import { ProfileMenu } from "./ProfileMenu";
  * Signed-in: compact ProfileMenu (avatar → Account / Sign out).
  * Signed-out: ghost Sign in link with returnTo=current path. No multi-repo chrome (COA-201).
  *
- * Sign-out uses Chronos `signOutAction` (local cookie clear + home redirect),
- * not AuthKit client `signOut` (WorkOS hosted logout → error.workos.com when
- * the dashboard Logout URI is missing/mismatched).
+ * Sign-out: Chronos `signOutAction` (local cookie clear — never AuthKit
+ * `signOut` / WorkOS hosted logout). Then hard-navigate to
+ * `window.location.origin/` so a mis-resolved server Location cannot yank
+ * the browser to the Vercel/production host.
  */
 export function AccountControls() {
   const configured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
@@ -49,7 +50,14 @@ export function AccountControls() {
     <ProfileMenu
       user={user}
       onSignOut={() => {
-        void signOutAction();
+        void (async () => {
+          try {
+            await signOutAction();
+          } catch {
+            // Server Actions throw on redirect(); ignore and force same-origin home.
+          }
+          window.location.assign(`${window.location.origin}/`);
+        })();
       }}
     />
   );

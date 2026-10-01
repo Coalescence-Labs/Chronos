@@ -1,14 +1,18 @@
 /**
- * Safe return paths for AuthKit sign-in / sign-out.
+ * Safe return paths for AuthKit sign-in / absolute URL helpers.
  *
- * WorkOS logout requires an absolute returnTo that matches a dashboard
- * Sign-out redirect URI. Relative "/" triggers AuthKit's hosted error UI
- * ("Couldn't sign in") even though the Chronos session cookie was already cleared.
+ * IMPORTANT: Do **not** use `authAppOrigin()` / `absoluteAuthReturnUrl()` for
+ * runtime sign-out redirects — `SITE_URL` defaults to production and would yank
+ * localhost users to Vercel. Sign-out must use `sameOriginReturnUrlForHost` /
+ * request Host, or `window.location.origin` on the client.
  */
 
 import { SITE_URL } from "@/lib/site";
 
-/** App origin used for absolute AuthKit logout returnTo. */
+/**
+ * Origin derived from env (WorkOS redirect URI, else SITE_URL).
+ * Safe for documenting absolute logout URIs — **not** for runtime localhost logout.
+ */
 export function authAppOrigin(): string {
   const redirect = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI?.trim();
   if (redirect) {

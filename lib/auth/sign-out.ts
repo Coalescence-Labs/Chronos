@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { workosRedirectUri } from "./config";
 import { sanitizeReturnPath } from "./return-to";
@@ -49,17 +49,66 @@ function sessionCookieDeleteOptions(): {
 }
 
 /**
- * Clear the Chronos AuthKit session cookie and redirect in-app.
+ * Pure: derive request origin from Host / X-Forwarded-* (never SITE_URL).
+ * Exported for unit tests — production logout must stay on the browser's host.
+ */
+export function originFromRequestHost(
+  hostHeader: string | null | undefined,
+  forwardedProto: string | null | undefined = null,
+): string | null {
+  const host = (hostHeader || "").split(",")[0]?.trim();
+  if (!host) return null;
+
+  const proto =
+    forwardedProto?.split(",")[0]?.trim() ||
+    (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+
+  return `${proto}://${host}`;
+}
+
+/** Absolute same-origin return URL from an explicit request host (testable). */
+export function sameOriginReturnUrlForHost(
+  hostHeader: string | null | undefined,
+  returnPath: string = "/",
+  forwardedProto: string | null | undefined = null,
+): string {
+  const path = sanitizeReturnPath(returnPath);
+  const origin = originFromRequestHost(hostHeader, forwardedProto);
+  if (!origin) {
+    return path === "/" ? "/" : path;
+  }
+  return path === "/" ? `${origin}/` : `${origin}${path}`;
+}
+
+/**
+ * Origin of the *current request* (Host / X-Forwarded-*).
+ * Never use SITE_URL or env redirect origin here — that can send local logout to Vercel.
+ */
+export async function requestAuthOrigin(): Promise<string | null> {
+  const h = await headers();
+  return originFromRequestHost(
+    h.get("x-forwarded-host") || h.get("host"),
+    h.get("x-forwarded-proto"),
+  );
+}
+
+/** Build an absolute same-origin URL for post-logout landing. */
+export async function sameOriginReturnUrl(returnPath: string = "/"): Promise<string> {
+  const h = await headers();
+  return sameOriginReturnUrlForHost(
+    h.get("x-forwarded-host") || h.get("host"),
+    returnPath,
+    h.get("x-forwarded-proto"),
+  );
+}
+
+/**
+ * Clear the Chronos AuthKit session cookie and redirect to the **same origin**
+ * the user is on (localhost stays on localhost).
  *
- * AuthKit's `signOut()` always bounces through
- * `GET /user_management/sessions/logout?session_id=&return_to=` after clearing
- * the cookie. If the dashboard **Logout redirect URI** is missing or does not
- * exactly match `return_to`, WorkOS sends the browser to **error.workos.com**
- * ("Couldn't sign in") even though Chronos is already signed out.
- *
- * For Chronos, the sealed httpOnly cookie *is* the app session — clearing it
- * locally is sufficient. Skipping hosted logout avoids the dashboard allowlist
- * footgun while keeping sign-out reliable.
+ * AuthKit's `signOut()` bounces through WorkOS hosted logout; when `returnTo` is
+ * omitted, WorkOS uses the dashboard default Sign-out URI (often production).
+ * Chronos skips that path entirely.
  */
 export async function chronosSignOut(returnPath: string = "/"): Promise<void> {
   const jar = await cookies();
@@ -93,5 +142,5 @@ export async function chronosSignOut(returnPath: string = "/"): Promise<void> {
     }
   }
 
-  redirect(sanitizeReturnPath(returnPath));
+  redirect(await sameOriginReturnUrl(returnPath));
 }

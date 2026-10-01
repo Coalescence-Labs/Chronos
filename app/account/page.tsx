@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { withAuth } from "@workos-inc/authkit-nextjs";
+import { AccountSignOutButton } from "@/components/auth/AccountSignOutButton";
 import { AppShell } from "@/components/shell/AppShell";
-import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/button.module.css";
 import { Surface } from "@/components/ui/Surface";
 import { isAuthConfigured } from "@/lib/auth";
-import { signOutAction } from "@/lib/auth/actions";
 import { toPublicUser } from "@/lib/auth/session";
 import styles from "./account.module.css";
 
@@ -101,11 +100,7 @@ export default async function AccountPage() {
           browser JavaScript. Repo content is not part of this account session.
         </p>
         <div className={styles.actions}>
-          <form action={signOutAction}>
-            <Button type="submit" variant="ghost">
-              Sign out
-            </Button>
-          </form>
+          <AccountSignOutButton />
           <Link className={`${buttonStyles.button} ${buttonStyles.ghost}`} href="/">
             Back home
           </Link>
