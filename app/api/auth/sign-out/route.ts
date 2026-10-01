@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { signOut } from "@workos-inc/authkit-nextjs";
 import { isAuthConfigured } from "@/lib/auth";
-import { absoluteAuthReturnUrl } from "@/lib/auth/return-to";
+import { chronosSignOut } from "@/lib/auth/sign-out";
 
 /**
  * POST /api/auth/sign-out — clears the sealed session cookie server-side.
  * GET is intentionally unsupported (prefetch / CSRF risk).
+ *
+ * Local clear + redirect (no WorkOS hosted logout / error.workos.com).
  */
 export async function POST(): Promise<Response> {
   if (!isAuthConfigured()) {
@@ -15,9 +16,8 @@ export async function POST(): Promise<Response> {
     );
   }
 
-  // signOut redirects to WorkOS logout then absolute returnTo (dashboard Sign-out URI).
-  await signOut({ returnTo: absoluteAuthReturnUrl("/") });
-  // Unreachable if signOut always redirects; keep a fallback for typing.
+  // chronosSignOut always redirect()s — this line is for typing / unconfigured paths only.
+  await chronosSignOut("/");
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
 

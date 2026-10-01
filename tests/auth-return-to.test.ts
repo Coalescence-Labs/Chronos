@@ -43,19 +43,27 @@ describe("auth returnTo helpers", () => {
     expect(source).not.toContain('returnPathname: "/account"');
   });
 
-  test("sign-out paths pass absoluteAuthReturnUrl", async () => {
+  test("sign-out uses Chronos local clear, not AuthKit hosted logout", async () => {
     const action = await Bun.file("lib/auth/actions.ts").text();
-    expect(action).toContain("absoluteAuthReturnUrl");
-    expect(action).not.toMatch(/signOut\(\s*\{\s*returnTo:\s*"\/"/);
+    expect(action).toContain("chronosSignOut");
+    expect(action).not.toMatch(/from\s+"@workos-inc\/authkit-nextjs"/);
+
+    const local = await Bun.file("lib/auth/sign-out.ts").text();
+    expect(local).toContain("cookies()");
+    expect(local).toContain("redirect(");
+    expect(local).not.toContain("getLogoutUrl");
+    expect(local).not.toMatch(/from\s+"@workos-inc\/authkit-nextjs"/);
 
     const route = await Bun.file("app/api/auth/sign-out/route.ts").text();
-    expect(route).toContain("absoluteAuthReturnUrl");
+    expect(route).toContain("chronosSignOut");
+    expect(route).not.toMatch(/from\s+"@workos-inc\/authkit-nextjs"/);
   });
 
-  test("AccountControls preserves returnTo and absolute logout origin", async () => {
+  test("AccountControls preserves returnTo and uses local signOutAction", async () => {
     const source = await Bun.file("components/auth/AccountControls.tsx").text();
     expect(source).toContain("signInHrefForReturn");
-    expect(source).toContain("window.location.origin");
-    expect(source).not.toMatch(/signOut\(\s*\{\s*returnTo:\s*"\/"/);
+    expect(source).toContain("signOutAction");
+    expect(source).not.toMatch(/signOut\(\s*\{/);
+    expect(source).not.toMatch(/void signOut\b/);
   });
 });

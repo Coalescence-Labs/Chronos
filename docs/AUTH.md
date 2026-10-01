@@ -45,11 +45,25 @@ that into PKCE state; `/callback` prefers state over `handleAuth`'s default
 
 ### Post-logout return path
 
-WorkOS logout requires an **absolute** Sign-out redirect URI. Passing relative
-`"/"` clears the Chronos cookie then sends the browser to AuthKit's hosted
-error page ("Couldn't sign in"). Chronos always passes
-`absoluteAuthReturnUrl("/")` (e.g. `http://localhost:3005/`) — configure that
-exact URL as the dashboard **Logout redirect URI**.
+AuthKit's `signOut()` clears the sealed cookie **then** redirects the browser to
+WorkOS hosted logout (`/user_management/sessions/logout?session_id=&return_to=`).
+If the dashboard **Logout redirect URI** is missing or does not **exactly** match
+`return_to`, WorkOS sends the user to **error.workos.com** ("Couldn't sign in")
+even though Chronos is already signed out.
+
+**Chronos therefore uses local sign-out** (`chronosSignOut` / `signOutAction`):
+clear `wos-session` (+ PKCE cookies) and `redirect("/")` — no WorkOS bounce.
+
+Optional dashboard Logout URIs (only needed if you switch back to AuthKit
+hosted logout):
+
+| Environment | Logout redirect URI (exact) |
+|-------------|-----------------------------|
+| Local       | `http://localhost:3005/`    |
+| Production  | `https://chronos.coalescencelabs.app/` (or your `NEXT_PUBLIC_SITE_URL` + `/`) |
+
+Also add the same origin without a trailing slash if the dashboard UI stores it
+that way — WorkOS matching is strict.
 
 ## Cookie posture (decision #7)
 
@@ -88,9 +102,10 @@ privacy surface.
 
 1. Create/select a WorkOS environment; copy `WORKOS_CLIENT_ID` + `WORKOS_API_KEY`.
 2. Generate `WORKOS_COOKIE_PASSWORD` (`openssl rand -base64 24`).
-3. Redirects: callback → `…/callback`, sign-in → `…/sign-in`,
-   **logout → `http://localhost:3005/`** (absolute; must match
-   `absoluteAuthReturnUrl("/")`).
+3. Redirects: callback → `…/callback`, sign-in → `…/sign-in`.
+   **Logout redirect URI** (optional for Chronos local sign-out; required if
+   using AuthKit hosted logout): `http://localhost:3005/` locally and your
+   production origin + `/`.
 4. Authentication: enable Email+Password, GitHub, Google.
 5. MFA: enable in Authentication (AuthKit hosts enrollment + challenge).
 6. Passkeys: enable if desired (see below). Custom domain recommended before

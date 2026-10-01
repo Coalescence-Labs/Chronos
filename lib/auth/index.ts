@@ -13,6 +13,7 @@ export {
   sanitizeReturnPath,
   signInHrefForReturn,
 } from "./return-to";
+export { chronosSignOut } from "./sign-out";
 export {
   assertNoSecretsInPublicSession,
   sessionCookieLooksHardened,

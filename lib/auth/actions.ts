@@ -1,16 +1,15 @@
 "use server";
 
-import { signOut } from "@workos-inc/authkit-nextjs";
-import { absoluteAuthReturnUrl } from "@/lib/auth/return-to";
+import { chronosSignOut } from "@/lib/auth/sign-out";
 
 /**
  * POST-only sign-out (server action). Never expose a GET sign-out route —
  * Link prefetch / CSRF via img src could clear the session.
  *
- * returnTo must be an absolute URL matching the WorkOS dashboard Sign-out
- * redirect URI (e.g. http://localhost:3005/). Relative "/" lands on AuthKit's
- * error page after the cookie is already cleared.
+ * Uses Chronos local sign-out (clear sealed cookie + redirect home). Does not
+ * call AuthKit `signOut()` / WorkOS hosted logout — that path requires an
+ * exact dashboard Logout redirect URI and otherwise lands on error.workos.com.
  */
 export async function signOutAction(): Promise<void> {
-  await signOut({ returnTo: absoluteAuthReturnUrl("/") });
+  await chronosSignOut("/");
 }

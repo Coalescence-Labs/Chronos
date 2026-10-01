@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
+import { signOutAction } from "@/lib/auth/actions";
 import { signInHrefForReturn } from "@/lib/auth/return-to";
 import buttonStyles from "@/components/ui/button.module.css";
 import { ProfileMenu } from "./ProfileMenu";
@@ -15,14 +16,13 @@ import { ProfileMenu } from "./ProfileMenu";
  * Signed-in: compact ProfileMenu (avatar → Account / Sign out).
  * Signed-out: ghost Sign in link with returnTo=current path. No multi-repo chrome (COA-201).
  *
- * Uses AuthKit's client signOut — do not import lib/auth/actions here (that
- * module pulls server-only and breaks client/bundled test imports).
- * Logout returnTo must be absolute (WorkOS Sign-out URI); relative "/" shows
- * AuthKit's "Couldn't sign in" error after the cookie is already cleared.
+ * Sign-out uses Chronos `signOutAction` (local cookie clear + home redirect),
+ * not AuthKit client `signOut` (WorkOS hosted logout → error.workos.com when
+ * the dashboard Logout URI is missing/mismatched).
  */
 export function AccountControls() {
   const configured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const pathname = usePathname() || "/";
 
   if (!configured) {
@@ -49,8 +49,7 @@ export function AccountControls() {
     <ProfileMenu
       user={user}
       onSignOut={() => {
-        // Absolute origin required for WorkOS logout redirect allowlist.
-        void signOut({ returnTo: `${window.location.origin}/` });
+        void signOutAction();
       }}
     />
   );
