@@ -1,7 +1,6 @@
 .root {
   position: relative;
   display: inline-flex;
-  margin-left: var(--space-2);
 }
 
 .trigger {

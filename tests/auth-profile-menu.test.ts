@@ -68,4 +68,12 @@ describe("profile menu shell wiring", () => {
     expect(source).toContain("Sign in");
     expect(source).toContain("ProfileMenu");
   });
+
+  test("header actions are right-justified via shell CSS", async () => {
+    const css = await Bun.file("components/shell/shell.module.css").text();
+    expect(css).toMatch(/\.header\s*\{[^}]*justify-content:\s*space-between/s);
+    expect(css).toMatch(/\.headerActions\s*\{[^}]*margin-inline-start:\s*auto/s);
+    expect(css).toMatch(/\.headerActions\s*\{[^}]*justify-content:\s*flex-end/s);
+    expect(css).toMatch(/\.shellFooter\s*\{[^}]*justify-content:\s*center/s);
+  });
 });
