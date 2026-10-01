@@ -17,11 +17,14 @@ to the official GitHub REST API. That API meters us:
   hour no matter how frugal each view is.
 - **Authenticated:** 5,000 requests/hour per token.
 
-What a view costs today (after lazy paging, merged on this branch): a typical
+What a view costs today (with lazy paging, already merged): a typical
 repo load is ~10 requests (metadata + branches + tags + 3 commit pages + one
 page per unmerged branch tip, capped at 10); scrolling deep history adds one
-request per 100 commits, up to the 10-page cap. Identical repos viewed by
-different users currently cost the full amount every time.
+request per 100 commits, up to the 10-page cap. A manual Refresh costs 4
+requests when nothing moved (metadata + branches + tags + page 1) and at
+most ~23 (plus trunk gap-fill pages and moved-tip pages, each capped at 10).
+Identical repos viewed by different users currently cost the full amount
+every time.
 
 Privacy gives caching a hard boundary: a cache may smooth load, but it must
 never become a durable store of repo data, and nothing it holds may exceed
@@ -76,6 +79,14 @@ A small **in-process LRU** in the BFF, keyed by upstream request identity
   cache is insufficient.
 - Client-facing responses keep **`Cache-Control: no-store`**; the browser
   cache is not part of this design.
+- **Refresh bypasses the cache.** Every request `refreshRepoHistory` makes
+  carries `fresh=1`; the BFF skips the cache read for it, calls GitHub, and
+  writes the fresh result back so later viewers benefit too. Without this,
+  Refresh inside the TTL would get the cached refs back and falsely report
+  "up to date". The whole refresh chain (refs, trunk gap-fill pages,
+  moved-tip pages) bypasses, so a refresh never mixes fresh refs with stale
+  ref-keyed pages. Initial loads, reloads, and lazy paging never send
+  `fresh=1`.
 
 ### 3. Client-side: session-scoped state only
 
@@ -91,22 +102,32 @@ refetch, which the server cache absorbs.
   When the pool's `x-ratelimit-remaining` drops below **5%**, serve only
   cache hits and answer misses with `rate-limited` + reset time instead of
   burning the last requests — the tail of the budget stays available for
-  cheap cached views.
+  cheap cached views. A `fresh=1` request is a miss by definition, so in
+  this mode Refresh gets `rate-limited` + reset time, never a cached answer
+  (which would bring back the false "up to date").
 - **Client:** **no automatic retry loops** — they burn budget invisibly.
   Failed initial loads show the designed error state with a retry button and
   the wait time; failed `loadMore` calls re-arm silently so the user's next
-  scroll retries (already implemented). Copy states plainly that GitHub's
-  limit, not Chronos, is the constraint.
+  scroll retries (already implemented). A rate-limited Refresh shows the
+  wait time in its status note instead of today's generic "couldn't
+  refresh". Copy states plainly that GitHub's limit, not Chronos, is the
+  constraint.
 - **No per-user throttling in v1.** A fairness limiter (in-memory per-IP
   counters, no logs) is specced but deferred until abuse is observed —
-  it's a knob, and the cognitive-load mandate applies to ops too.
+  it's a knob, and the cognitive-load mandate applies to ops too. `fresh=1`
+  is just a query param, so anyone can force misses; that's no worse than
+  today's uncached proxy, the low-budget floor still protects the tail, and
+  the button already ignores clicks while a refresh is in flight. Forced
+  refreshes are the likeliest reason to switch the limiter on.
 
 ## Consequences
 
 - Anonymous capacity goes from ~3–6 repo views/hour *total* to ~500/hour,
   and repeat/concurrent views of popular repos cost ~0 upstream.
-- Staleness is bounded at 5 minutes; a hard refresh within that window may
-  show a graph up to 5 minutes old. Acceptable for the product promise.
+- Staleness is bounded at 5 minutes; a page reload within that window may
+  show a graph up to 5 minutes old. The Refresh button always reads through
+  to GitHub, so a user who asks for current state gets it. Acceptable for
+  the product promise.
 - Privacy posture is unchanged in kind: repo data still only transits, now
   with a bounded 5-minute in-memory tail, holding strictly the fields the
   browser already receives. PRIVACY.md's caching clause is satisfied as
@@ -124,10 +145,15 @@ refetch, which the server cache absorbs.
    `retryAfterSeconds`; low-remaining mode serves hits and rejects misses.
 3. Token plumbing: requests carry the app token when configured, none
    otherwise; the token never appears in any response or error body.
+4. Refresh bypass: `fresh=1` skips the cache read on both routes and writes
+   the fresh result through; in low-budget mode it is rejected, not served
+   from cache; `refreshRepoHistory` sends it on every request and
+   `fetchPublicRepoHistory` never does.
 
 ## On ratification
 
 Move decision #6 from the Open Decisions table into the resolved section of
 [ARCHITECTURE.md](../ARCHITECTURE.md), update [PRIVACY.md](../PRIVACY.md)'s
 caching clause to reference this ADR's concrete TTL/bounds, and implement
-items 1, 2 and 4 (item 3 is already the implemented behavior).
+items 1, 2 (including the refresh bypass) and 4 (item 3 is already the
+implemented behavior).
