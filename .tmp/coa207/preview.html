@@ -1,0 +1,62 @@
+<!doctype html>
+<html data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Glance B light states</title>
+<style>
+  [data-theme="light"] {
+    --bg: #f7f4ed;
+    --bg-elevated: #fcfaf3;
+    --bg-raised: #fffdf8;
+    --fg: #3a3a38;
+    --fg-muted: #6b6862;
+    --accent: #2e4a6b;
+    --accent-soft: rgba(46, 74, 107, 0.1);
+    --border-strong: rgba(58, 58, 56, 0.26);
+    --shadow-1: 0 1px 2px rgba(58, 58, 56, 0.06), 0 2px 8px rgba(58, 58, 56, 0.05);
+    --touch-target: 44px;
+    --space-4: 1rem;
+    --radius-full: 999px;
+    --text-sm: 0.875rem;
+    --font-sans: ui-sans-serif, system-ui, sans-serif;
+  }
+  body { margin: 0; padding: 32px; background: var(--bg); font-family: var(--font-sans); color: var(--fg); }
+  h1 { font-size: 1rem; font-weight: 600; margin: 0 0 20px; }
+  .row { display: flex; gap: 28px; flex-wrap: wrap; }
+  .sample { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .label { font-size: 11px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .btn {
+    min-height: var(--touch-target);
+    padding: 0 var(--space-4);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-full);
+    background: var(--bg-elevated);
+    color: var(--fg-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+  }
+  .hover {
+    border-color: var(--accent);
+    background-color: var(--bg-raised);
+    background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
+    color: var(--accent);
+    box-shadow: var(--shadow-1);
+  }
+  .active {
+    background-color: color-mix(in srgb, var(--fg) 7%, var(--bg-elevated));
+    background-image: none;
+    border-color: var(--border-strong);
+    color: var(--fg);
+    box-shadow: none;
+  }
+</style>
+</head>
+<body>
+  <h1>Option B — light (idle / hover / active)</h1>
+  <div class="row">
+    <div class="sample"><span class="label">Idle</span><button class="btn">Glance</button></div>
+    <div class="sample"><span class="label">Hover</span><button class="btn hover">Glance</button></div>
+    <div class="sample"><span class="label">Active</span><button class="btn active">Glance</button></div>
+  </div>
+</body>
+</html>
