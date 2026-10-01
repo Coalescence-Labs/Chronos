@@ -54,14 +54,14 @@ export default async function AccountPage() {
           <div className={styles.actions}>
             <Link
               className={`${buttonStyles.button} ${buttonStyles.primary}`}
-              href="/sign-in"
+              href="/sign-in?returnTo=%2Faccount"
               prefetch={false}
             >
               Sign in
             </Link>
             <Link
               className={`${buttonStyles.button} ${buttonStyles.ghost}`}
-              href="/sign-up"
+              href="/sign-up?returnTo=%2Faccount"
               prefetch={false}
             >
               Create account

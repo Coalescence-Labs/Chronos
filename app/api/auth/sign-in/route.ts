@@ -1,6 +1,7 @@
 import { getSignInUrl } from "@workos-inc/authkit-nextjs";
 import { redirect } from "next/navigation";
 import { isAuthConfigured } from "@/lib/auth";
+import { sanitizeReturnPath } from "@/lib/auth/return-to";
 
 /**
  * API alias for sign-in (same as /sign-in). Prefer /sign-in as the WorkOS
@@ -15,7 +16,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const { searchParams } = new URL(request.url);
-  const returnTo = searchParams.get("returnTo") ?? undefined;
-  const signInUrl = await getSignInUrl(returnTo ? { returnTo } : undefined);
+  const returnTo = sanitizeReturnPath(searchParams.get("returnTo"));
+  const signInUrl = await getSignInUrl({ returnTo });
   return redirect(signInUrl);
 }

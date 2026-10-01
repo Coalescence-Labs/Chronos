@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { signOut } from "@workos-inc/authkit-nextjs";
 import { isAuthConfigured } from "@/lib/auth";
+import { absoluteAuthReturnUrl } from "@/lib/auth/return-to";
 
 /**
  * POST /api/auth/sign-out — clears the sealed session cookie server-side.
@@ -14,9 +15,8 @@ export async function POST(): Promise<Response> {
     );
   }
 
-  // signOut redirects to WorkOS logout then returnTo; for API callers that
-  // prefer JSON, we still invoke it so the cookie is cleared via Set-Cookie.
-  await signOut({ returnTo: "/" });
+  // signOut redirects to WorkOS logout then absolute returnTo (dashboard Sign-out URI).
+  await signOut({ returnTo: absoluteAuthReturnUrl("/") });
   // Unreachable if signOut always redirects; keep a fallback for typing.
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

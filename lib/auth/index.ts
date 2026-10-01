@@ -8,6 +8,12 @@ export {
 export { profileDisplayName, profileInitial } from "./profile-label";
 export type { ProfileIdentity } from "./profile-label";
 export {
+  absoluteAuthReturnUrl,
+  authAppOrigin,
+  sanitizeReturnPath,
+  signInHrefForReturn,
+} from "./return-to";
+export {
   assertNoSecretsInPublicSession,
   sessionCookieLooksHardened,
   toPublicSession,

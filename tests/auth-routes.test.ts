@@ -38,10 +38,11 @@ describe("auth route handlers", () => {
     expect(getBlock).not.toMatch(/signOut\s*\(/);
   });
 
-  test("callback route uses handleAuth only", async () => {
+  test("callback route uses handleAuth with home fallback", async () => {
     const source = await Bun.file("app/callback/route.ts").text();
     expect(source).toContain("handleAuth");
     expect(source).toContain("isAuthConfigured");
+    expect(source).toContain('returnPathname: "/"');
     expect(source).toContain("export async function GET");
     expect(source).not.toMatch(/console\./);
   });

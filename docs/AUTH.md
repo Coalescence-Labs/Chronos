@@ -10,12 +10,13 @@ user accounts. Authentication is **not required** for public-URL paste or
 `/demo`.
 
 ```
-Browser ──► /sign-in|/sign-up ──► WorkOS AuthKit hosted UI
-                ▲                        │
-                │                        ▼
+Browser ──► /sign-in?returnTo=/path ──► WorkOS AuthKit hosted UI
+                ▲                              │
+                │                              ▼
            /callback ◄── code exchange + sealed session cookie
                 │
                 ▼
+     redirect to returnTo (fallback `/`)
      encrypted httpOnly cookie (wos-session)
      tokens never exposed to browser JS
 ```
@@ -24,17 +25,31 @@ Routes:
 
 | Path | Role |
 |------|------|
-| `/sign-in` | WorkOS dashboard **Sign-in endpoint** (`initiate_login_uri`) |
-| `/sign-up` | AuthKit sign-up screen hint |
-| `/callback` | `handleAuth()` — code → sealed cookie |
+| `/sign-in` | WorkOS dashboard **Sign-in endpoint** (`initiate_login_uri`); honors `?returnTo=` |
+| `/sign-up` | AuthKit sign-up screen hint; honors `?returnTo=` |
+| `/callback` | `handleAuth()` — code → sealed cookie; lands on `returnTo` from state, else `/` |
 | `/api/auth/sign-in` | Alias of `/sign-in` |
 | `/api/auth/sign-up` | Alias of `/sign-up` |
 | `/api/auth/sign-out` | **POST only** — clears session (prefer `signOutAction`) |
 | `/api/auth/me` | Public session JSON (no tokens) |
-| `/account` | Minimal smoke UI |
+| `/account` | Minimal smoke UI (explicit destination only) |
 
 Sign-out must never be a GET route (prefetch / CSRF). Use the server action
 `signOutAction` from `lib/auth/actions.ts`.
+
+### Post-login return path
+
+Header **Sign in** passes the current pathname as `?returnTo=`. AuthKit seals
+that into PKCE state; `/callback` prefers state over `handleAuth`'s default
+(`returnPathname: "/"`). Fallback is **home (`/`)**, not `/account`.
+
+### Post-logout return path
+
+WorkOS logout requires an **absolute** Sign-out redirect URI. Passing relative
+`"/"` clears the Chronos cookie then sends the browser to AuthKit's hosted
+error page ("Couldn't sign in"). Chronos always passes
+`absoluteAuthReturnUrl("/")` (e.g. `http://localhost:3005/`) — configure that
+exact URL as the dashboard **Logout redirect URI**.
 
 ## Cookie posture (decision #7)
 
@@ -73,7 +88,9 @@ privacy surface.
 
 1. Create/select a WorkOS environment; copy `WORKOS_CLIENT_ID` + `WORKOS_API_KEY`.
 2. Generate `WORKOS_COOKIE_PASSWORD` (`openssl rand -base64 24`).
-3. Redirects: callback → `…/callback`, sign-in → `…/sign-in`, logout → `/`.
+3. Redirects: callback → `…/callback`, sign-in → `…/sign-in`,
+   **logout → `http://localhost:3005/`** (absolute; must match
+   `absoluteAuthReturnUrl("/")`).
 4. Authentication: enable Email+Password, GitHub, Google.
 5. MFA: enable in Authentication (AuthKit hosts enrollment + challenge).
 6. Passkeys: enable if desired (see below). Custom domain recommended before

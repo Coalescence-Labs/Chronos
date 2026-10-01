@@ -1,6 +1,7 @@
 import { getSignUpUrl } from "@workos-inc/authkit-nextjs";
 import { redirect } from "next/navigation";
 import { isAuthConfigured } from "@/lib/auth";
+import { sanitizeReturnPath } from "@/lib/auth/return-to";
 
 /** API alias for sign-up (same as /sign-up). */
 export async function GET(request: Request): Promise<Response> {
@@ -12,7 +13,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const { searchParams } = new URL(request.url);
-  const returnTo = searchParams.get("returnTo") ?? undefined;
-  const signUpUrl = await getSignUpUrl(returnTo ? { returnTo } : undefined);
+  const returnTo = sanitizeReturnPath(searchParams.get("returnTo"));
+  const signUpUrl = await getSignUpUrl({ returnTo });
   return redirect(signUpUrl);
 }

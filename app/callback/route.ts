@@ -7,12 +7,14 @@ import { isAuthConfigured } from "@/lib/auth";
  * into an encrypted httpOnly cookie (BFF decision #7).
  *
  * Must match NEXT_PUBLIC_WORKOS_REDIRECT_URI (default: /callback).
- * returnPathname: /account — minimal surface to verify the session.
+ * returnPathname fallback is `/` (home). When sign-in was started with
+ * getSignInUrl({ returnTo }), AuthKit state overrides this and lands on
+ * the page the user left.
  *
  * Never log the code, tokens, or user payload here.
  */
 const authCallback = handleAuth({
-  returnPathname: "/account",
+  returnPathname: "/",
 });
 
 export async function GET(request: NextRequest) {
