@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AccountControls } from "@/components/auth/AccountControls";
+import { AccountControlsGate } from "@/components/auth/AccountControlsGate";
 import styles from "./shell.module.css";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           Chronos
         </Link>
         <div className={styles.headerActions}>
-          <AccountControls />
+          <AccountControlsGate />
           <ThemeToggle />
         </div>
       </header>

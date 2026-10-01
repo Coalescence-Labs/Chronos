@@ -5,6 +5,8 @@ export {
   isAuthConfigured,
   workosRedirectUri,
 } from "./config";
+export { profileDisplayName, profileInitial } from "./profile-label";
+export type { ProfileIdentity } from "./profile-label";
 export {
   assertNoSecretsInPublicSession,
   sessionCookieLooksHardened,

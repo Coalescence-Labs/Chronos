@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
-import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/button.module.css";
-import styles from "./account-controls.module.css";
+import { ProfileMenu } from "./ProfileMenu";
 
 /**
  * Client shell affordance — useAuth() so statically prerendered pages still
  * reflect the runtime session. Sign-in is hidden unless the public redirect
  * URI is configured (no WORKOS_API_KEY on the client).
+ *
+ * Signed-in: compact ProfileMenu (avatar → Account / Sign out).
+ * Signed-out: ghost Sign in link. No multi-repo chrome (COA-201).
  *
  * Uses AuthKit's client signOut — do not import lib/auth/actions here (that
  * module pulls server-only and breaks client/bundled test imports).
@@ -38,22 +40,12 @@ export function AccountControls() {
     );
   }
 
-  const label = user.firstName?.trim() || user.email;
-
   return (
-    <div className={styles.row}>
-      <Link className={styles.email} href="/account" prefetch={false} title={user.email}>
-        {label}
-      </Link>
-      <Button
-        variant="ghost"
-        type="button"
-        onClick={() => {
-          void signOut({ returnTo: "/" });
-        }}
-      >
-        Sign out
-      </Button>
-    </div>
+    <ProfileMenu
+      user={user}
+      onSignOut={() => {
+        void signOut({ returnTo: "/" });
+      }}
+    />
   );
 }
