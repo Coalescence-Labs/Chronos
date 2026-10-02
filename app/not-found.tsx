@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AppShell } from "@/components/shell/AppShell";
-import buttonStyles from "@/components/ui/button.module.css";
 import { EmptyState } from "@/components/ui";
 
 export const metadata: Metadata = {
@@ -10,8 +8,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * App Router custom 404 (COA-85). Uses EmptyState + design tokens so light/dark
- * and the shell chrome stay consistent with the rest of Chronos.
+ * App Router custom 404 (COA-85). EmptyState + shell only — the header Chronos
+ * mark already links home (no extra "Back home" CTA / underline noise).
  */
 export default function NotFound() {
   return (
@@ -20,11 +18,6 @@ export default function NotFound() {
         fill
         title="Page not found"
         hint="That address doesn't match anything here."
-        action={
-          <Link className={`${buttonStyles.button} ${buttonStyles.primary}`} href="/">
-            Back home
-          </Link>
-        }
       />
     </AppShell>
   );

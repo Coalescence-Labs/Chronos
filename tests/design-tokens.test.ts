@@ -66,6 +66,8 @@ describe("design tokens", () => {
   test("buttons and touch controls meet the 44px target", async () => {
     const buttonCss = await Bun.file("components/ui/button.module.css").text();
     expect(buttonCss).toContain("min-height: var(--touch-target)");
+    // Chrome Links that reuse .button (Sign in, account) must not underline.
+    expect(buttonCss).toContain("text-decoration: none");
     const inspectionCss = await Bun.file("components/ui/inspection.module.css").text();
     expect(inspectionCss).toContain("min-height: var(--touch-target)");
   });
