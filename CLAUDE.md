@@ -4,11 +4,15 @@ This is the entry point for Claude Code (and other agents) working in the Chrono
 
 ## Read these first
 
-1. **[AGENTS.md](AGENTS.md)** — the operating manual: conventions, runtime, file map, do/don't. **Always read this.**
+1. **[AGENTS.md](AGENTS.md)** — the operating manual: conventions, Linear backbone, runtime, file map, do/don't. **Always read this.**
 2. **[docs/PRODUCT.md](docs/PRODUCT.md)** — what we're building and why.
 3. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how it's built + **open decisions** (do not invent answers to these).
 4. **[docs/DESIGN.md](docs/DESIGN.md)** — the visual bar.
 5. **[docs/PRIVACY.md](docs/PRIVACY.md)** — non-negotiable privacy/ZDR rules.
+
+## Project backbone
+
+**Linear** (team Coalescence Labs / project Chronos) tracks all work. Find or create a ticket before starting; keep status and comments current; link PRs. Details in [AGENTS.md](AGENTS.md) §3. Cursor agents also load [`.cursor/rules/linear-backbone.mdc`](.cursor/rules/linear-backbone.mdc).
 
 ## The one rule that overrides convenience
 
