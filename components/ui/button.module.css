@@ -14,6 +14,8 @@
   letter-spacing: 0.01em;
   color: var(--fg);
   background: none;
+  /* Links reuse .button (Sign in, account chrome) — kill the browser underline. */
+  text-decoration: none;
   cursor: pointer;
   transition:
     transform var(--duration-fast) var(--ease-spring),
