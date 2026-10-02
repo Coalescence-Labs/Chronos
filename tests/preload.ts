@@ -9,6 +9,18 @@ import { mock } from "bun:test";
 
 mock.module("server-only", () => ({}));
 
+// Default AuthKit stub so BFF routes that resolve WorkOS user id (COA-202)
+// can import without Next Server Component context. Suites that need richer
+// AuthKit behavior override this with their own mock.module.
+mock.module("@workos-inc/authkit-nextjs", () => ({
+  getSignInUrl: async () => "https://authkit.test/authorize?mock=1",
+  getSignUpUrl: async () => "https://authkit.test/sign-up?mock=1",
+  handleAuth: () => async () => new Response(null, { status: 204 }),
+  signOut: async () => {},
+  withAuth: async () => ({ user: null }),
+  authkit: async () => ({ session: null, headers: new Headers() }),
+}));
+
 mock.module("next/navigation", () => ({
   useRouter: () => ({
     push: () => {},
