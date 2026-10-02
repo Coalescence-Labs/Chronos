@@ -53,6 +53,7 @@ describe("fetchPublicRepoHistory", () => {
     });
 
     expect(result.truncated).toBe(false);
+    expect(result.defaultBranch).toBe("main");
     expect(result.history.commits.map((commit) => commit.sha)).toEqual(["c3", "c2", "c1"]);
     expect(result.history.refs).toEqual([{ name: "main", type: "branch", sha: "c3" }]);
     expect(progress).toEqual([2, 3]);
@@ -60,6 +61,21 @@ describe("fetchPublicRepoHistory", () => {
       "/api/repo?repo=acme%2Fwidgets",
       "/api/repo/commits?repo=acme%2Fwidgets&sha=main&page=2",
     ]);
+  });
+
+  test("surfaces a non-main defaultBranch from the BFF", async () => {
+    const developInitial: RepoResponse = {
+      repo: { owner: "acme", repo: "widgets", defaultBranch: "develop" },
+      history: {
+        commits: [node("d1")],
+        refs: [{ name: "develop", type: "branch", sha: "d1" }],
+      },
+      nextPage: null,
+    };
+    const { fetchImpl } = bffMock(developInitial, {});
+    const result = await fetchPublicRepoHistory("acme/widgets", { fetchImpl });
+    expect(result.defaultBranch).toBe("develop");
+    expect(result.history.refs[0]?.name).toBe("develop");
   });
 
   test("stops at maxPages and reports truncation with no loadMore", async () => {

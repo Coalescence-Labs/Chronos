@@ -173,3 +173,73 @@ describe("truly unmerged branches stay fully expanded", () => {
     expect(capsules.size).toBe(0); // topic is the open tip — never collapsed
   });
 });
+
+/**
+ * COA-211 — ingest `defaultBranch` overrides the main/master/trunk heuristic.
+ * Topology: both `main` and `develop` exist; a feature has merged into
+ * develop. Heuristic would treat `main` as default (Feature B capsule on
+ * develop). API truth `develop` treats develop as default (Feature A hide).
+ */
+describe("COA-211 — API defaultBranch=develop overrides name heuristic", () => {
+  // develop = D (merge feature/x) ← d1 ← m1; main still at m1.
+  const history: RepoHistory = {
+    commits: [
+      merge("D", ["d1", "ftip"], 0, "feature/x"),
+      commit("ftip", ["fmid"], 1),
+      commit("fmid", ["d1"], 2),
+      commit("d1", ["m1"], 3),
+      commit("m1", [], 4),
+    ],
+    refs: refs(
+      { name: "HEAD", type: "head", sha: "D" },
+      { name: "main", type: "branch", sha: "m1" },
+      { name: "develop", type: "branch", sha: "D" },
+    ),
+  };
+
+  test("without defaultBranch, heuristic picks main → Feature B capsules the feature", () => {
+    const { history: out, capsules, applied } = applyGlance(history, BOTH);
+    expect(applied).toBe(true);
+    expect(capsules.get("ftip")).toMatchObject({ name: "feature/x", commitCount: 2 });
+    expect(out.commits.some((c) => c.sha === "fmid")).toBe(false);
+    expect(out.commits.some((c) => c.sha === "ftip")).toBe(true);
+    // develop stays as the open staging trunk under main-as-default.
+    expect(out.commits.some((c) => c.sha === "D")).toBe(true);
+  });
+
+  test("with defaultBranch=develop, Feature A hides the landed side commits", () => {
+    const { history: out, capsules, applied } = applyGlance(history, BOTH, "develop");
+    expect(applied).toBe(true);
+    expect(capsules.size).toBe(0); // hidden, not collapsed
+    expect(out.commits.map((c) => c.sha)).toEqual(["D", "d1", "m1"]);
+    // Merge on develop loses its hidden side parent.
+    expect(out.commits.find((c) => c.sha === "D")!.parents).toEqual(["d1"]);
+  });
+
+  test("with defaultBranch=develop, an unmerged topic off develop stays expanded", () => {
+    const withTopic: RepoHistory = {
+      commits: [
+        commit("t2", ["t1"], 0),
+        commit("t1", ["D"], 1),
+        merge("D", ["d1", "ftip"], 2, "feature/x"),
+        commit("ftip", ["fmid"], 3),
+        commit("fmid", ["d1"], 4),
+        commit("d1", ["m1"], 5),
+        commit("m1", [], 6),
+      ],
+      refs: refs(
+        { name: "HEAD", type: "head", sha: "D" },
+        { name: "main", type: "branch", sha: "m1" },
+        { name: "develop", type: "branch", sha: "D" },
+        { name: "topic", type: "branch", sha: "t2" },
+      ),
+    };
+    const { history: out, capsules } = applyGlance(withTopic, BOTH, "develop");
+    expect(capsules.size).toBe(0);
+    expect(out.commits.some((c) => c.sha === "ftip")).toBe(false);
+    expect(out.commits.some((c) => c.sha === "fmid")).toBe(false);
+    expect(out.commits.some((c) => c.sha === "t1")).toBe(true);
+    expect(out.commits.some((c) => c.sha === "t2")).toBe(true);
+  });
+});
+

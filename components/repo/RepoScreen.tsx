@@ -27,6 +27,8 @@ import { GraphExplorer } from "./GraphExplorer";
 interface LoadedState {
   key: string;
   history: RepoHistory;
+  /** GitHub default branch from the BFF — threaded into Glance (COA-211). */
+  defaultBranch: string;
   truncated: boolean;
   /** More pages remain within the cap — scrolling will load them. */
   hasMore: boolean;
@@ -82,12 +84,13 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
     startedAtRef.current = performance.now();
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
-      onProgress: (h) => {
+      onProgress: (h, { defaultBranch }) => {
         if (!cancelled) {
           historyRef.current = h;
           setLoaded({
             key: requestKey,
             history: snapshot(h),
+            defaultBranch,
             truncated: false,
             hasMore: false,
             complete: false,
@@ -112,6 +115,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
         setLoaded({
           key: requestKey,
           history: snapshot(result.history),
+          defaultBranch: result.defaultBranch,
           truncated: result.truncated,
           hasMore: result.loadMore !== undefined,
           complete: true,
@@ -152,6 +156,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
         setLoaded({
           key: requestKey,
           history: snapshot(result.history),
+          defaultBranch: result.defaultBranch,
           truncated: result.truncated,
           hasMore: result.loadMore !== undefined,
           complete: true,
@@ -206,6 +211,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   }, [owner, repo, requestKey, refreshing]);
 
   const history = loaded?.key === requestKey ? loaded.history : null;
+  const defaultBranch = loaded?.key === requestKey ? loaded.defaultBranch : undefined;
   const error = failed?.key === requestKey ? failed.error : null;
   const note = refreshNote?.key === requestKey ? refreshNote.note : null;
 
@@ -240,6 +246,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       history={history}
       owner={owner}
       repo={repo}
+      defaultBranch={defaultBranch}
       onNearEnd={handleNearEnd}
       onRefresh={handleRefresh}
       refreshing={refreshing}
