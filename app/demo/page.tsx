@@ -29,6 +29,7 @@ export default function DemoPage() {
         history={demoHistory()}
         owner={DEMO_OWNER}
         repo={DEMO_REPO}
+        defaultBranch="main"
         status="synthetic history · nothing fetched, no rate limits"
       />
     </AppShell>

@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { destroyGitHubOAuthSession } from "@/lib/github-oauth";
 import { workosRedirectUri } from "./config";
 import { sameOriginReturnUrl } from "./return-url";
 
@@ -87,6 +88,9 @@ export async function chronosSignOut(returnPath: string = "/"): Promise<void> {
       jar.delete(cookie.name);
     }
   }
+
+  // COA-202: GitHub repo OAuth is a separate cookie — clear with WorkOS logout.
+  await destroyGitHubOAuthSession();
 
   redirect(await sameOriginReturnUrl(returnPath));
 }
