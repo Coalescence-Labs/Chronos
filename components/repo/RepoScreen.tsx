@@ -22,6 +22,7 @@ import { GraphExplorer } from "./GraphExplorer";
 interface LoadedState {
   key: string;
   history: RepoHistory;
+  defaultBranch: string;
   truncated: boolean;
   /** More pages remain within the cap — scrolling will load them. */
   hasMore: boolean;
@@ -80,13 +81,16 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       onProgress: (h) => {
         if (!cancelled) {
           historyRef.current = h;
-          setLoaded({
+          setLoaded((prev) => ({
             key: requestKey,
             history: snapshot(h),
+            // Keep a previously known defaultBranch during progressive pages;
+            // the final .then fills it from IngestResult if this is first paint.
+            defaultBranch: prev?.key === requestKey ? prev.defaultBranch : "",
             truncated: false,
             hasMore: false,
             complete: false,
-          });
+          }));
           // Time-to-first-graph: the first page with commits is the first
           // useful paint. Bucketed by device, never the repo or exact ms.
           if (!firstPaintRef.current && h.commits.length > 0) {
@@ -107,6 +111,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
         setLoaded({
           key: requestKey,
           history: snapshot(result.history),
+          defaultBranch: result.defaultBranch,
           truncated: result.truncated,
           hasMore: result.loadMore !== undefined,
           complete: true,

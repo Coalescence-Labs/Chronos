@@ -30,6 +30,8 @@ export interface GraphExplorerProps {
   history: RepoHistory;
   owner: string;
   repo: string;
+  /** GitHub/API default branch when known (COA-211); Glance falls back to heuristic. */
+  defaultBranch?: string;
   status?: ReactNode;
   /** Forwarded to GraphView for lazy paging. */
   onNearEnd?: () => void;
@@ -42,6 +44,7 @@ export function GraphExplorer({
   history,
   owner,
   repo,
+  defaultBranch,
   status,
   onNearEnd,
   onRefresh,
@@ -83,7 +86,10 @@ export function GraphExplorer({
 
   // One glance transform per history; reused to both gate the toggle (applied
   // is false when no default branch) and supply the glanced view when on.
-  const glanced = useMemo(() => applyGlance(history, GLANCE_ON), [history]);
+  const glanced = useMemo(
+    () => applyGlance(history, GLANCE_ON, defaultBranch),
+    [history, defaultBranch],
+  );
   const canGlance = glanced.applied;
   const view = glance && canGlance ? glanced.history : history;
   const capsules = glance && canGlance ? glanced.capsules : NO_CAPSULES;

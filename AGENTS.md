@@ -31,21 +31,44 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - **AI feature surface**: what AI actually does (branch summaries? history explanations? Q&A?) — never specified.
 - **AI provider** that satisfies ZDR.
 
-## 3. Conventions
+## 3. Linear is the project backbone
+
+Linear is how Chronos work stays visible — for humans and for AI agents. Treat tickets as the source of truth for *what* is in flight; keep them honest as you go. Cursor agents also get a short always-on reminder in [`.cursor/rules/linear-backbone.mdc`](.cursor/rules/linear-backbone.mdc); **this section is canonical**.
+
+**Team / project:** Coalescence Labs · project **Chronos**.
+
+### Before you start
+- Search Chronos issues first; **dedup** before creating.
+- If nothing fits, create a ticket with a clear why/scope. Prefer linking related issues over parallel duplicates.
+- Set status to **In Progress** when you actually start.
+
+### While you work
+- Comment findings, blockers, and decisions worth keeping (not play-by-play noise).
+- Link the PR on the ticket when one exists; move to **In Review** when the PR is open.
+- Do not invent answers to open architecture decisions (see §2 and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+- Privacy pre-flight remains mandatory for AI features and any new data egress (see §6 and [docs/PRIVACY.md](docs/PRIVACY.md)).
+- **Owner-owned UI** (home, logo, multi-repo UX, and any ticket that says so): wait for owner direction before implementing UI. Ramp and mechanical help under direction are fine; inventing the design is not.
+
+### Done means done
+- **Done** only when the change is **merged and verified** (not “PR opened”, not “tests green locally if the merge is broken”).
+- Never mark broken or incomplete work Done. If review finds issues, keep **In Review** (or return to **In Progress**) and say so on the ticket.
+
+## 4. Conventions
 
 - **Runtime:** `bun install`, `bun run dev`, `bun test`. Bun auto-loads `.env`.
 - **Language:** TypeScript, strict.
 - **Style:** match surrounding code; comment density and naming should be indistinguishable from neighboring files. Don't add narration comments.
-- **Commits/PRs:** branch off the default branch before committing; only commit/push when asked.
+- **Commits/PRs:** branch off the default branch before committing; only commit/push when asked. Prefer Linear identifiers (e.g. `COA-123`) in branch/PR titles when a ticket exists.
 - **Tests:** colocate or under `tests/`; prefer `bun test`. Write tests for graph-layout logic especially — it's the core and the easiest place for subtle bugs.
 
-## 4. Repository map (intended)
+## 5. Repository map (intended)
 
 ```
 Chronos/
   README.md                 # public overview
   CLAUDE.md                 # thin agent entry point -> points here
   AGENTS.md                 # this file
+  .cursor/rules/            # Cursor always-on agent rules (Linear backbone, etc.)
   docs/
     PRODUCT.md              # vision + philosophy
     ARCHITECTURE.md         # how it's built + OPEN DECISIONS
@@ -77,13 +100,14 @@ Chronos/
 ```
 Keep this map current as directories are added.
 
-## 5. Non-negotiables
+## 6. Non-negotiables
 
 1. **Privacy pre-flight is mandatory.** Before any AI feature or any new data-egress path, run `.claude/skills/privacy-preflight/`. See [docs/PRIVACY.md](docs/PRIVACY.md).
 2. **Polish is part of "done."** A feature that works but feels rough is not done. See [docs/DESIGN.md](docs/DESIGN.md).
 3. **Respect the cognitive-load mandate.** Every UI addition must *reduce* confusion, not add a knob. If it adds a knob, justify it.
 4. **Don't invent open decisions into "fact."** Flag them.
+5. **Keep Linear current.** Find/create the Chronos ticket, update status, link the PR — see §3.
 
-## 6. zero-native (phase 2) — keep it thin
+## 7. zero-native (phase 2) — keep it thin
 
 `zero-native` is pre-release (Zig native shell + web UI; experimental mobile). Treat it as additive: it reuses the v1 web UI to give a **local desktop mode** that reads `.git` directly with zero upload. **Do not write integration/build specifics against its API yet** — they'd be guesses against an unstable surface. Build the web app so its UI layer is portable (no hard dependency on hosted-only APIs in the rendering path).

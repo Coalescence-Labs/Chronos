@@ -1,0 +1,14 @@
+---
+description: Linear is Chronos's project backbone — track all agent work in tickets
+alwaysApply: true
+---
+
+# Linear backbone
+
+Linear is how Chronos work stays visible. Full rules: [AGENTS.md](AGENTS.md) §3.
+
+- **Before starting:** search Chronos issues (team Coalescence Labs / project Chronos); **dedup** before creating; set **In Progress** when you start.
+- **While working:** comment findings/blockers; link the PR; set **In Review** when the PR is open.
+- **Done** only when **merged and verified** — never mark broken or incomplete work Done.
+- Do not invent open architecture decisions. Privacy pre-flight is still mandatory for egress/AI.
+- **Owner-owned UI** tickets (home, logo, multi-repo UX, etc.): wait for owner direction before implementing UI.

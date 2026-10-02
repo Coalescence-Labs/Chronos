@@ -11,6 +11,8 @@ import { IngestError } from "./errors";
 
 export interface IngestResult {
   history: RepoHistory;
+  /** GitHub default branch name from the BFF (for Glance / layout consumers). */
+  defaultBranch: string;
   /** True while older history exists upstream that isn't loaded yet. */
   truncated: boolean;
   /**
@@ -33,7 +35,7 @@ export interface IngestOptions {
    */
   maxBranchTips?: number;
   /** Called after each page so the UI can render incrementally. */
-  onProgress?: (history: RepoHistory) => void;
+  onProgress?: (history: RepoHistory, meta: { defaultBranch: string }) => void;
   fetchImpl?: typeof fetch;
 }
 
@@ -61,11 +63,12 @@ export async function fetchPublicRepoHistory(
   const repoParam = encodeURIComponent(input);
 
   const initial = await getJson<RepoResponse>(fetchImpl, `/api/repo?repo=${repoParam}`);
+  const defaultBranch = initial.repo.defaultBranch;
   const history: RepoHistory = {
     commits: [...initial.history.commits],
     refs: initial.history.refs,
   };
-  options.onProgress?.(history);
+  options.onProgress?.(history, { defaultBranch });
 
   const merge = (commits: RepoHistory["commits"]): number => {
     // The dedupe set is rebuilt per call: a refresh (COA-127) may prune or
@@ -84,7 +87,7 @@ export async function fetchPublicRepoHistory(
   };
 
   let nextPage = initial.nextPage;
-  const branch = encodeURIComponent(initial.repo.defaultBranch);
+  const branch = encodeURIComponent(defaultBranch);
 
   const fetchTrunkPage = async (page: number): Promise<number | null> => {
     const data = await getJson<CommitsPageResponse>(
@@ -92,7 +95,7 @@ export async function fetchPublicRepoHistory(
       `/api/repo/commits?repo=${repoParam}&sha=${branch}&page=${page}`,
     );
     merge(data.commits);
-    options.onProgress?.(history);
+    options.onProgress?.(history, { defaultBranch });
     return data.nextPage;
   };
 
@@ -114,7 +117,7 @@ export async function fetchPublicRepoHistory(
       fetchImpl,
       `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
     );
-    if (merge(page.commits) > 0) options.onProgress?.(history);
+    if (merge(page.commits) > 0) options.onProgress?.(history, { defaultBranch });
   }
 
   async function loadMore(): Promise<IngestResult> {
@@ -133,6 +136,7 @@ export async function fetchPublicRepoHistory(
   function makeResult(): IngestResult {
     return {
       history,
+      defaultBranch,
       truncated: nextPage !== null,
       loadMore: nextPage !== null && nextPage <= maxPages ? loadMore : undefined,
     };
