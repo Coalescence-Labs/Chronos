@@ -66,6 +66,27 @@ describe("ui primitives", () => {
     expect(html).toContain("Try again");
   });
 
+  test("ErrorState surfaces calm wait copy when retryAfterSeconds is set", () => {
+    const html = renderToStaticMarkup(
+      <ErrorState
+        message="GitHub paused us for a moment."
+        retryAfterSeconds={45}
+        onRetry={() => {}}
+      />,
+    );
+    expect(html).toContain("GitHub paused us for a moment.");
+    expect(html).toContain("Try again in about 45 seconds.");
+    expect(html).toContain("Try again");
+  });
+
+  test("ErrorState omits wait copy when retryAfterSeconds is absent", () => {
+    const html = renderToStaticMarkup(
+      <ErrorState message="GitHub paused us for a moment." onRetry={() => {}} />,
+    );
+    expect(html).toContain("GitHub paused us for a moment.");
+    expect(html).not.toContain("Try again in about");
+  });
+
   test("InspectionSurface is a labelled complementary region with a close control", () => {
     const open = renderToStaticMarkup(
       <InspectionSurface open onClose={() => {}} title="Commit details">

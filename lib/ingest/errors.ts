@@ -24,6 +24,24 @@ export class IngestError extends Error {
   }
 }
 
+/**
+ * Calm wait-time phrasing for rate-limit UI (COA-210). Only call when the
+ * server actually sent `retryAfterSeconds` — never invent a value.
+ */
+export function formatRetryWait(retryAfterSeconds: number): string {
+  const seconds = Math.max(1, Math.ceil(retryAfterSeconds));
+  if (seconds < 90) {
+    return seconds === 1 ? "about 1 second" : `about ${seconds} seconds`;
+  }
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return minutes === 1 ? "about 1 minute" : `about ${minutes} minutes`;
+}
+
+/** Full sentence for ErrorState / similar surfaces. */
+export function formatRetryAfterCopy(retryAfterSeconds: number): string {
+  return `Try again in ${formatRetryWait(retryAfterSeconds)}.`;
+}
+
 export const INGEST_ERROR_STATUS: Record<IngestErrorCode, number> = {
   "invalid-input": 400,
   "not-found": 404,

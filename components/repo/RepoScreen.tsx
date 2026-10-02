@@ -4,7 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
 import { msBucket, track } from "@/lib/analytics";
 import type { RepoHistory } from "@/lib/graph";
-import { fetchPublicRepoHistory, IngestError, refreshRepoHistory } from "@/lib/ingest";
+import {
+  fetchPublicRepoHistory,
+  formatRetryWait,
+  IngestError,
+  refreshRepoHistory,
+} from "@/lib/ingest";
 import type { IngestResult } from "@/lib/ingest";
 import { GraphExplorer } from "./GraphExplorer";
 
@@ -181,9 +186,19 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
         );
         setRefreshNote({ key: requestKey, note: result.changed ? "updated just now" : "up to date" });
       })
-      .catch(() => {
-        if (requestKeyRef.current === requestKey)
-          setRefreshNote({ key: requestKey, note: "couldn't refresh" });
+      .catch((cause: unknown) => {
+        if (requestKeyRef.current !== requestKey) return;
+        const wait =
+          cause instanceof IngestError &&
+          cause.code === "rate-limited" &&
+          cause.retryAfterSeconds !== undefined &&
+          cause.retryAfterSeconds > 0
+            ? formatRetryWait(cause.retryAfterSeconds)
+            : null;
+        setRefreshNote({
+          key: requestKey,
+          note: wait ? `couldn't refresh · try again in ${wait}` : "couldn't refresh",
+        });
       })
       .finally(() => {
         if (requestKeyRef.current === requestKey) setRefreshing(false);
@@ -195,11 +210,14 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const note = refreshNote?.key === requestKey ? refreshNote.note : null;
 
   if (error) {
+    const retryAfterSeconds =
+      error instanceof IngestError ? error.retryAfterSeconds : undefined;
     return (
       <ErrorState
         fill
         title="Couldn't load that repository"
         message={error.message}
+        retryAfterSeconds={retryAfterSeconds}
         onRetry={() => setAttempt((n) => n + 1)}
       />
     );
