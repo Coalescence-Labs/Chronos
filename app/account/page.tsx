@@ -9,11 +9,11 @@ import { Surface } from "@/components/ui/Surface";
 import { isAuthConfigured } from "@/lib/auth";
 import { toPublicUser } from "@/lib/auth/session";
 import {
-  GITHUB_OAUTH_SCOPES,
-  isGitHubOAuthConfigured,
-  readGitHubOAuthSessionForUser,
+  GITHUB_APP_PERMISSIONS_LABEL,
+  isGitHubAppConfigured,
+  readGitHubAppSessionForUser,
   toPublicGitHubConnection,
-} from "@/lib/github-oauth";
+} from "@/lib/github-app";
 import styles from "./account.module.css";
 
 export const metadata: Metadata = {
@@ -26,15 +26,15 @@ export const dynamic = "force-dynamic";
 function githubStatusMessage(status: string | undefined): string | null {
   switch (status) {
     case "connected":
-      return "GitHub connected. Private repos you can access will load via Chronos; the token stays on the server.";
+      return "GitHub App installed. Private repos you selected will load via Chronos; installation access tokens stay on the server.";
     case "disconnected":
-      return "GitHub disconnected. Public URL paste still works without a connection.";
+      return "GitHub disconnected on Chronos. If the App still appears under GitHub → Settings → Applications, uninstall it there too.";
     case "denied":
-      return "GitHub authorization was denied. Nothing was stored.";
+      return "GitHub App install was cancelled. Nothing was stored.";
     case "unconfigured":
-      return "GitHub OAuth is not configured in this environment.";
+      return "GitHub App is not configured in this environment.";
     case "error":
-      return "Could not connect GitHub. Try again, or check OAuth App credentials.";
+      return "Could not connect GitHub. Try again, or check App credentials.";
     default:
       return null;
   }
@@ -103,9 +103,9 @@ export default async function AccountPage({
   }
 
   const publicUser = toPublicUser(user);
-  const ghSession = await readGitHubOAuthSessionForUser(user.id);
+  const ghSession = await readGitHubAppSessionForUser(user.id);
   const gh = toPublicGitHubConnection(ghSession);
-  const githubReady = isGitHubOAuthConfigured();
+  const githubReady = isGitHubAppConfigured();
 
   return (
     <AppShell>
@@ -132,10 +132,10 @@ export default async function AccountPage({
             <dt>GitHub (repos)</dt>
             <dd>
               {gh.connected
-                ? `Connected as @${gh.login}`
+                ? `Installed for @${gh.login}`
                 : githubReady
                   ? "Not connected"
-                  : "OAuth not configured"}
+                  : "GitHub App not configured"}
             </dd>
           </div>
         </dl>
@@ -147,16 +147,18 @@ export default async function AccountPage({
             Connect GitHub
           </h2>
           <p className={styles.disclosure}>
-            Optional. Connecting lets Chronos load private repositories you can
-            access and use your authenticated GitHub rate limit instead of the
-            shared anonymous pool. Chronos requests{" "}
-            <code>{GITHUB_OAUTH_SCOPES.join(" ")}</code> — read-only usage;
-            GitHub&apos;s classic <code>repo</code> scope also permits write,
-            which Chronos never calls. The access token is stored only in an
-            encrypted httpOnly server session (not in the browser). Repo content
-            is proxied transiently and never persisted. Disconnect or sign out
-            clears it. This is separate from &quot;Sign in with GitHub&quot;
-            (account identity).
+            Optional. Install the Chronos GitHub App to load private
+            repositories you select and use an authenticated rate-limit budget
+            instead of the shared anonymous pool. Permissions are truly
+            read-only: <code>{GITHUB_APP_PERMISSIONS_LABEL}</code> — Chronos
+            never requests write. Only the installation id (and account login)
+            is stored in an encrypted httpOnly server session; short-lived
+            installation tokens are minted on the server when the BFF calls
+            GitHub. Repo content is proxied transiently and never persisted.
+            Disconnect clears the Chronos session and attempts to uninstall the
+            App; you can also remove it under GitHub → Settings → Applications.
+            This is separate from &quot;Sign in with GitHub&quot; (account
+            identity).
           </p>
           <div className={styles.actions}>
             {gh.connected ? (
@@ -167,11 +169,11 @@ export default async function AccountPage({
                 href="/api/github/connect"
                 prefetch={false}
               >
-                Connect GitHub
+                Install GitHub App
               </Link>
             ) : (
               <span className={styles.copy}>
-                Set <code>GITHUB_OAUTH_*</code> and{" "}
+                Set <code>GITHUB_APP_*</code> and{" "}
                 <code>GITHUB_SESSION_PASSWORD</code> to enable.
               </span>
             )}

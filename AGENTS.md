@@ -17,7 +17,7 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - **`zero-native` desktop companion is phase 2** and *additive* — it wraps the same web UI for a local-`.git` privacy mode. Not a v1 blocker.
 - Two repo entry points: **paste a public GitHub repo URL** and **link GitHub (OAuth) → pick a repo**. (v1 is GitHub-only — see decision #3.)
 - **Ingestion is a server-side BFF proxy to the GitHub API** (decisions #3 + #7) — server proxies GitHub calls with **zero persistence/logging of repo data**; v1 is GitHub-only; large repos use progressive loading. (Originally client-side; flipped for the BFF token-security posture below.)
-- **GitHub OAuth uses the BFF pattern** (decision #7) — token held server-side in an encrypted httpOnly `gh-session` (separate from WorkOS), never exposed to browser JS; least scopes, read-only usage, never write. Account-linked private-repo connect is COA-202 (privacy pre-flight in PRIVACY.md).
+- **GitHub App connect uses the BFF pattern** (decision #7) — user installs the Chronos GitHub App; `installationId` sealed in encrypted httpOnly `gh-session` (separate from WorkOS); BFF mints short-lived installation tokens with the App private key — never exposed to browser JS; permissions Contents: Read + Metadata: Read only. Account-linked private-repo connect is COA-202 (privacy pre-flight in PRIVACY.md).
 - **Optional Chronos user accounts use WorkOS AuthKit** (COA-200) — email/password, GitHub, Google via hosted AuthKit; sealed httpOnly session cookie; public paste remains anonymous. See [docs/AUTH.md](docs/AUTH.md). Distinct from GitHub *repo* OAuth (COA-79 / COA-202).
 - **Graph layout is a hybrid lane algorithm in our own pure `lib/graph`** (decision #1) — stable columns for active branches, compact reuse for stale, hard column cap for mobile. No render-coupled libs.
 - **Render is SVG with viewport virtualization** (decision #2) — render only on-screen rows; renderer stays behind the `components/graph` interface so it's swappable without touching `lib/graph`.
@@ -82,7 +82,7 @@ Chronos/
     graph/                  # pure layout engine (layout.ts, hybrid lanes) + normalized model (types.ts) — no DOM/network
     ingest/                 # source adapters -> normalized model (GitHub via BFF)
     auth/                   # WorkOS AuthKit session helpers (public /me shape; no tokens to client)
-    github-oauth/           # GitHub repo OAuth (COA-202): connect/callback, sealed gh-session, BFF token resolve
+    github-app/             # GitHub App connect (COA-202): install/callback, sealed installation id, BFF token mint
     demo/                   # deterministic synthetic history backing /demo
     ai/                     # empty until decisions #4/#5 resolve
   components/

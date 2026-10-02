@@ -4,16 +4,16 @@ import {
   GITHUB_COOKIE_POSTURE,
   GITHUB_SESSION_MAX_AGE_SECONDS,
   githubSessionPassword,
-  isGitHubOAuthConfigured,
+  isGitHubAppConfigured,
 } from "./config";
-import type { GitHubOAuthSessionData, PublicGitHubConnection } from "./types";
+import type { GitHubAppSessionData, PublicGitHubConnection } from "./types";
 
 function cookieSecure(): boolean {
   if (process.env.NODE_ENV === "production") return true;
-  const callback = process.env.GITHUB_OAUTH_CALLBACK_URL?.trim();
-  if (callback) {
+  const setup = process.env.GITHUB_APP_SETUP_URL?.trim();
+  if (setup) {
     try {
-      return new URL(callback).protocol === "https:";
+      return new URL(setup).protocol === "https:";
     } catch {
       return false;
     }
@@ -39,30 +39,30 @@ function sessionOptions() {
   };
 }
 
-export async function getGitHubOAuthSession() {
-  return getIronSession<Partial<GitHubOAuthSessionData>>(
+export async function getGitHubAppSession() {
+  return getIronSession<Partial<GitHubAppSessionData>>(
     await cookies(),
     sessionOptions(),
   );
 }
 
-export async function saveGitHubOAuthSession(
-  data: GitHubOAuthSessionData,
+export async function saveGitHubAppSession(
+  data: GitHubAppSessionData,
 ): Promise<void> {
-  const session = await getGitHubOAuthSession();
-  session.accessToken = data.accessToken;
-  session.tokenType = data.tokenType;
-  session.scope = data.scope;
-  session.login = data.login;
+  const session = await getGitHubAppSession();
+  session.installationId = data.installationId;
+  session.accountLogin = data.accountLogin;
+  session.accountType = data.accountType;
   session.workosUserId = data.workosUserId;
   session.connectedAt = data.connectedAt;
+  session.permissions = data.permissions;
   await session.save();
 }
 
-export async function destroyGitHubOAuthSession(): Promise<void> {
-  if (!isGitHubOAuthConfigured()) return;
+export async function destroyGitHubAppSession(): Promise<void> {
+  if (!isGitHubAppConfigured()) return;
   try {
-    const session = await getGitHubOAuthSession();
+    const session = await getGitHubAppSession();
     session.destroy();
   } catch {
     // Unconfigured password or missing cookie store — nothing to clear.
@@ -73,27 +73,27 @@ export async function destroyGitHubOAuthSession(): Promise<void> {
  * Read sealed session only when it belongs to the given WorkOS user.
  * Returns undefined (not an error) when absent or mismatched.
  */
-export async function readGitHubOAuthSessionForUser(
+export async function readGitHubAppSessionForUser(
   workosUserId: string | null | undefined,
-): Promise<GitHubOAuthSessionData | undefined> {
-  if (!workosUserId || !isGitHubOAuthConfigured()) return undefined;
+): Promise<GitHubAppSessionData | undefined> {
+  if (!workosUserId || !isGitHubAppConfigured()) return undefined;
   try {
-    const session = await getGitHubOAuthSession();
+    const session = await getGitHubAppSession();
     if (
-      !session.accessToken ||
-      !session.login ||
+      typeof session.installationId !== "number" ||
+      !session.accountLogin ||
       !session.workosUserId ||
       session.workosUserId !== workosUserId
     ) {
       return undefined;
     }
     return {
-      accessToken: session.accessToken,
-      tokenType: session.tokenType ?? "bearer",
-      scope: session.scope ?? "",
-      login: session.login,
+      installationId: session.installationId,
+      accountLogin: session.accountLogin,
+      accountType: session.accountType === "Organization" ? "Organization" : "User",
       workosUserId: session.workosUserId,
       connectedAt: session.connectedAt ?? new Date(0).toISOString(),
+      permissions: session.permissions ?? "contents:read,metadata:read",
     };
   } catch {
     return undefined;
@@ -101,31 +101,31 @@ export async function readGitHubOAuthSessionForUser(
 }
 
 export function toPublicGitHubConnection(
-  session: GitHubOAuthSessionData | undefined,
+  session: GitHubAppSessionData | undefined,
 ): PublicGitHubConnection {
   if (!session) {
     return {
       connected: false,
       login: null,
-      scope: null,
-      configured: isGitHubOAuthConfigured(),
+      permissions: null,
+      configured: isGitHubAppConfigured(),
     };
   }
   return {
     connected: true,
-    login: session.login,
-    scope: session.scope,
+    login: session.accountLogin,
+    permissions: session.permissions,
     configured: true,
   };
 }
 
-/** Reject payloads that would leak the OAuth token into JSON/UI. */
+/** Reject payloads that would leak tokens / private keys into JSON/UI. */
 export function assertNoSecretsInPublicGitHubConnection(
   connection: PublicGitHubConnection,
 ): void {
   const blob = JSON.stringify(connection);
   if (
-    /accessToken|access_token|refreshToken|client_secret|GITHUB_OAUTH_CLIENT_SECRET|ghp_|gho_/i.test(
+    /accessToken|access_token|refreshToken|private_key|GITHUB_APP_PRIVATE_KEY|installationId|ghs_|ghp_|gho_/i.test(
       blob,
     )
   ) {

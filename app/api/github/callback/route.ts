@@ -2,25 +2,24 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { isAuthConfigured } from "@/lib/auth";
-import { requestAuthOrigin } from "@/lib/auth/return-url";
 import {
-  exchangeGitHubCode,
-  fetchGitHubLogin,
+  fetchInstallationAccount,
+  GITHUB_APP_PERMISSIONS,
   GITHUB_COOKIE_POSTURE,
-  githubOAuthCallbackUrl,
-  isGitHubOAuthConfigured,
-  saveGitHubOAuthSession,
-} from "@/lib/github-oauth";
+  isGitHubAppConfigured,
+  saveGitHubAppSession,
+} from "@/lib/github-app";
 
 /**
- * GET /api/github/callback — GitHub OAuth code exchange (BFF, decision #7).
- * Seals the access token into an encrypted httpOnly cookie. Never returns the token.
+ * GET /api/github/callback — GitHub App setup redirect after install.
+ * Seals installationId (+ account login) into encrypted httpOnly gh-session.
+ * Never returns tokens. Configure this path as the App Setup URL.
  */
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const accountUrl = new URL("/account", request.url);
 
-  if (!isAuthConfigured() || !isGitHubOAuthConfigured()) {
+  if (!isAuthConfigured() || !isGitHubAppConfigured()) {
     accountUrl.searchParams.set("github", "error");
     return NextResponse.redirect(accountUrl);
   }
@@ -38,29 +37,36 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.redirect(accountUrl);
   }
 
-  const code = url.searchParams.get("code");
+  const installationIdRaw = url.searchParams.get("installation_id");
   const state = url.searchParams.get("state");
   const jar = await cookies();
   const expectedState = jar.get(GITHUB_COOKIE_POSTURE.stateCookieName)?.value;
   jar.delete(GITHUB_COOKIE_POSTURE.stateCookieName);
 
-  if (!code || !state || !expectedState || state !== expectedState) {
+  const installationId = installationIdRaw
+    ? Number.parseInt(installationIdRaw, 10)
+    : NaN;
+
+  if (
+    !Number.isFinite(installationId) ||
+    installationId <= 0 ||
+    !state ||
+    !expectedState ||
+    state !== expectedState
+  ) {
     accountUrl.searchParams.set("github", "error");
     return NextResponse.redirect(accountUrl);
   }
 
   try {
-    const origin = (await requestAuthOrigin()) ?? new URL(request.url).origin;
-    const redirectUri = githubOAuthCallbackUrl(origin);
-    const token = await exchangeGitHubCode({ code, redirectUri });
-    const login = await fetchGitHubLogin(token.accessToken);
-    await saveGitHubOAuthSession({
-      accessToken: token.accessToken,
-      tokenType: token.tokenType,
-      scope: token.scope,
-      login,
+    const account = await fetchInstallationAccount(installationId);
+    await saveGitHubAppSession({
+      installationId: account.installationId,
+      accountLogin: account.accountLogin,
+      accountType: account.accountType,
       workosUserId: user.id,
       connectedAt: new Date().toISOString(),
+      permissions: GITHUB_APP_PERMISSIONS.join(","),
     });
     accountUrl.searchParams.set("github", "connected");
     return NextResponse.redirect(accountUrl);

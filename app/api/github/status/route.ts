@@ -2,16 +2,16 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import {
   assertNoSecretsInPublicGitHubConnection,
-  isGitHubOAuthConfigured,
-  readGitHubOAuthSessionForUser,
+  isGitHubAppConfigured,
+  readGitHubAppSessionForUser,
   toPublicGitHubConnection,
-} from "@/lib/github-oauth";
+} from "@/lib/github-app";
 
 /**
- * GET /api/github/status — public connection view (no token).
+ * GET /api/github/status — public connection view (no token / installation id).
  */
 export async function GET(): Promise<Response> {
-  if (!isGitHubOAuthConfigured()) {
+  if (!isGitHubAppConfigured()) {
     const body = toPublicGitHubConnection(undefined);
     assertNoSecretsInPublicGitHubConnection(body);
     return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
@@ -20,7 +20,7 @@ export async function GET(): Promise<Response> {
   const { user } = await withAuth({ ensureSignedIn: false }).catch(() => ({
     user: null,
   }));
-  const session = await readGitHubOAuthSessionForUser(user?.id);
+  const session = await readGitHubAppSessionForUser(user?.id);
   const body = toPublicGitHubConnection(session);
   assertNoSecretsInPublicGitHubConnection(body);
   return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });

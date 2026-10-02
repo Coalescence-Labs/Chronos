@@ -1,9 +1,10 @@
-import { resolveGitHubAccessToken } from "@/lib/github-oauth";
+import { resolveGitHubAccessToken } from "@/lib/github-app";
 import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 
 /**
  * Resolve BFF GitHub auth for the current request cookies.
- * Prefers the account-linked OAuth token; falls back to app pool / anonymous.
+ * Prefers a mint of the connected GitHub App installation token;
+ * falls back to app pool / anonymous.
  *
  * AuthKit is loaded dynamically so bun unit tests that import `/api/repo`
  * do not pull `server-only` into the static module graph.

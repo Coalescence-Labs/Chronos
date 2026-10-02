@@ -1,9 +1,9 @@
 "use client";
 
-import { disconnectGitHubAction } from "@/lib/github-oauth/actions";
+import { disconnectGitHubAction } from "@/lib/github-app/actions";
 import { Button } from "@/components/ui/Button";
 
-/** Account-page disconnect — clears sealed GitHub OAuth session. */
+/** Account-page disconnect — clears sealed session + best-effort uninstall. */
 export function DisconnectGitHubButton() {
   return (
     <Button

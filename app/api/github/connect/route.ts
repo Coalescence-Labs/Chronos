@@ -2,24 +2,22 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { isAuthConfigured } from "@/lib/auth";
-import { requestAuthOrigin } from "@/lib/auth/return-url";
 import {
-  buildGitHubAuthorizeUrl,
-  createOAuthState,
+  buildGitHubAppInstallUrl,
+  createInstallState,
   GITHUB_COOKIE_POSTURE,
-  githubOAuthCallbackUrl,
-  isGitHubOAuthConfigured,
-} from "@/lib/github-oauth";
+  isGitHubAppConfigured,
+} from "@/lib/github-app";
 
 /**
- * GET /api/github/connect — start GitHub repo OAuth (COA-202).
+ * GET /api/github/connect — start GitHub App install (COA-202).
  * Requires a signed-in WorkOS user. Distinct from WorkOS "Sign in with GitHub".
  */
 export async function GET(request: Request): Promise<Response> {
   if (!isAuthConfigured()) {
     return NextResponse.redirect(new URL("/sign-in?returnTo=%2Faccount", request.url));
   }
-  if (!isGitHubOAuthConfigured()) {
+  if (!isGitHubAppConfigured()) {
     return NextResponse.redirect(
       new URL("/account?github=unconfigured", request.url),
     );
@@ -32,19 +30,18 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const origin = (await requestAuthOrigin()) ?? new URL(request.url).origin;
-  const redirectUri = githubOAuthCallbackUrl(origin);
-  const state = createOAuthState();
-
+  const state = createInstallState();
   const jar = await cookies();
   jar.set(GITHUB_COOKIE_POSTURE.stateCookieName, state, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production" || redirectUri.startsWith("https:"),
+    secure:
+      process.env.NODE_ENV === "production" ||
+      (process.env.GITHUB_APP_SETUP_URL?.startsWith("https:") ?? false),
     path: "/",
     maxAge: 60 * 10,
   });
 
-  const authorizeUrl = buildGitHubAuthorizeUrl({ state, redirectUri });
-  return NextResponse.redirect(authorizeUrl);
+  const installUrl = buildGitHubAppInstallUrl({ state });
+  return NextResponse.redirect(installUrl);
 }

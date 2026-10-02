@@ -98,48 +98,53 @@ Redirect URI env name AuthKit actually reads:
 | Concern | Mechanism | Issue |
 |---------|-----------|-------|
 | **Sign in with GitHub** (identity) | WorkOS social connection — profile/email for the Chronos account | COA-200 |
-| **Connect GitHub for repos** (API access, rate limits, private repos) | Separate GitHub OAuth App / BFF `gh-session` (decision #7) | COA-202 (public picker UI still COA-79) |
+| **Connect GitHub for repos** (API access, rate limits, private repos) | Chronos **GitHub App** install + BFF `gh-session` (decision #7) | COA-202 (public picker UI still COA-79) |
 
 These must not be conflated. WorkOS GitHub login does **not** grant Chronos a
-GitHub API token for ingestion. Repo OAuth remains a distinct consent +
+GitHub API token for ingestion. App install remains a distinct consent +
 privacy surface.
 
+**Reversible choice (owner-ratified for this PR):** user installs the Chronos
+GitHub App; Chronos seals `installationId` (+ account login) in encrypted
+httpOnly `gh-session`; BFF mints short-lived installation access tokens with
+the App private key. No OAuth App authorize/code-exchange path.
 
-## GitHub repo OAuth (COA-202)
 
-After WorkOS sign-in, `/account` offers **Connect GitHub**. Flow:
+## GitHub App connect (COA-202)
+
+After WorkOS sign-in, `/account` offers **Install GitHub App**. Flow:
 
 ```
-Browser ──► /api/github/connect ──► GitHub authorize
+Browser ──► /api/github/connect ──► GitHub App install UI
                 ▲                         │
                 │                         ▼
-     /api/github/callback ◄── code + state
+     /api/github/callback ◄── installation_id + state
                 │
                 ▼
-     seal access token in gh-session (iron-session)
+     seal installationId in gh-session (iron-session)
      redirect /account?github=connected
 ```
 
 | Path | Role |
 |------|------|
-| `/api/github/connect` | Start OAuth (requires WorkOS user) |
-| `/api/github/callback` | Code exchange; seals token; never returns token |
-| `/api/github/disconnect` | **POST only** — clears `gh-session` |
-| `/api/github/status` | Public `{ connected, login, scope, configured }` |
+| `/api/github/connect` | Start App install (requires WorkOS user) |
+| `/api/github/callback` | Setup URL; seals `installationId`; never returns tokens |
+| `/api/github/disconnect` | **POST only** — clears `gh-session` + best-effort uninstall |
+| `/api/github/status` | Public `{ connected, login, permissions, configured }` |
 
-BFF `/api/repo*` uses the sealed user token when present, else optional
-`GITHUB_TOKEN` app pool, else anonymous. Sign-out clears `gh-session` with
-`wos-session`. No multi-repo switcher (COA-201).
+BFF `/api/repo*` mints an installation access token when a matching session
+exists, else optional `GITHUB_TOKEN` app pool, else anonymous. Sign-out clears
+`gh-session` with `wos-session`. No multi-repo switcher (COA-201).
 
-### Owner setup (GitHub OAuth App)
+### Owner setup (GitHub App)
 
-1. Create an OAuth App (User settings → Developer settings → OAuth Apps).
-2. Authorization callback URL: `http://localhost:3005/api/github/callback`
-   (and production equivalent).
-3. Copy Client ID / generate Client Secret into env (see `.env.example`).
-4. Generate `GITHUB_SESSION_PASSWORD` (≥32 chars).
-
-Scopes requested: `read:user repo` (classic). Disclose on connect surface.
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps).
+2. Permissions: **Contents → Read-only**, **Metadata → Read-only**. No write.
+3. Setup URL: `http://localhost:3005/api/github/callback` (and production).
+4. Webhooks: optional — disable or leave unused for v1 connect-only.
+5. Generate a private key (PEM); note App ID and slug.
+6. Env (see `.env.example`): `GITHUB_APP_ID`, `GITHUB_APP_SLUG`,
+   `GITHUB_APP_PRIVATE_KEY`, `GITHUB_SESSION_PASSWORD` (≥32 chars).
 
 ## Dashboard setup (owner)
 

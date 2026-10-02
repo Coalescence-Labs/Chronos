@@ -17,11 +17,11 @@ const id = { owner: "acme", repo: "widgets" };
 
 describe("fetchRepoMeta auth header", () => {
   test("sends Bearer token when accessToken is provided", async () => {
-    let auth: string | null = null;
+    let auth = "";
     const original = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      auth = headers.get("Authorization");
+      auth = headers.get("Authorization") ?? "";
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/repos/acme/widgets") {
         return githubJson({ default_branch: "main", private: true });
@@ -32,10 +32,10 @@ describe("fetchRepoMeta auth header", () => {
       globalThis.fetch = original;
     };
 
-    const meta = await fetchRepoMeta(id, { accessToken: "gho_test_token" });
+    const meta = await fetchRepoMeta(id, { accessToken: "ghs_test_token" });
     expect(meta.defaultBranch).toBe("main");
     expect(meta.private).toBe(true);
-    expect(auth).toBe("Bearer gho_test_token");
+    expect(auth).toBe("Bearer ghs_test_token");
   });
 
   test("omits Authorization when no token (anonymous / public)", async () => {
@@ -61,12 +61,11 @@ describe("fetchRepoMeta auth header", () => {
 
 describe("token resolution priority (unit)", () => {
   test("githubAppPoolToken is used when no user session", async () => {
-    // Pure config check — session read needs Next cookies() and is covered statically.
     const previous = process.env.GITHUB_TOKEN;
-    process.env.GITHUB_TOKEN = "gho_app_pool";
+    process.env.GITHUB_TOKEN = "ghs_app_pool";
     try {
-      const { githubAppPoolToken } = await import("@/lib/github-oauth/config");
-      expect(githubAppPoolToken()).toBe("gho_app_pool");
+      const { githubAppPoolToken } = await import("@/lib/github-app/config");
+      expect(githubAppPoolToken()).toBe("ghs_app_pool");
     } finally {
       if (previous === undefined) delete process.env.GITHUB_TOKEN;
       else process.env.GITHUB_TOKEN = previous;
@@ -74,5 +73,4 @@ describe("token resolution priority (unit)", () => {
   });
 });
 
-// Keep fixture mock import used so the file stays consistent with other ingest tests.
 void mockGitHub;

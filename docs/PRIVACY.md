@@ -30,30 +30,30 @@ Before merging **any** AI feature or **any** new path that sends user/repo data 
 
 How it works and what this document binds:
 
-- **The OAuth token rests server-side** in an encrypted, httpOnly, SameSite, Secure session — never readable by browser JS, never in the client bundle or logs (Principle 3, 6).
+- **GitHub App credentials / installation binding rest server-side** — App private key in env; sealed `installationId` (+ account login) in an encrypted, httpOnly, SameSite, Secure session — never readable by browser JS, never in the client bundle or logs (Principle 3, 6). Short-lived installation access tokens are minted on the server and not stored in the session.
 - **The server proxies GitHub API calls.** Public-repo (and, when connected, private-repo) git metadata flows GitHub → our server → browser **transiently**. **Zero server-side persistence of repo content**, and **no logging of repo content or tokens** (Principle 1, applied as "minimize what *rests*").
 - **Fetch the minimum:** only graph-relevant commit fields (sha, parents, author, date, message, refs) — not file contents/diffs unless a specific feature needs them and re-clears pre-flight.
 - **Caching** may be both server-side (short-TTL, content-addressed, no PII beyond what GitHub already exposes) and client-side; neither may become a durable store of repo data (see #6).
-- **Consent/transparency:** the UI discloses that requests are proxied through our server and that we store neither repo data nor the token beyond the session.
-- **Private repos (COA-202):** available only after the user **Connects GitHub** on `/account` (WorkOS account required). That path requests private-capable scopes with a fresh privacy pre-flight (below). Without a connection, Chronos remains public-URL / anonymous (or optional shared app-pool token).
+- **Consent/transparency:** the UI discloses that requests are proxied through our server and that we store neither repo data nor durable tokens beyond the session.
+- **Private repos (COA-202):** available only after the user **installs the Chronos GitHub App** on `/account` (WorkOS account required). Permissions are Contents: Read + Metadata: Read (privacy pre-flight below). Without a connection, Chronos remains public-URL / anonymous (or optional shared app-pool token).
 
 Default bias remains: minimize what *rests* on our servers, and never retain or train on repo data.
 
 ## GitHub repo connection (COA-202)
 
-Account-linked GitHub OAuth for **private repos + authenticated rate limits**. Distinct from WorkOS "Sign in with GitHub" (identity only — see [AUTH.md](AUTH.md)).
+Account-linked **GitHub App** install for **private repos + authenticated rate limits**. Distinct from WorkOS "Sign in with GitHub" (identity only — see [AUTH.md](AUTH.md)). Owner decision: GitHub App over OAuth App (stricter, truly read-only permissions).
 
-### Privacy pre-flight — COA-202 (GitHub connect)
+### Privacy pre-flight — COA-202 (GitHub App connect)
 
 1. **What leaves:**
-   - **OAuth consent:** GitHub account login (for disclosure UI) + authorization code → access token (server-only).
-   - **While connected, BFF proxy:** same graph-relevant fields as public ingest — sha, parents, author name/login, commit date, commit message, branch/tag refs — for **public or private** repos the token can access. **Not fetched:** file contents, diffs, issues, PRs, Actions, org membership lists beyond what the repo endpoints return.
-2. **Where:** GitHub (`github.com` authorize + `api.github.com`). Chronos BFF receives responses and forwards the normalized model to the browser. Token sealed in Chronos `gh-session` cookie (iron-session), **separate from** WorkOS `wos-session`.
-3. **Minimum:** classic scopes `read:user` + `repo`. GitHub has no narrower classic scope for private repo *read*; `repo` also permits write APIs Chronos **never calls**. No durable Chronos DB of repos or tokens.
-4. **Retention & training:** GitHub retains OAuth grants per their policies. Chronos holds the access token only in the encrypted httpOnly session (recommended max-age 7 days) and **zero persistence of repo content**. Not an AI path — no ZDR question. Sign-out / Disconnect destroys `gh-session`.
-5. **Consent:** explicit **Connect GitHub** on `/account` with disclosure of scopes, proxying, session storage, and disconnect. Public paste needs no GitHub connect.
-6. **Least privilege:** read-only *usage*; never request `delete_repo`, org admin, or other write-oriented scopes beyond what classic `repo` implies. Revisit with a GitHub App (Contents: Read) if the owner wants a stricter grant.
-7. **Secrets:** `GITHUB_OAUTH_CLIENT_SECRET`, `GITHUB_SESSION_PASSWORD`, and access tokens are server-only — never in client bundle, `/api/github/status`, `/api/auth/me`, logs, or error bodies.
+   - **Install consent:** user installs the Chronos GitHub App and selects which repos (or all) the App may access. Chronos receives `installation_id` + account login (for disclosure UI).
+   - **While connected, BFF proxy:** same graph-relevant fields as public ingest — sha, parents, author name/login, commit date, commit message, branch/tag refs — for **public or private** repos in the installation. **Not fetched:** file contents, diffs, issues, PRs, Actions, org membership lists beyond what the repo endpoints return.
+2. **Where:** GitHub (`github.com` App install UI + `api.github.com`). Chronos BFF receives responses and forwards the normalized model to the browser. Sealed in Chronos `gh-session` cookie (iron-session), **separate from** WorkOS `wos-session`: `installationId` + account login + WorkOS user binding — **not** a long-lived user OAuth token. Short-lived installation access tokens (~1h) are minted server-side with the App JWT and discarded after the request.
+3. **Minimum:** GitHub App permissions **Contents: Read** + **Metadata: Read** only. No write. No durable Chronos DB of repos, installation tokens, or repo content. Session-scoped installation id only (recommended max-age 7 days).
+4. **Retention & training:** GitHub retains App installations per their policies. Chronos holds only the sealed install binding in httpOnly session and **zero persistence of repo content**. Not an AI path — no ZDR question. Sign-out / Disconnect destroys `gh-session` and best-effort uninstalls the App installation.
+5. **Consent:** explicit **Install GitHub App** on `/account` with disclosure of permissions, proxying, session storage, disconnect, and manual uninstall guidance. Public paste needs no GitHub connect.
+6. **Least privilege:** truly read-only App permissions; never request Contents: Write, Administration, or other write-oriented grants.
+7. **Secrets:** `GITHUB_APP_PRIVATE_KEY`, `GITHUB_SESSION_PASSWORD`, App JWTs, and installation access tokens are server-only — never in client bundle, `/api/github/status`, `/api/auth/me`, logs, or error bodies. Installation id is not exposed in public status JSON.
 8. **Untrusted input:** private commit messages / branch names remain untrusted — sanitize before render (existing ingest posture).
 
 ## User accounts: WorkOS AuthKit (COA-200)
@@ -84,8 +84,8 @@ and `/demo` remain usable with **no account**. Engineering notes:
    `/account` page discloses the cookie posture. Anonymous viewing needs no
    consent beyond the existing BFF proxy disclosure.
 6. **Least privilege:** WorkOS GitHub/Google connections are **login identity
-   only**. They are distinct from GitHub repo OAuth (decision #7 / COA-202).
-   Chronos still never requests write scopes for repo access.
+   only**. They are distinct from GitHub App repo connect (decision #7 / COA-202).
+   Chronos still never requests write permissions for repo access.
 7. **Secrets:** `WORKOS_API_KEY` and `WORKOS_COOKIE_PASSWORD` are server-only;
    never in the client bundle. Session secrets stay in the httpOnly cookie.
 8. **Untrusted input:** AuthKit-hosted UI handles credential capture; Chronos

@@ -1,18 +1,28 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import { destroyGitHubOAuthSession } from "@/lib/github-oauth";
+import {
+  deleteInstallation,
+  destroyGitHubAppSession,
+  readGitHubAppSessionForUser,
+} from "@/lib/github-app";
 
 /**
- * POST /api/github/disconnect — clear the sealed GitHub OAuth session.
+ * POST /api/github/disconnect — clear sealed session + best-effort uninstall.
  * GET returns 405 (no CSRF / prefetch disconnect).
  */
 export async function POST(): Promise<Response> {
   const { user } = await withAuth({ ensureSignedIn: false }).catch(() => ({
     user: null,
   }));
-  // Always destroy the cookie if present — even if WorkOS session already gone.
-  await destroyGitHubOAuthSession();
-  void user;
+  const session = await readGitHubAppSessionForUser(user?.id);
+  if (session) {
+    try {
+      await deleteInstallation(session.installationId);
+    } catch {
+      // Cookie clear still proceeds.
+    }
+  }
+  await destroyGitHubAppSession();
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
 
