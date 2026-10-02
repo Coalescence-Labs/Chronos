@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { formatRetryAfterCopy } from "@/lib/ingest/errors";
 import { Button } from "./Button";
 import styles from "./states.module.css";
 
@@ -67,6 +68,11 @@ export function EmptyState({ title, hint, action, fill }: EmptyStateProps) {
 export interface ErrorStateProps {
   title?: string;
   message: string;
+  /**
+   * When the BFF reports a GitHub rate-limit reset (COA-210), show calm
+   * wait-time guidance under the message. Omit when the server sent none.
+   */
+  retryAfterSeconds?: number;
   onRetry?: () => void;
   retryLabel?: string;
   /** Grow to fill (and center within) a flex parent — for full-screen use. */
@@ -76,15 +82,22 @@ export interface ErrorStateProps {
 export function ErrorState({
   title = "Something went wrong",
   message,
+  retryAfterSeconds,
   onRetry,
   retryLabel = "Try again",
   fill,
 }: ErrorStateProps) {
+  const waitCopy =
+    retryAfterSeconds !== undefined && retryAfterSeconds > 0
+      ? formatRetryAfterCopy(retryAfterSeconds)
+      : null;
+
   return (
     <div className={`${styles.state}${fill ? ` ${styles.fill}` : ""}`} role="alert">
       <GraphGlyph className={styles.errorGlyph} />
       <h2 className={styles.title}>{title}</h2>
       <p className={styles.detail}>{message}</p>
+      {waitCopy && <p className={styles.detail}>{waitCopy}</p>}
       {onRetry && (
         <Button variant="ghost" className={styles.retry} onClick={onRetry}>
           {retryLabel}

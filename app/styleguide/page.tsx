@@ -152,7 +152,8 @@ export default function Styleguide() {
           </Surface>
           <Surface padded={false}>
             <ErrorState
-              message="GitHub's rate limit was reached. Please try again in a few minutes."
+              message="GitHub paused us for a moment."
+              retryAfterSeconds={45}
               onRetry={() => setInspectorOpen(false)}
             />
           </Surface>
