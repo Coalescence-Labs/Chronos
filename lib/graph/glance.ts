@@ -18,8 +18,9 @@ import type { CommitNode, RepoHistory } from "./types";
  *    (e.g. develop) but not yet into default is collapsed to a single capsule
  *    node (its real tip is kept, so selection/inspection still work), staying
  *    visible until it lands in default. Live refs that still point at an
- *    already-merged tip still collapse (COA-209); only truly unmerged open
- *    heads stay expanded.
+ *    already-merged tip still collapse (COA-209). Staging trunks stay expanded
+ *    even when child WIPs fork from them — "staged" means reachable as a merge
+ *    side parent, not merely an ancestor of another open tip.
  *
  * If the default branch can't be identified, glance is a no-op (applied=false).
  */
@@ -141,19 +142,26 @@ export function applyGlance(
     const rowOf = new Map(layout.placements.map((p) => [p.sha, p.row]));
     const lines = branchLines(reduced, layout);
     const reducedBySha = new Map(commits.map((c) => [c.sha, c]));
-    // Reachability from each open tip, computed once. A tip is "staged on"
-    // a non-default branch when some *other* open tip can reach it — that
-    // covers both deleted-after-merge tips (merge-message lines) and live
-    // refs that still point at an already-merged feature (COA-209).
+    // Reachability + first-parent spine per open tip, computed once.
+    // A tip is "staged on" an open non-default branch when some *other*
+    // open tip can reach it *off* that tip's first-parent spine — i.e. it
+    // landed via a merge side parent, not because a child feature simply
+    // forked from it. Plain ancestry would collapse develop itself whenever
+    // any open WIP sits ahead of it (organic-llm / COA-209 regression).
+    // Live refs on already-merged tips still collapse; only truly unmerged
+    // open heads (and staging trunks) stay expanded.
     const reachByOpenTip = new Map<string, Set<string>>();
+    const spineByOpenTip = new Map<string, Set<string>>();
     for (const tip of openTips) {
       if (reducedBySha.has(tip)) {
         reachByOpenTip.set(tip, reachableFrom([tip], reducedBySha));
+        spineByOpenTip.set(tip, firstParentChain(tip, reducedBySha));
       }
     }
     const stagedOnOpen = (tipSha: string): boolean => {
       for (const [openTip, reach] of reachByOpenTip) {
-        if (openTip !== tipSha && reach.has(tipSha)) return true;
+        if (openTip === tipSha || !reach.has(tipSha)) continue;
+        if (!spineByOpenTip.get(openTip)!.has(tipSha)) return true;
       }
       return false;
     };
@@ -162,10 +170,9 @@ export function applyGlance(
     const rewire = new Map<string, string[]>(); // tipSha → new parents
     for (const line of lines) {
       // Collapse a line that is a feature staged on a non-default branch:
-      // not the default, not yet in default, but reachable from another
-      // open tip (e.g. develop) — and long enough to be worth folding.
-      // Live refs on already-merged tips still collapse (COA-209); only
-      // truly unmerged open heads stay expanded.
+      // not the default, not yet in default, but merged into another open
+      // tip (reachable off that tip's first-parent spine) — and long enough
+      // to be worth folding.
       if (
         isDefaultName(line.name) ||
         reachableDefault.has(line.tipSha) ||

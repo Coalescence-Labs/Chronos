@@ -269,7 +269,74 @@ describe("COA-209 — live tip merged into develop still collapses", () => {
     expect(capsules.has("speak")).toBe(true);
     expect(capsules.has("morph")).toBe(true);
     expect(capsules.has("wip2")).toBe(false);
+    // Critical: develop must NOT capsule-collapse just because wip forked
+    // from it. Plain ancestry would fold the staging trunk (organic-llm).
+    expect(capsules.has("D2")).toBe(false);
+    expect(out.commits.some((c) => c.sha === "D1")).toBe(true);
+    expect(out.commits.some((c) => c.sha === "d0")).toBe(true);
     expect(out.commits.some((c) => c.sha === "wip1")).toBe(true);
     expect(out.commits.some((c) => c.sha === "wip2")).toBe(true);
+  });
+});
+
+/**
+ * COA-209 follow-up — organic-llm shape: several open features ahead of
+ * develop. Plain "reachable from another open tip" collapses develop into
+ * a multi-dozen capsule and blows up the graph. Spine-aware staging must
+ * keep develop expanded while still folding landed side work.
+ */
+describe("COA-209 — develop stays expanded when children fork from it", () => {
+  const history: RepoHistory = {
+    commits: [
+      commit("voice2", ["voice1"], 0),
+      commit("voice1", ["D3"], 1),
+      commit("mem2", ["mem1"], 2),
+      commit("mem1", ["D3"], 3),
+      merge("D3", ["D2", "speak"], 4, "feat/speak-awareness"),
+      commit("speak", ["s2"], 5),
+      commit("s2", ["s1"], 6),
+      commit("s1", ["D1"], 7),
+      merge("D2", ["D1", "morph"], 8, "chore/morph-physics"),
+      commit("morph", ["m1"], 9),
+      commit("m1", ["D1"], 10),
+      commit("D1", ["d0"], 11),
+      commit("d0", ["main"], 12),
+      commit("main", [], 13),
+    ],
+    refs: refs(
+      { name: "HEAD", type: "head", sha: "main" },
+      { name: "main", type: "branch", sha: "main" },
+      { name: "develop", type: "branch", sha: "D3" },
+      { name: "feat/speak-awareness", type: "branch", sha: "speak" },
+      { name: "feat/realtime-voice", type: "branch", sha: "voice2" },
+      { name: "feat/memory-feedback", type: "branch", sha: "mem2" },
+    ),
+  };
+
+  test("landed features capsule; develop and open WIPs stay expanded", () => {
+    const { history: out, capsules } = applyGlance(history, BOTH);
+
+    expect(capsules.get("speak")).toMatchObject({
+      name: "feat/speak-awareness",
+      commitCount: 3,
+    });
+    expect(capsules.get("morph")).toMatchObject({
+      name: "chore/morph-physics",
+      commitCount: 2,
+    });
+
+    expect(capsules.has("D3")).toBe(false);
+    expect(capsules.has("voice2")).toBe(false);
+    expect(capsules.has("mem2")).toBe(false);
+
+    // Develop spine intact (no interior drop from a bogus develop capsule).
+    for (const sha of ["D3", "D2", "D1", "d0", "main"]) {
+      expect(out.commits.some((c) => c.sha === sha)).toBe(true);
+    }
+    for (const sha of ["voice2", "voice1", "mem2", "mem1"]) {
+      expect(out.commits.some((c) => c.sha === sha)).toBe(true);
+    }
+    expect(out.commits.find((c) => c.sha === "D3")!.parents).toEqual(["D2", "speak"]);
+    expect(layoutGraph(out).openEdges).toHaveLength(0);
   });
 });
