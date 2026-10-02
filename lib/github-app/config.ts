@@ -16,9 +16,6 @@ export const GITHUB_APP_PERMISSIONS = [
   "metadata:read",
 ] as const;
 
-export const GITHUB_APP_PERMISSIONS_LABEL =
-  "Contents: Read, Metadata: Read" as const;
-
 export const GITHUB_COOKIE_POSTURE = {
   httpOnly: true,
   secureInProduction: true,

@@ -108,13 +108,17 @@ export function toPublicGitHubConnection(
       connected: false,
       login: null,
       permissions: null,
+      connectedAt: null,
       configured: isGitHubAppConfigured(),
     };
   }
+  // readGitHubAppSessionForUser backfills the epoch for legacy sessions — not a real date.
+  const connectedAtMs = Date.parse(session.connectedAt);
   return {
     connected: true,
     login: session.accountLogin,
     permissions: session.permissions,
+    connectedAt: connectedAtMs > 0 ? session.connectedAt : null,
     configured: true,
   };
 }

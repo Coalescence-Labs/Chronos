@@ -7,6 +7,7 @@ import {
   GITHUB_APP_PERMISSIONS,
   GITHUB_COOKIE_POSTURE,
   isGitHubAppConfigured,
+  readGitHubAppSessionForUser,
   saveGitHubAppSession,
 } from "@/lib/github-app";
 
@@ -60,12 +61,18 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const account = await fetchInstallationAccount(installationId);
+    // Re-entering via "Change repos" updates the same installation — keep its original date.
+    const existing = await readGitHubAppSessionForUser(user.id);
+    const connectedAt =
+      existing?.installationId === account.installationId
+        ? existing.connectedAt
+        : new Date().toISOString();
     await saveGitHubAppSession({
       installationId: account.installationId,
       accountLogin: account.accountLogin,
       accountType: account.accountType,
       workosUserId: user.id,
-      connectedAt: new Date().toISOString(),
+      connectedAt,
       permissions: GITHUB_APP_PERMISSIONS.join(","),
     });
     accountUrl.searchParams.set("github", "connected");

@@ -109,11 +109,25 @@ describe("github app config", () => {
       connected: true,
       login: "ada",
       permissions: "contents:read,metadata:read",
+      connectedAt: "2026-10-01T00:00:00.000Z",
       configured: true,
     });
     assertNoSecretsInPublicGitHubConnection(connected);
     expect(JSON.stringify(connected)).not.toMatch(
       /ghs_|accessToken|installationId|PRIVATE KEY|SECRET/i,
     );
+  });
+
+  test("legacy sessions backfilled with the epoch expose no connectedAt", () => {
+    const connected = toPublicGitHubConnection({
+      installationId: 99,
+      accountLogin: "ada",
+      accountType: "User",
+      workosUserId: "user_1",
+      connectedAt: new Date(0).toISOString(),
+      permissions: "contents:read,metadata:read",
+    });
+    expect(connected.connectedAt).toBeNull();
+    expect(toPublicGitHubConnection(undefined).connectedAt).toBeNull();
   });
 });

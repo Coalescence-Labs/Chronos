@@ -8,7 +8,7 @@ export function DisconnectGitHubButton() {
   return (
     <Button
       type="button"
-      variant="ghost"
+      variant="danger"
       onClick={() => {
         void (async () => {
           try {
@@ -20,7 +20,7 @@ export function DisconnectGitHubButton() {
         })();
       }}
     >
-      Disconnect GitHub
+      Disconnect
     </Button>
   );
 }

@@ -17,5 +17,7 @@ export interface PublicGitHubConnection {
   connected: boolean;
   login: string | null;
   permissions: string | null;
+  /** ISO timestamp of the install; null when unknown (pre-connectedAt sessions). */
+  connectedAt: string | null;
   configured: boolean;
 }

@@ -1,25 +1,36 @@
-.panel {
-  max-width: 28rem;
-  margin: var(--space-8) auto 0;
+/* App surface, not a document: nothing selects by default. Values someone
+   would copy (email, GitHub login, env var names) opt back in. */
+.page {
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 36rem;
+  margin: var(--space-6) auto 0;
 }
 
 .title {
   margin: 0 0 var(--space-3);
-  font-size: var(--text-xl);
-  font-weight: 700;
+  font-size: var(--text-2xl);
+  font-weight: 900;
   letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
 }
 
-.copy,
-.disclosure {
+.copy {
   margin: 0 0 var(--space-5);
   color: var(--fg-muted);
   font-size: var(--text-sm);
   line-height: 1.5;
 }
 
-.disclosure {
-  margin-top: var(--space-5);
+.copy code {
+  user-select: text;
+}
+
+.copy:last-child {
+  margin-bottom: 0;
 }
 
 .actions {
@@ -28,33 +39,114 @@
   gap: var(--space-3);
 }
 
-.meta {
+/* Profile: avatar | name + email | sign out. */
+.identity {
   display: grid;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-2);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
 }
 
-.meta dt {
-  color: var(--fg-subtle);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight);
+  color: var(--accent);
+  font-size: var(--text-lg);
+  font-weight: 900;
 }
 
-.meta dd {
-  margin: var(--space-1) 0 0;
+.avatarImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.who {
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 2px 0 0;
+  color: var(--fg-muted);
   font-size: var(--text-sm);
 }
 
-.githubSection {
-  margin: var(--space-5) 0;
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border-subtle);
+.email {
+  user-select: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.sectionTitle {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-md);
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
+.verified,
+.unverified {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.verified {
+  color: var(--success);
+}
+
+.unverified {
+  color: var(--fg-subtle);
+}
+
+.connections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.eyebrow {
+  margin: 0;
+  padding-left: var(--space-1);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 559px) {
+  .page {
+    margin-top: var(--space-4);
+  }
+
+  .identity {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .identity > button {
+    grid-column: 1 / -1;
+  }
 }

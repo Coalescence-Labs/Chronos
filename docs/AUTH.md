@@ -130,17 +130,22 @@ Browser ──► /api/github/connect ──► GitHub App install UI
 | `/api/github/connect` | Start App install (requires WorkOS user) |
 | `/api/github/callback` | Setup URL; seals `installationId`; never returns tokens |
 | `/api/github/disconnect` | **POST only** — clears `gh-session` + best-effort uninstall |
-| `/api/github/status` | Public `{ connected, login, permissions, configured }` |
+| `/api/github/status` | Public `{ connected, login, permissions, connectedAt, configured }` |
 
 BFF `/api/repo*` mints an installation access token when a matching session
 exists, else optional `GITHUB_TOKEN` app pool, else anonymous. Sign-out clears
 `gh-session` with `wos-session`. No multi-repo switcher (COA-201).
+
+**Change repos** on `/account` re-enters `/api/github/connect` (fresh state),
+so GitHub's configure screen returns through the same validated callback; the
+callback keeps the original `connectedAt` when the installation id is unchanged.
 
 ### Owner setup (GitHub App)
 
 1. Create a GitHub App (Settings → Developer settings → GitHub Apps).
 2. Permissions: **Contents → Read-only**, **Metadata → Read-only**. No write.
 3. Setup URL: `http://localhost:3005/api/github/callback` (and production).
+   Enable **Redirect on update** so Change repos lands back on `/account`.
 4. Webhooks: optional — disable or leave unused for v1 connect-only.
 5. Generate a private key (PEM); note App ID and slug.
 6. Env (see `.env.example`): `GITHUB_APP_ID`, `GITHUB_APP_SLUG`,

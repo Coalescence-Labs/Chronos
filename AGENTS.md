@@ -88,7 +88,7 @@ Chronos/
   components/
     graph/                  # GraphView: virtualized SVG renderer over layout output
     repo/                   # GraphExplorer (layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm
-    auth/                   # AuthProvider + minimal AccountControls (no multi-repo switcher)
+    auth/                   # AuthProvider + minimal AccountControls (no multi-repo switcher) + GitHubConnectionCard (/account)
     ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
     shell/                  # AppShell (responsive scaffold)
     pwa/                    # service-worker registration
