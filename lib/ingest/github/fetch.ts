@@ -8,7 +8,8 @@ import type { RepoId } from "./parse";
  * Server-side GitHub REST fetchers — the upstream half of the BFF proxy
  * (decisions #3 + #7, docs/PRIVACY.md "Ingestion"). Binding posture:
  *
- * - Unauthenticated, public repos only. No token exists in this path.
+ * - Auth: optional Bearer token from the GitHub OAuth session (COA-202) or
+ *   the optional server app-pool `GITHUB_TOKEN`. No token → anonymous public.
  * - Repo data is held in memory for the lifetime of the request and
  *   forwarded already stripped to the normalized model. Nothing is
  *   persisted and nothing here logs response content.
@@ -25,17 +26,28 @@ export const MAX_COMMIT_PAGE = 200;
 /** One page each of branches and tags; enough for v1's 60 req/hr budget. */
 const REFS_PER_PAGE = 100;
 
-const GITHUB_HEADERS = {
-  Accept: "application/vnd.github+json",
-  "X-GitHub-Api-Version": "2022-11-28",
-  "User-Agent": "chronos-branch-graph",
-};
+export interface GitHubRequestAuth {
+  /** Server-held token — never forwarded to the browser. */
+  accessToken?: string;
+}
+
+function githubHeaders(auth?: GitHubRequestAuth): HeadersInit {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "chronos-branch-graph",
+  };
+  if (auth?.accessToken) {
+    headers.Authorization = `Bearer ${auth.accessToken}`;
+  }
+  return headers;
+}
 
 function toError(response: Response): IngestError {
   if (response.status === 404 || response.status === 451) {
     return new IngestError(
       "not-found",
-      "Repository not found. It may be private or misspelled — private repos aren't supported yet.",
+      "Repository not found. It may be private, misspelled, or require a connected GitHub account.",
     );
   }
   const remaining = response.headers.get("x-ratelimit-remaining");
@@ -59,34 +71,51 @@ function toError(response: Response): IngestError {
 async function githubGet(
   path: string,
   params: Record<string, string>,
+  auth?: GitHubRequestAuth,
 ): Promise<Response> {
   const url = new URL(`${API_BASE}${path}`);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
-  const response = await fetch(url, { headers: GITHUB_HEADERS, cache: "no-store" });
+  const response = await fetch(url, {
+    headers: githubHeaders(auth),
+    cache: "no-store",
+  });
   if (!response.ok) throw toError(response);
   return response;
 }
 
 export interface RepoMeta {
   defaultBranch: string;
+  private?: boolean;
 }
 
-export async function fetchRepoMeta({ owner, repo }: RepoId): Promise<RepoMeta> {
-  const response = await githubGet(`/repos/${owner}/${repo}`, {});
-  const body = (await response.json()) as { default_branch?: string };
-  return { defaultBranch: body.default_branch ?? "main" };
+export async function fetchRepoMeta(
+  { owner, repo }: RepoId,
+  auth?: GitHubRequestAuth,
+): Promise<RepoMeta> {
+  const response = await githubGet(`/repos/${owner}/${repo}`, {}, auth);
+  const body = (await response.json()) as {
+    default_branch?: string;
+    private?: boolean;
+  };
+  return {
+    defaultBranch: body.default_branch ?? "main",
+    private: body.private === true,
+  };
 }
 
-export async function fetchRefs(id: RepoId): Promise<Ref[]> {
+export async function fetchRefs(
+  id: RepoId,
+  auth?: GitHubRequestAuth,
+): Promise<Ref[]> {
   const { owner, repo } = id;
   const perPage = { per_page: String(REFS_PER_PAGE) };
   const [branches, tags] = await Promise.all([
-    githubGet(`/repos/${owner}/${repo}/branches`, perPage).then(
+    githubGet(`/repos/${owner}/${repo}/branches`, perPage, auth).then(
       (response) => response.json() as Promise<GitHubRefItem[]>,
     ),
-    githubGet(`/repos/${owner}/${repo}/tags`, perPage).then(
+    githubGet(`/repos/${owner}/${repo}/tags`, perPage, auth).then(
       (response) => response.json() as Promise<GitHubRefItem[]>,
     ),
   ]);
@@ -102,6 +131,7 @@ export async function fetchCommitPage(
   id: RepoId,
   sha: string,
   page: number,
+  auth?: GitHubRequestAuth,
 ): Promise<CommitPage> {
   if (!Number.isInteger(page) || page < 1) {
     throw new IngestError("invalid-input", "Page must be a positive integer.");
@@ -120,7 +150,10 @@ export async function fetchCommitPage(
   url.searchParams.set("sha", sha);
   url.searchParams.set("per_page", String(COMMITS_PER_PAGE));
   url.searchParams.set("page", String(page));
-  const response = await fetch(url, { headers: GITHUB_HEADERS, cache: "no-store" });
+  const response = await fetch(url, {
+    headers: githubHeaders(auth),
+    cache: "no-store",
+  });
 
   // 409 = empty repository: a valid history with zero commits, not an error.
   if (response.status === 409) return { commits: [], hasMore: false };

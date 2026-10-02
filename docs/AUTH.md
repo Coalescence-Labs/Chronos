@@ -98,11 +98,48 @@ Redirect URI env name AuthKit actually reads:
 | Concern | Mechanism | Issue |
 |---------|-----------|-------|
 | **Sign in with GitHub** (identity) | WorkOS social connection — profile/email for the Chronos account | COA-200 |
-| **Connect GitHub for repos** (API access, rate limits, private later) | Separate GitHub OAuth app / BFF token (decision #7) | COA-79 / COA-202 |
+| **Connect GitHub for repos** (API access, rate limits, private repos) | Separate GitHub OAuth App / BFF `gh-session` (decision #7) | COA-202 (public picker UI still COA-79) |
 
 These must not be conflated. WorkOS GitHub login does **not** grant Chronos a
 GitHub API token for ingestion. Repo OAuth remains a distinct consent +
 privacy surface.
+
+
+## GitHub repo OAuth (COA-202)
+
+After WorkOS sign-in, `/account` offers **Connect GitHub**. Flow:
+
+```
+Browser ──► /api/github/connect ──► GitHub authorize
+                ▲                         │
+                │                         ▼
+     /api/github/callback ◄── code + state
+                │
+                ▼
+     seal access token in gh-session (iron-session)
+     redirect /account?github=connected
+```
+
+| Path | Role |
+|------|------|
+| `/api/github/connect` | Start OAuth (requires WorkOS user) |
+| `/api/github/callback` | Code exchange; seals token; never returns token |
+| `/api/github/disconnect` | **POST only** — clears `gh-session` |
+| `/api/github/status` | Public `{ connected, login, scope, configured }` |
+
+BFF `/api/repo*` uses the sealed user token when present, else optional
+`GITHUB_TOKEN` app pool, else anonymous. Sign-out clears `gh-session` with
+`wos-session`. No multi-repo switcher (COA-201).
+
+### Owner setup (GitHub OAuth App)
+
+1. Create an OAuth App (User settings → Developer settings → OAuth Apps).
+2. Authorization callback URL: `http://localhost:3005/api/github/callback`
+   (and production equivalent).
+3. Copy Client ID / generate Client Secret into env (see `.env.example`).
+4. Generate `GITHUB_SESSION_PASSWORD` (≥32 chars).
+
+Scopes requested: `read:user repo` (classic). Disclose on connect surface.
 
 ## Dashboard setup (owner)
 
@@ -163,5 +200,4 @@ See `.env.example`. Required for auth (all or nothing): `WORKOS_CLIENT_ID`,
 ## Out of scope here
 
 - Multi-repo switcher UI — [COA-201](https://linear.app/coalescence-labs/issue/COA-201)
-- Private-repo GitHub connect — [COA-202](https://linear.app/coalescence-labs/issue/COA-202)
 - AI features / ZDR provider (open decisions #4 / #5)

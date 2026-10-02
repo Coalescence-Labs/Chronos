@@ -45,3 +45,16 @@
   margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
 }
+
+.githubSection {
+  margin: var(--space-5) 0;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
