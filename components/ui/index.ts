@@ -3,6 +3,8 @@ export type { ButtonProps, ButtonVariant } from "./Button";
 export { CopyButton } from "./CopyButton";
 export type { CopyButtonProps } from "./CopyButton";
 export { InspectionSurface } from "./InspectionSurface";
+export { OverflowText } from "./OverflowText";
+export type { OverflowTextProps } from "./OverflowText";
 export type { InspectionSurfaceProps } from "./InspectionSurface";
 export { Surface } from "./Surface";
 export type { SurfaceProps } from "./Surface";

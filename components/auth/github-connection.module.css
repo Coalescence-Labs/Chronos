@@ -1,5 +1,6 @@
 /* UI, not a document: only the login and env var names select (opt-ins below). */
 .card {
+  padding: var(--space-5);
   user-select: none;
 }
 
@@ -265,17 +266,33 @@ details[open] > .summary .chevron {
   color: var(--fg);
 }
 
+/* Phone: tighter rhythm so the page fits one screen, even with facts expanded. */
 @media (max-width: 559px) {
+  .card {
+    padding: var(--space-4);
+  }
+
   .header {
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
       "glyph name"
       "glyph desc"
       "actions actions";
+    column-gap: var(--space-3);
+  }
+
+  .glyph {
+    width: 40px;
+    height: 40px;
+  }
+
+  .glyph svg {
+    width: 20px;
+    height: 20px;
   }
 
   .actions {
-    margin-top: var(--space-4);
+    margin-top: var(--space-3);
   }
 
   .actions > * {
@@ -285,9 +302,30 @@ details[open] > .summary .chevron {
   .facts {
     grid-template-columns: 1fr;
     row-gap: 0;
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    line-height: 1.4;
   }
 
   .facts dd + dt {
+    margin-top: var(--space-2);
+  }
+
+  .factsNested {
+    margin: 0 0 var(--space-1);
+    padding-top: 0;
+  }
+
+  .more {
     margin-top: var(--space-3);
+    padding-top: 0;
+  }
+
+  .manage {
+    top: 0;
+  }
+
+  .banner {
+    margin-bottom: var(--space-3);
   }
 }

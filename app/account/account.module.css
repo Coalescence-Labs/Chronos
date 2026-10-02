@@ -39,15 +39,25 @@
   gap: var(--space-3);
 }
 
-/* Profile: avatar | name + email | sign out. */
+/* Profile: avatar | name over email | sign out. */
 .identity {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "avatar name action"
+    "avatar email action";
   align-items: center;
-  gap: var(--space-4);
+  column-gap: var(--space-4);
+  row-gap: 2px;
+  padding: var(--space-5);
+}
+
+.identity > button {
+  grid-area: action;
 }
 
 .avatar {
+  grid-area: avatar;
   display: grid;
   place-items: center;
   width: 48px;
@@ -70,11 +80,9 @@
   object-fit: cover;
 }
 
-.who {
-  min-width: 0;
-}
-
 .name {
+  grid-area: name;
+  align-self: end;
   margin: 0;
   overflow: hidden;
   font-size: var(--text-base);
@@ -85,39 +93,22 @@
   white-space: nowrap;
 }
 
-.sub {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+/* No name on the account: the email stands in as the name, centered alone. */
+.name:last-of-type {
+  grid-row: 1 / -1;
+  align-self: center;
+  user-select: text;
+}
+
+/* Long addresses ellipsize and glide to reveal on hover / tap (OverflowText). */
+.email {
+  grid-area: email;
+  align-self: start;
   min-width: 0;
-  margin: 2px 0 0;
+  margin: 0;
   color: var(--fg-muted);
   font-size: var(--text-sm);
-}
-
-.email {
   user-select: text;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.verified,
-.unverified {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 3px;
-  font-size: var(--text-xs);
-  font-weight: 500;
-}
-
-.verified {
-  color: var(--success);
-}
-
-.unverified {
-  color: var(--fg-subtle);
 }
 
 .connections {
@@ -137,16 +128,35 @@
   text-transform: uppercase;
 }
 
+/* Phone: tighter rhythm so the page fits one screen, even with facts expanded. */
 @media (max-width: 559px) {
   .page {
-    margin-top: var(--space-4);
+    gap: var(--space-2);
+    margin-top: 0;
+  }
+
+  .title {
+    margin-bottom: var(--space-1);
+    font-size: var(--text-xl);
   }
 
   .identity {
-    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-3);
+    padding: var(--space-4);
   }
 
   .identity > button {
-    grid-column: 1 / -1;
+    padding: 0 var(--space-3);
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    font-size: var(--text-base);
+  }
+
+  .connections {
+    gap: var(--space-2);
+    margin-top: var(--space-2);
   }
 }

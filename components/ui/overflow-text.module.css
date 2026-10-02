@@ -1,0 +1,39 @@
+/* At rest the text is inline so the ellipsis works; it only becomes a
+   transformable box while gliding (reveal) or gliding home (return). */
+.root {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.root[data-phase="reveal"],
+.root[data-phase="return"] {
+  text-overflow: clip;
+}
+
+.text {
+  transition: transform calc(var(--overflow-duration) * 0.6) ease-in-out;
+}
+
+.root[data-phase="reveal"] .text,
+.root[data-phase="return"] .text {
+  display: inline-block;
+}
+
+.root[data-phase="reveal"] .text {
+  transform: translateX(calc(-1 * var(--overflow-distance)));
+  transition: transform var(--overflow-duration) ease-in-out var(--overflow-delay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root[data-phase="reveal"] {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .root[data-phase="reveal"] .text {
+    display: inline;
+    transform: none;
+  }
+}

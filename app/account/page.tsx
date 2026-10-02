@@ -6,6 +6,7 @@ import { AccountSignOutButton } from "@/components/auth/AccountSignOutButton";
 import { GitHubConnectionCard } from "@/components/auth/GitHubConnectionCard";
 import { AppShell } from "@/components/shell/AppShell";
 import buttonStyles from "@/components/ui/button.module.css";
+import { OverflowText } from "@/components/ui/OverflowText";
 import { Surface } from "@/components/ui/Surface";
 import { isAuthConfigured } from "@/lib/auth";
 import { profileDisplayName, profileInitial } from "@/lib/auth/profile-label";
@@ -28,20 +29,6 @@ function AccountFrame({ children }: { children: ReactNode }) {
         {children}
       </div>
     </AppShell>
-  );
-}
-
-function VerifiedMark() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M3.5 8.5l3 3 6-7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 
@@ -106,7 +93,7 @@ export default async function AccountPage({
   return (
     <AccountFrame>
       <section aria-label="Profile">
-        <Surface level={1} className={styles.identity}>
+        <Surface level={1} padded={false} className={styles.identity}>
           <span className={styles.avatar} aria-hidden="true">
             {publicUser.profilePictureUrl ? (
               <img
@@ -121,20 +108,14 @@ export default async function AccountPage({
               profileInitial(publicUser)
             )}
           </span>
-          <div className={styles.who}>
-            <p className={styles.name}>{profileDisplayName(publicUser)}</p>
-            <p className={styles.sub}>
-              {hasName && <span className={styles.email}>{publicUser.email}</span>}
-              {publicUser.emailVerified ? (
-                <span className={styles.verified}>
-                  <VerifiedMark />
-                  Verified
-                </span>
-              ) : (
-                <span className={styles.unverified}>Unverified</span>
-              )}
+          <p className={styles.name}>
+            {hasName ? profileDisplayName(publicUser) : <OverflowText text={publicUser.email} />}
+          </p>
+          {hasName && (
+            <p className={styles.email}>
+              <OverflowText text={publicUser.email} />
             </p>
-          </div>
+          )}
           <AccountSignOutButton />
         </Surface>
       </section>

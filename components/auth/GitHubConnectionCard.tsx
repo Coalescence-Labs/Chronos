@@ -24,10 +24,10 @@ function GitHubSettingsLink() {
 }
 
 const FACTS: { claim: string; detail: ReactNode }[] = [
-  { claim: "Read-only access", detail: "Contents and metadata. No push, edit, or delete." },
+  { claim: "Read-only access", detail: "Contents and metadata. Can’t push or edit." },
   { claim: "Repos you choose", detail: "Only the ones you pick on GitHub." },
   { claim: "No repo data stored", detail: "Commits pass through to draw the graph." },
-  { claim: "Encrypted session", detail: "Installation ID and username. No tokens saved." },
+  { claim: "Encrypted session", detail: "Install ID and username. No tokens saved." },
   {
     claim: "Revoke anytime",
     detail: (
@@ -137,7 +137,7 @@ export interface GitHubConnectionCardProps {
 export function GitHubConnectionCard({ connection, status }: GitHubConnectionCardProps) {
   if (!connection.configured) {
     return (
-      <Surface level={1} className={styles.card}>
+      <Surface level={1} padded={false} className={styles.card}>
         <div className={styles.header}>
           <span className={`${styles.glyph} ${styles.glyphMuted}`}>
             <GitHubMark />
@@ -155,7 +155,7 @@ export function GitHubConnectionCard({ connection, status }: GitHubConnectionCar
 
   if (!connection.connected) {
     return (
-      <Surface level={1} className={styles.card}>
+      <Surface level={1} padded={false} className={styles.card}>
         <StatusBanner status={status} connected={false} />
         <div className={styles.header}>
           <span className={styles.glyph}>
@@ -179,7 +179,7 @@ export function GitHubConnectionCard({ connection, status }: GitHubConnectionCar
   const since = connection.connectedAt?.slice(0, 10);
 
   return (
-    <Surface level={1} className={styles.card}>
+    <Surface level={1} padded={false} className={styles.card}>
       <StatusBanner status={status} connected />
       <div className={styles.header}>
         <span className={styles.glyph}>
