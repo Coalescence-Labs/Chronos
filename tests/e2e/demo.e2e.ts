@@ -56,9 +56,13 @@ test("Glance mode hides landed branches and folds staged ones (COA-75)", async (
   else await glance.click();
   await expect(glance).toHaveAttribute("aria-pressed", "true");
 
-  // Landed features drop out; a develop-staged feature folds to a capsule.
+  // Landed features drop out; a develop-staged feature folds to a capsule —
+  // including when its live tip ref still exists (COA-209).
   await expect(page.getByRole("listbox", { name: /Commit graph, 23 commits/ })).toBeVisible();
   await expect(page.getByText(/^2 commits$/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Trace feature\/open-edges/ })).toBeVisible();
+  // Per-commit messages on the staged branch are gone (folded into the capsule).
+  await expect(page.getByText("Dashed stubs for unloaded parents")).toHaveCount(0);
   // develop's own trunk stays expanded.
   await expect(page.getByText("Merge feature/open-edges into develop")).toBeVisible();
 
