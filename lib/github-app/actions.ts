@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 import { isGitHubAppConfigured } from "./config";
 import { deleteInstallation } from "./install";
-import { destroyGitHubAppSession, getGitHubAppSession } from "./session";
+import { peekGitHubInstallBinding } from "./resolve-session";
+import { destroyGitHubAppSession } from "./session";
+import { clearGitHubInstallMetadata } from "./workos-metadata";
 
 /**
  * POST-only disconnect — clears sealed gh-session and best-effort uninstalls
@@ -11,15 +13,20 @@ import { destroyGitHubAppSession, getGitHubAppSession } from "./session";
  * Settings → Applications if uninstall fails.
  */
 export async function disconnectGitHubAction(): Promise<void> {
-  if (isGitHubAppConfigured()) {
+  const { withAuth } = await import("@workos-inc/authkit-nextjs");
+  const { user } = await withAuth({ ensureSignedIn: false }).catch(() => ({
+    user: null,
+  }));
+  const binding = await peekGitHubInstallBinding(user?.id);
+  if (isGitHubAppConfigured() && binding) {
     try {
-      const session = await getGitHubAppSession();
-      if (typeof session.installationId === "number") {
-        await deleteInstallation(session.installationId);
-      }
+      await deleteInstallation(binding.installationId);
     } catch {
       // Session clear still proceeds; UI discloses manual uninstall.
     }
+  }
+  if (user?.id) {
+    await clearGitHubInstallMetadata(user.id);
   }
   await destroyGitHubAppSession();
   redirect("/account?github=disconnected");

@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { destroyGitHubAppSession } from "@/lib/github-app";
+import { destroyGitHubAppSession } from "@/lib/github-app/session";
 import { workosRedirectUri } from "./config";
 import { sameOriginReturnUrl } from "./return-url";
 

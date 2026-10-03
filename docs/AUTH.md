@@ -122,6 +122,7 @@ Browser ──► /api/github/connect ──► GitHub App install UI
                 │
                 ▼
      seal installationId in gh-session (iron-session)
+     persist binding in WorkOS user metadata (chronosGh* keys)
      redirect /account?github=connected
 ```
 
@@ -133,8 +134,56 @@ Browser ──► /api/github/connect ──► GitHub App install UI
 | `/api/github/status` | Public `{ connected, login, permissions, connectedAt, configured }` |
 
 BFF `/api/repo*` mints an installation access token when a matching session
-exists, else optional `GITHUB_TOKEN` app pool, else anonymous. Sign-out clears
-`gh-session` with `wos-session`. No multi-repo switcher (COA-201).
+exists (including rehydrated from metadata), else optional `GITHUB_TOKEN` app
+pool, else anonymous.
+
+### Durable install binding (WorkOS metadata — owner-ratified)
+
+GitHub App connect stores a **non-token** binding in WorkOS user metadata so
+users stay connected across sign-out / sign-in without reinstalling:
+
+| Key | Value |
+|-----|--------|
+| `chronosGhInstallationId` | GitHub App installation id (string) |
+| `chronosGhAccountLogin` | Account login shown on `/account` |
+| `chronosGhAccountType` | `User` or `Organization` |
+| `chronosGhConnectedAt` | ISO timestamp (first connect; preserved on repo change) |
+| `chronosGhPermissions` | e.g. `contents:read,metadata:read` |
+
+WorkOS limits: ≤10 metadata keys, key ≤40 chars, value ≤600 chars. No tokens,
+no repo content.
+
+| Action | `wos-session` | `gh-session` | WorkOS metadata | GitHub App install |
+|--------|---------------|--------------|-----------------|-------------------|
+| **Connect / callback** | (signed in) | write | write | user installs |
+| **Sign-out** | clear | clear | **keep** | **keep** |
+| **Disconnect** | (signed in) | clear | clear | best-effort uninstall |
+| **Sign-in (return)** | write | rehydrate from metadata if missing | read | unchanged |
+
+Rehydrate **must** run in a Route Handler (e.g. `GET /api/github/status` or
+BFF `/api/repo*`) — Next.js does not apply `Set-Cookie` from RSC render.
+`/account` reads a warm `gh-session` synchronously; if only metadata exists it
+calls `/api/github/status` once to seal the cookie, then later loads skip that
+step.
+
+If metadata references a revoked installation, Chronos clears the metadata keys
+and treats the user as disconnected.
+
+### Shared browser / cross-account safety
+
+`gh-session` is a single browser cookie, not namespaced per WorkOS user. Chronos
+**never** trusts it without checking the sealed `workosUserId` against the active
+AuthKit user (`readGitHubAppSessionForUser`). A leftover cookie from user A after
+sign-out is ignored when user B signs in — resolve returns no session, the BFF
+does not mint installation tokens from the stale binding, and Route Handlers only
+re-seal `gh-session` after metadata rehydrate for **B** (`persistSession: true`).
+
+WorkOS `chronosGh*` metadata is stored **on the WorkOS user record** (keyed by
+user id). It is not readable across accounts and is not a cross-user leak; it
+exists so the **same** user can sign back in without reinstalling the GitHub App.
+Sign-out clears cookies only; disconnect clears metadata + uninstall.
+
+No multi-repo switcher (COA-201).
 
 **Change repos** on `/account` re-enters `/api/github/connect` (fresh state),
 so GitHub's configure screen returns through the same validated callback; the

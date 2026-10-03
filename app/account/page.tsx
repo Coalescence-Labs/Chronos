@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { AccountSignOutButton } from "@/components/auth/AccountSignOutButton";
-import { GitHubConnectionCard } from "@/components/auth/GitHubConnectionCard";
+import { AccountGitHubConnection } from "@/components/auth/AccountGitHubConnection";
 import { AppShell } from "@/components/shell/AppShell";
 import buttonStyles from "@/components/ui/button.module.css";
 import { OverflowText } from "@/components/ui/OverflowText";
@@ -11,7 +11,6 @@ import { Surface } from "@/components/ui/Surface";
 import { isAuthConfigured } from "@/lib/auth";
 import { profileDisplayName, profileInitial } from "@/lib/auth/profile-label";
 import { toPublicUser } from "@/lib/auth/session";
-import { readGitHubAppSessionForUser, toPublicGitHubConnection } from "@/lib/github-app";
 import styles from "./account.module.css";
 
 export const metadata: Metadata = {
@@ -88,8 +87,6 @@ export default async function AccountPage({
 
   const publicUser = toPublicUser(user);
   const hasName = Boolean(publicUser.firstName?.trim() || publicUser.lastName?.trim());
-  const gh = toPublicGitHubConnection(await readGitHubAppSessionForUser(user.id));
-
   return (
     <AccountFrame>
       <section aria-label="Profile">
@@ -124,7 +121,7 @@ export default async function AccountPage({
         <h2 id="connections-heading" className={styles.eyebrow}>
           Connections
         </h2>
-        <GitHubConnectionCard connection={gh} status={params.github} />
+        <AccountGitHubConnection workosUserId={user.id} status={params.github} />
       </section>
     </AccountFrame>
   );

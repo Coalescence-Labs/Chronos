@@ -46,6 +46,9 @@ describe("github app privacy posture", () => {
     expect(privacy).toContain("Contents: Read");
     expect(privacy).toContain("Metadata: Read");
     expect(privacy).toContain("installationId");
+    expect(privacy).toContain("chronosGh");
+    expect(privacy).toMatch(/Sign-out.*keep.*metadata/is);
+    expect(privacy).toMatch(/Disconnect.*clears metadata/is);
   });
 
   test("dead OAuth App module is gone", async () => {

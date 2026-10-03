@@ -128,6 +128,23 @@ function StatusBanner({ status, connected }: { status: string | undefined; conne
   );
 }
 
+/** Shown while server rehydrates gh-session from WorkOS metadata — not “not connected”. */
+export function GitHubConnectionCardPending() {
+  return (
+    <Surface level={1} padded={false} className={styles.card} role="status" aria-busy="true">
+      <div className={styles.header}>
+        <span className={`${styles.glyph} ${styles.glyphPending}`} aria-hidden="true">
+          <GitHubMark />
+        </span>
+        <h3 className={styles.name}>
+          GitHub <span className={styles.badgePending}>checking…</span>
+        </h3>
+        <p className={styles.desc}>Restoring your GitHub App install…</p>
+      </div>
+    </Surface>
+  );
+}
+
 export interface GitHubConnectionCardProps {
   connection: PublicGitHubConnection;
   /** `?github=` result from connect / callback / disconnect. */

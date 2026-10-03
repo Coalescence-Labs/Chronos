@@ -26,6 +26,17 @@ export interface InstallationAccount {
   accountType: "User" | "Organization";
 }
 
+/** Thrown when GitHub rejects an installation lookup (includes HTTP status). */
+export class GitHubInstallationReadError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super("Failed to read GitHub App installation");
+    this.name = "GitHubInstallationReadError";
+    this.status = status;
+  }
+}
+
 /**
  * Read installation metadata with an App JWT. Never logs the response body.
  */
@@ -47,7 +58,7 @@ export async function fetchInstallationAccount(
   );
 
   if (!response.ok) {
-    throw new Error("Failed to read GitHub App installation");
+    throw new GitHubInstallationReadError(response.status);
   }
 
   const body = (await response.json()) as {

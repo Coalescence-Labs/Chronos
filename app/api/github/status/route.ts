@@ -3,7 +3,7 @@ import { withAuth } from "@workos-inc/authkit-nextjs";
 import {
   assertNoSecretsInPublicGitHubConnection,
   isGitHubAppConfigured,
-  readGitHubAppSessionForUser,
+  resolveGitHubAppSessionForUser,
   toPublicGitHubConnection,
 } from "@/lib/github-app";
 
@@ -20,7 +20,9 @@ export async function GET(): Promise<Response> {
   const { user } = await withAuth({ ensureSignedIn: false }).catch(() => ({
     user: null,
   }));
-  const session = await readGitHubAppSessionForUser(user?.id);
+  const session = await resolveGitHubAppSessionForUser(user?.id, {
+    persistSession: true,
+  });
   const body = toPublicGitHubConnection(session);
   assertNoSecretsInPublicGitHubConnection(body);
   return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });

@@ -10,6 +10,10 @@ export {
 } from "./config";
 export { disconnectGitHubAction } from "./actions";
 export {
+  peekGitHubInstallBinding,
+  resolveGitHubAppSessionForUser,
+} from "./resolve-session";
+export {
   buildGitHubAppInstallUrl,
   createInstallState,
   createInstallationAccessToken,
@@ -27,4 +31,13 @@ export {
   toPublicGitHubConnection,
 } from "./session";
 export { resolveGitHubAccessToken } from "./token";
+export {
+  GITHUB_INSTALL_METADATA_KEYS,
+  clearGitHubInstallMetadata,
+  githubInstallMetadataFromSession,
+  parseGitHubInstallMetadata,
+  readGitHubInstallMetadata,
+  writeGitHubInstallMetadata,
+} from "./workos-metadata";
+export type { GitHubInstallMetadataBinding } from "./workos-metadata";
 export type { GitHubAppSessionData, PublicGitHubConnection } from "./types";

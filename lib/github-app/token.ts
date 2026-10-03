@@ -1,6 +1,6 @@
 import { githubAppPoolToken } from "./config";
 import { createInstallationAccessToken } from "./install";
-import { readGitHubAppSessionForUser } from "./session";
+import { resolveGitHubAppSessionForUser } from "./resolve-session";
 
 /**
  * Resolve which GitHub credential the BFF should use for a request.
@@ -13,7 +13,9 @@ import { readGitHubAppSessionForUser } from "./session";
 export async function resolveGitHubAccessToken(
   workosUserId: string | null | undefined,
 ): Promise<string | undefined> {
-  const userSession = await readGitHubAppSessionForUser(workosUserId);
+  const userSession = await resolveGitHubAppSessionForUser(workosUserId, {
+    persistSession: true,
+  });
   if (userSession) {
     try {
       return await createInstallationAccessToken(userSession.installationId);

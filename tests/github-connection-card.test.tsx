@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { GitHubConnectionCard } from "@/components/auth/GitHubConnectionCard";
+import {
+  GitHubConnectionCard,
+  GitHubConnectionCardPending,
+} from "@/components/auth/GitHubConnectionCard";
 import type { PublicGitHubConnection } from "@/lib/github-app/types";
 
 const NOT_CONNECTED: PublicGitHubConnection = {
@@ -66,6 +69,14 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).toContain("unavailable");
     expect(html).toContain("GITHUB_SESSION_PASSWORD");
     expect(html).not.toContain("/api/github/connect");
+  });
+
+  test("pending state is distinct from disconnected (rehydrate in flight)", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCardPending />);
+    expect(html).toContain("checking");
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toContain("not connected");
+    expect(html).not.toContain("Install GitHub App");
   });
 
   test("status banners match the card state and are dismissible", () => {

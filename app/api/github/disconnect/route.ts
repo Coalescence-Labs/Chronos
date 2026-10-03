@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import {
+  clearGitHubInstallMetadata,
   deleteInstallation,
   destroyGitHubAppSession,
-  readGitHubAppSessionForUser,
+  peekGitHubInstallBinding,
 } from "@/lib/github-app";
 
 /**
@@ -14,13 +15,16 @@ export async function POST(): Promise<Response> {
   const { user } = await withAuth({ ensureSignedIn: false }).catch(() => ({
     user: null,
   }));
-  const session = await readGitHubAppSessionForUser(user?.id);
-  if (session) {
+  const binding = await peekGitHubInstallBinding(user?.id);
+  if (binding) {
     try {
-      await deleteInstallation(session.installationId);
+      await deleteInstallation(binding.installationId);
     } catch {
       // Cookie clear still proceeds.
     }
+  }
+  if (user?.id) {
+    await clearGitHubInstallMetadata(user.id);
   }
   await destroyGitHubAppSession();
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });

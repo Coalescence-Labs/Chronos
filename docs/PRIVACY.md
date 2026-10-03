@@ -30,7 +30,7 @@ Before merging **any** AI feature or **any** new path that sends user/repo data 
 
 How it works and what this document binds:
 
-- **GitHub App credentials / installation binding rest server-side** — App private key in env; sealed `installationId` (+ account login) in an encrypted, httpOnly, SameSite, Secure session — never readable by browser JS, never in the client bundle or logs (Principle 3, 6). Short-lived installation access tokens are minted on the server and not stored in the session.
+- **GitHub App credentials / installation binding rest server-side** — App private key in env; sealed `installationId` (+ account login) in an encrypted, httpOnly, SameSite, Secure `gh-session` cookie — never readable by browser JS, never in the client bundle or logs (Principle 3, 6). The same non-token binding (installation id, account login/type, connected-at, permissions) is also stored in **WorkOS user metadata** so sign-in can rehydrate `gh-session` after sign-out. Short-lived installation access tokens are minted on the server and not stored in the session or metadata.
 - **The server proxies GitHub API calls.** Public-repo (and, when connected, private-repo) git metadata flows GitHub → our server → browser **transiently**. **Zero server-side persistence of repo content**, and **no logging of repo content or tokens** (Principle 1, applied as "minimize what *rests*").
 - **Fetch the minimum:** only graph-relevant commit fields (sha, parents, author, date, message, refs) — not file contents/diffs unless a specific feature needs them and re-clears pre-flight.
 - **Caching** may be both server-side (short-TTL, content-addressed, no PII beyond what GitHub already exposes) and client-side; neither may become a durable store of repo data (see #6).
@@ -48,9 +48,9 @@ Account-linked **GitHub App** install for **private repos + authenticated rate l
 1. **What leaves:**
    - **Install consent:** user installs the Chronos GitHub App and selects which repos (or all) the App may access. Chronos receives `installation_id` + account login (for disclosure UI).
    - **While connected, BFF proxy:** same graph-relevant fields as public ingest — sha, parents, author name/login, commit date, commit message, branch/tag refs — for **public or private** repos in the installation. **Not fetched:** file contents, diffs, issues, PRs, Actions, org membership lists beyond what the repo endpoints return.
-2. **Where:** GitHub (`github.com` App install UI + `api.github.com`). Chronos BFF receives responses and forwards the normalized model to the browser. Sealed in Chronos `gh-session` cookie (iron-session), **separate from** WorkOS `wos-session`: `installationId` + account login + WorkOS user binding — **not** a long-lived user OAuth token. Short-lived installation access tokens (~1h) are minted server-side with the App JWT and discarded after the request.
-3. **Minimum:** GitHub App permissions **Contents: Read** + **Metadata: Read** only. No write. No durable Chronos DB of repos, installation tokens, or repo content. Session-scoped installation id only (recommended max-age 7 days).
-4. **Retention & training:** GitHub retains App installations per their policies. Chronos holds only the sealed install binding in httpOnly session and **zero persistence of repo content**. Not an AI path — no ZDR question. Sign-out / Disconnect destroys `gh-session` and best-effort uninstalls the App installation.
+2. **Where:** GitHub (`github.com` App install UI + `api.github.com`). Chronos BFF receives responses and forwards the normalized model to the browser. Install binding lives in (a) Chronos `gh-session` cookie (iron-session), **separate from** WorkOS `wos-session`, and (b) **WorkOS user metadata** (`chronosGh*` keys — installation id, account login/type, connected-at, permissions; no tokens). Short-lived installation access tokens (~1h) are minted server-side with the App JWT and discarded after the request.
+3. **Minimum:** GitHub App permissions **Contents: Read** + **Metadata: Read** only. No write. No durable Chronos DB of repos, installation tokens, or repo content. Cookie max-age 7 days; metadata persists until **Disconnect** (not sign-out).
+4. **Retention & training:** GitHub retains App installations per their policies. Chronos holds install binding in httpOnly `gh-session` and WorkOS metadata (no repo content). Not an AI path — no ZDR question. **Sign-out** clears `wos-session` + `gh-session` but **keeps** WorkOS metadata and does **not** uninstall the App. **Disconnect** clears metadata + `gh-session` and best-effort uninstalls the App installation.
 5. **Consent:** explicit **Install GitHub App** on `/account` with disclosure of permissions, proxying, session storage, disconnect, and manual uninstall guidance — all visible before install (never collapsed); once connected they fold behind "Access and privacy". Public paste needs no GitHub connect.
 6. **Least privilege:** truly read-only App permissions; never request Contents: Write, Administration, or other write-oriented grants.
 7. **Secrets:** `GITHUB_APP_PRIVATE_KEY`, `GITHUB_SESSION_PASSWORD`, App JWTs, and installation access tokens are server-only — never in client bundle, `/api/github/status`, `/api/auth/me`, logs, or error bodies. Installation id is not exposed in public status JSON.
@@ -78,8 +78,10 @@ and `/demo` remain usable with **no account**. Engineering notes:
    their DPA/ToS (operator must keep a current WorkOS agreement on file). Chronos
    holds **no durable user database** in this slice — only an **encrypted
    httpOnly, SameSite, Secure** session cookie (iron-session seal; recommended
-   max-age 7 days via `WORKOS_COOKIE_MAX_AGE`). Access/refresh tokens never reach
-   browser JS or logs. Not an AI path — no ZDR question for WorkOS auth.
+   max-age 7 days via `WORKOS_COOKIE_MAX_AGE`) plus optional **GitHub App install
+   binding** in WorkOS user metadata (COA-202 — see above; not repo content).
+   Access/refresh tokens never reach browser JS or logs. Not an AI path — no ZDR
+   question for WorkOS auth.
 5. **Consent:** creating an account or signing in is the consent surface. The
    `/account` page discloses the cookie posture. Anonymous viewing needs no
    consent beyond the existing BFF proxy disclosure.

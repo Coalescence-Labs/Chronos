@@ -13,6 +13,7 @@ describe("github app routes", () => {
     const source = await Bun.file("app/api/github/callback/route.ts").text();
     expect(source).not.toMatch(/console\./);
     expect(source).toContain("saveGitHubAppSession");
+    expect(source).toContain("writeGitHubInstallMetadata");
     expect(source).toContain("installation_id");
     expect(source).toContain('searchParams.set("github", "connected")');
     expect(source).not.toMatch(/access_token|exchangeGitHubCode/);
@@ -30,5 +31,7 @@ describe("github app routes", () => {
     const source = await Bun.file("app/api/github/status/route.ts").text();
     expect(source).toContain("assertNoSecretsInPublicGitHubConnection");
     expect(source).toContain("toPublicGitHubConnection");
+    expect(source).toContain("resolveGitHubAppSessionForUser");
+    expect(source).toContain("persistSession: true");
   });
 });

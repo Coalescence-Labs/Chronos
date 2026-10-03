@@ -7,8 +7,9 @@ import {
   GITHUB_APP_PERMISSIONS,
   GITHUB_COOKIE_POSTURE,
   isGitHubAppConfigured,
-  readGitHubAppSessionForUser,
+  peekGitHubInstallBinding,
   saveGitHubAppSession,
+  writeGitHubInstallMetadata,
 } from "@/lib/github-app";
 
 /**
@@ -62,19 +63,22 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const account = await fetchInstallationAccount(installationId);
     // Re-entering via "Change repos" updates the same installation — keep its original date.
-    const existing = await readGitHubAppSessionForUser(user.id);
+    const existing = await peekGitHubInstallBinding(user.id);
     const connectedAt =
       existing?.installationId === account.installationId
         ? existing.connectedAt
         : new Date().toISOString();
-    await saveGitHubAppSession({
+    const session = {
       installationId: account.installationId,
       accountLogin: account.accountLogin,
       accountType: account.accountType,
       workosUserId: user.id,
       connectedAt,
       permissions: GITHUB_APP_PERMISSIONS.join(","),
-    });
+    };
+    // Durable binding first — if the cookie save fails, sign-in can still rehydrate.
+    await writeGitHubInstallMetadata(user.id, session);
+    await saveGitHubAppSession(session);
     accountUrl.searchParams.set("github", "connected");
     return NextResponse.redirect(accountUrl);
   } catch {
