@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { AccountSignOutButton } from "@/components/auth/AccountSignOutButton";
+import { AccountGitHubConnection } from "@/components/auth/AccountGitHubConnection";
 import { AppShell } from "@/components/shell/AppShell";
 import buttonStyles from "@/components/ui/button.module.css";
+import { OverflowText } from "@/components/ui/OverflowText";
 import { Surface } from "@/components/ui/Surface";
 import { isAuthConfigured } from "@/lib/auth";
+import { profileDisplayName, profileInitial } from "@/lib/auth/profile-label";
 import { toPublicUser } from "@/lib/auth/session";
 import styles from "./account.module.css";
 
@@ -16,26 +20,38 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+function AccountFrame({ children }: { children: ReactNode }) {
+  return (
+    <AppShell>
+      <div className={styles.page}>
+        <h1 className={styles.title}>Account</h1>
+        {children}
+      </div>
+    </AppShell>
+  );
+}
+
 /**
- * Minimal functional account surface for auth smoke-testing.
- * No marketing chrome, no multi-repo switcher (COA-201).
+ * Account: profile + connections. No marketing chrome, no multi-repo
+ * switcher (COA-201). GitHub App connect is COA-202.
  */
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ github?: string }>;
+}) {
+  const params = await searchParams;
+
   if (!isAuthConfigured()) {
     return (
-      <AppShell>
-        <Surface level={1} className={styles.panel}>
-          <h1 className={styles.title}>Account</h1>
+      <AccountFrame>
+        <Surface level={1}>
           <p className={styles.copy}>
-            WorkOS is not configured in this environment. Set the{" "}
-            <code>WORKOS_*</code> variables (see <code>.env.example</code>) to
-            enable sign-in.
+            WorkOS isn’t configured in this environment. Set the <code>WORKOS_*</code>{" "}
+            variables (see <code>.env.example</code>) to enable sign-in.
           </p>
-          <Link className={`${buttonStyles.button} ${buttonStyles.ghost}`} href="/">
-            Back home
-          </Link>
         </Surface>
-      </AppShell>
+      </AccountFrame>
     );
   }
 
@@ -43,12 +59,10 @@ export default async function AccountPage() {
 
   if (!user) {
     return (
-      <AppShell>
-        <Surface level={1} className={styles.panel}>
-          <h1 className={styles.title}>Account</h1>
+      <AccountFrame>
+        <Surface level={1}>
           <p className={styles.copy}>
-            Sign in with email, GitHub, or Google via WorkOS AuthKit. Public
-            repo viewing does not require an account.
+            Sign in with email, GitHub, or Google. Public repos don’t need an account.
           </p>
           <div className={styles.actions}>
             <Link
@@ -67,45 +81,48 @@ export default async function AccountPage() {
             </Link>
           </div>
         </Surface>
-      </AppShell>
+      </AccountFrame>
     );
   }
 
   const publicUser = toPublicUser(user);
-
+  const hasName = Boolean(publicUser.firstName?.trim() || publicUser.lastName?.trim());
   return (
-    <AppShell>
-      <Surface level={1} className={styles.panel}>
-        <h1 className={styles.title}>Account</h1>
-        <dl className={styles.meta}>
-          <div>
-            <dt>Email</dt>
-            <dd>{publicUser.email}</dd>
-          </div>
-          {(publicUser.firstName || publicUser.lastName) && (
-            <div>
-              <dt>Name</dt>
-              <dd>
-                {[publicUser.firstName, publicUser.lastName].filter(Boolean).join(" ")}
-              </dd>
-            </div>
+    <AccountFrame>
+      <section aria-label="Profile">
+        <Surface level={1} padded={false} className={styles.identity}>
+          <span className={styles.avatar} aria-hidden="true">
+            {publicUser.profilePictureUrl ? (
+              <img
+                className={styles.avatarImage}
+                src={publicUser.profilePictureUrl}
+                alt=""
+                width={48}
+                height={48}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              profileInitial(publicUser)
+            )}
+          </span>
+          <p className={styles.name}>
+            {hasName ? profileDisplayName(publicUser) : <OverflowText text={publicUser.email} />}
+          </p>
+          {hasName && (
+            <p className={styles.email}>
+              <OverflowText text={publicUser.email} />
+            </p>
           )}
-          <div>
-            <dt>Email verified</dt>
-            <dd>{publicUser.emailVerified ? "Yes" : "No"}</dd>
-          </div>
-        </dl>
-        <p className={styles.disclosure}>
-          Session is stored in an encrypted httpOnly cookie. Tokens never reach
-          browser JavaScript. Repo content is not part of this account session.
-        </p>
-        <div className={styles.actions}>
           <AccountSignOutButton />
-          <Link className={`${buttonStyles.button} ${buttonStyles.ghost}`} href="/">
-            Back home
-          </Link>
-        </div>
-      </Surface>
-    </AppShell>
+        </Surface>
+      </section>
+
+      <section className={styles.connections} aria-labelledby="connections-heading">
+        <h2 id="connections-heading" className={styles.eyebrow}>
+          Connections
+        </h2>
+        <AccountGitHubConnection workosUserId={user.id} status={params.github} />
+      </section>
+    </AccountFrame>
   );
 }

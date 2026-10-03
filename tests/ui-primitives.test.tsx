@@ -8,6 +8,7 @@ import {
   ErrorState,
   InspectionSurface,
   LoadingState,
+  OverflowText,
   Surface,
 } from "@/components/ui";
 
@@ -33,6 +34,13 @@ describe("ui primitives", () => {
     expect(html).toContain("abc123def456");
     expect(html).toContain("Copy"); // hint (becomes "Copied ✓" after a copy)
     expect(html).toContain('aria-live="polite"');
+  });
+
+  test("OverflowText renders the full string at rest, never a truncated copy", () => {
+    const email = "alexander.joshua.longname@coalescence-labs.example.com";
+    const html = renderToStaticMarkup(<OverflowText text={email} />);
+    expect(html).toContain(email);
+    expect(html).toContain('data-phase="rest"');
   });
 
   test("Surface renders children at every level", () => {

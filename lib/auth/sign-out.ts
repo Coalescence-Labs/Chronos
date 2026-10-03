@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { destroyGitHubAppSession } from "@/lib/github-app/session";
 import { workosRedirectUri } from "./config";
 import { sameOriginReturnUrl } from "./return-url";
 
@@ -87,6 +88,9 @@ export async function chronosSignOut(returnPath: string = "/"): Promise<void> {
       jar.delete(cookie.name);
     }
   }
+
+  // COA-202: GitHub App install session is a separate cookie — clear with logout.
+  await destroyGitHubAppSession();
 
   redirect(await sameOriginReturnUrl(returnPath));
 }

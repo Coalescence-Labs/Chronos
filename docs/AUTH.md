@@ -98,11 +98,107 @@ Redirect URI env name AuthKit actually reads:
 | Concern | Mechanism | Issue |
 |---------|-----------|-------|
 | **Sign in with GitHub** (identity) | WorkOS social connection — profile/email for the Chronos account | COA-200 |
-| **Connect GitHub for repos** (API access, rate limits, private later) | Separate GitHub OAuth app / BFF token (decision #7) | COA-79 / COA-202 |
+| **Connect GitHub for repos** (API access, rate limits, private repos) | Chronos **GitHub App** install + BFF `gh-session` (decision #7) | COA-202 (public picker UI still COA-79) |
 
 These must not be conflated. WorkOS GitHub login does **not** grant Chronos a
-GitHub API token for ingestion. Repo OAuth remains a distinct consent +
+GitHub API token for ingestion. App install remains a distinct consent +
 privacy surface.
+
+**Reversible choice (owner-ratified for this PR):** user installs the Chronos
+GitHub App; Chronos seals `installationId` (+ account login) in encrypted
+httpOnly `gh-session`; BFF mints short-lived installation access tokens with
+the App private key. No OAuth App authorize/code-exchange path.
+
+
+## GitHub App connect (COA-202)
+
+After WorkOS sign-in, `/account` offers **Install GitHub App**. Flow:
+
+```
+Browser ──► /api/github/connect ──► GitHub App install UI
+                ▲                         │
+                │                         ▼
+     /api/github/callback ◄── installation_id + state
+                │
+                ▼
+     seal installationId in gh-session (iron-session)
+     persist binding in WorkOS user metadata (chronosGh* keys)
+     redirect /account?github=connected
+```
+
+| Path | Role |
+|------|------|
+| `/api/github/connect` | Start App install (requires WorkOS user) |
+| `/api/github/callback` | Setup URL; seals `installationId`; never returns tokens |
+| `/api/github/disconnect` | **POST only** — clears `gh-session` + best-effort uninstall |
+| `/api/github/status` | Public `{ connected, login, permissions, connectedAt, configured }` |
+
+BFF `/api/repo*` mints an installation access token when a matching session
+exists (including rehydrated from metadata), else optional `GITHUB_TOKEN` app
+pool, else anonymous.
+
+### Durable install binding (WorkOS metadata — owner-ratified)
+
+GitHub App connect stores a **non-token** binding in WorkOS user metadata so
+users stay connected across sign-out / sign-in without reinstalling:
+
+| Key | Value |
+|-----|--------|
+| `chronosGhInstallationId` | GitHub App installation id (string) |
+| `chronosGhAccountLogin` | Account login shown on `/account` |
+| `chronosGhAccountType` | `User` or `Organization` |
+| `chronosGhConnectedAt` | ISO timestamp (first connect; preserved on repo change) |
+| `chronosGhPermissions` | e.g. `contents:read,metadata:read` |
+
+WorkOS limits: ≤10 metadata keys, key ≤40 chars, value ≤600 chars. No tokens,
+no repo content.
+
+| Action | `wos-session` | `gh-session` | WorkOS metadata | GitHub App install |
+|--------|---------------|--------------|-----------------|-------------------|
+| **Connect / callback** | (signed in) | write | write | user installs |
+| **Sign-out** | clear | clear | **keep** | **keep** |
+| **Disconnect** | (signed in) | clear | clear | best-effort uninstall |
+| **Sign-in (return)** | write | rehydrate from metadata if missing | read | unchanged |
+
+Rehydrate **must** run in a Route Handler (e.g. `GET /api/github/status` or
+BFF `/api/repo*`) — Next.js does not apply `Set-Cookie` from RSC render.
+`/account` reads a warm `gh-session` synchronously; if only metadata exists it
+calls `/api/github/status` once to seal the cookie, then later loads skip that
+step.
+
+If metadata references a revoked installation, Chronos clears the metadata keys
+and treats the user as disconnected.
+
+### Shared browser / cross-account safety
+
+`gh-session` is a single browser cookie, not namespaced per WorkOS user. Chronos
+**never** trusts it without checking the sealed `workosUserId` against the active
+AuthKit user (`readGitHubAppSessionForUser`). A leftover cookie from user A after
+sign-out is ignored when user B signs in — resolve returns no session, the BFF
+does not mint installation tokens from the stale binding, and Route Handlers only
+re-seal `gh-session` after metadata rehydrate for **B** (`persistSession: true`).
+
+WorkOS `chronosGh*` metadata is stored **on the WorkOS user record** (keyed by
+user id). It is not readable across accounts and is not a cross-user leak; it
+exists so the **same** user can sign back in without reinstalling the GitHub App.
+Sign-out clears cookies only; disconnect clears metadata + uninstall.
+
+No multi-repo switcher (COA-201).
+
+**Change repos** on `/account` re-enters `/api/github/connect` (fresh state),
+so GitHub's configure screen returns through the same validated callback; the
+callback keeps the original `connectedAt` when the installation id is unchanged.
+
+### Owner setup (GitHub App)
+
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps).
+2. Permissions: **Contents → Read-only**, **Metadata → Read-only**. No write.
+3. Setup URL: `http://localhost:3005/api/github/callback` (and production).
+   Enable **Redirect on update** so Change repos lands back on `/account`.
+4. Webhooks: optional — disable or leave unused for v1 connect-only.
+5. Generate a private key (PEM); note App ID and slug.
+6. Env (see `.env.example`): `GITHUB_APP_ID`, `GITHUB_APP_SLUG`,
+   `GITHUB_APP_PRIVATE_KEY`, `GITHUB_SESSION_PASSWORD` (≥32 chars).
 
 ## Dashboard setup (owner)
 
@@ -163,5 +259,4 @@ See `.env.example`. Required for auth (all or nothing): `WORKOS_CLIENT_ID`,
 ## Out of scope here
 
 - Multi-repo switcher UI — [COA-201](https://linear.app/coalescence-labs/issue/COA-201)
-- Private-repo GitHub connect — [COA-202](https://linear.app/coalescence-labs/issue/COA-202)
 - AI features / ZDR provider (open decisions #4 / #5)

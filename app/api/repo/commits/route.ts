@@ -1,5 +1,6 @@
 import type { CommitsPageResponse } from "@/lib/ingest/api";
 import { IngestError } from "@/lib/ingest/errors";
+import { githubAuthForRequest } from "@/lib/ingest/github/auth";
 import { fetchCommitPage } from "@/lib/ingest/github/fetch";
 import { parseRepoInput } from "@/lib/ingest/github/parse";
 import { errorResponse, jsonResponse } from "@/lib/ingest/respond";
@@ -24,8 +25,9 @@ export async function GET(request: Request): Promise<Response> {
       throw new IngestError("invalid-input", "Invalid commit or branch reference.");
     }
     const page = Number(searchParams.get("page") ?? "1");
+    const auth = await githubAuthForRequest();
 
-    const result = await fetchCommitPage(id, sha, page);
+    const result = await fetchCommitPage(id, sha, page, auth);
     const body: CommitsPageResponse = {
       commits: result.commits,
       nextPage: result.hasMore ? page + 1 : null,
