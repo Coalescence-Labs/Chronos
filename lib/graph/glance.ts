@@ -19,7 +19,9 @@ import type { CommitNode, RepoHistory } from "./types";
  *    node (its real tip is kept, so selection/inspection still work), staying
  *    visible until it lands in default.
  *
- * If the default branch can't be identified, glance is a no-op (applied=false).
+ * Default branch: prefer the ingest/API name (`defaultBranch`) when provided
+ * (COA-211); otherwise fall back to a main/master/trunk name heuristic, then
+ * HEAD. If still unidentified, glance is a no-op (applied=false).
  */
 
 export interface GlanceFlags {
@@ -49,18 +51,37 @@ const GLANCE_OFF: GlanceFlags = {
   collapseMergedIntoNonDefault: false,
 };
 
-function isDefaultName(name: string): boolean {
+function isHeuristicDefaultName(name: string): boolean {
   const base = name.toLowerCase();
   return base === "main" || base === "master" || base === "trunk";
 }
 
-/** The default branch tip: a main/master/trunk ref, else HEAD's target. */
-function defaultTipSha(history: RepoHistory): string | undefined {
+/**
+ * Resolve the default branch tip + canonical name.
+ * API name wins when that branch ref is present; else main/master/trunk;
+ * else HEAD's sha (name unknown — open-tip filtering still uses the heuristic).
+ */
+function resolveDefault(
+  history: RepoHistory,
+  defaultBranch?: string,
+): { tipSha: string; name?: string } | undefined {
+  if (defaultBranch) {
+    const api = history.refs.find(
+      (ref) => ref.type === "branch" && ref.name === defaultBranch,
+    );
+    if (api) return { tipSha: api.sha, name: api.name };
+  }
   const named = history.refs.find(
-    (ref) => ref.type === "branch" && isDefaultName(ref.name),
+    (ref) => ref.type === "branch" && isHeuristicDefaultName(ref.name),
   );
-  if (named) return named.sha;
-  return history.refs.find((ref) => ref.type === "head")?.sha;
+  if (named) return { tipSha: named.sha, name: named.name };
+  const head = history.refs.find((ref) => ref.type === "head");
+  return head ? { tipSha: head.sha } : undefined;
+}
+
+function isDefaultRef(name: string, defaultName: string | undefined): boolean {
+  if (defaultName !== undefined) return name === defaultName;
+  return isHeuristicDefaultName(name);
 }
 
 /** First-parent chain from a tip — the branch's own spine. */
@@ -77,6 +98,8 @@ function firstParentChain(tipSha: string, bySha: Map<string, CommitNode>): Set<s
 export function applyGlance(
   history: RepoHistory,
   flags: GlanceFlags = GLANCE_OFF,
+  /** GitHub/API default branch name when known; falls back to name heuristic. */
+  defaultBranch?: string,
 ): GlanceResult {
   const capsules = new Map<string, Capsule>();
   if (!flags.hideMergedIntoDefault && !flags.collapseMergedIntoNonDefault) {
@@ -88,11 +111,12 @@ export function applyGlance(
     if (!bySha.has(commit.sha)) bySha.set(commit.sha, commit);
   }
 
-  const defaultTip = defaultTipSha(history);
-  if (defaultTip === undefined || !bySha.has(defaultTip)) {
+  const resolved = resolveDefault(history, defaultBranch);
+  if (resolved === undefined || !bySha.has(resolved.tipSha)) {
     // Can't determine the default branch → feature is a no-op.
     return { history, capsules, applied: false };
   }
+  const { tipSha: defaultTip, name: defaultName } = resolved;
 
   const reachableDefault = reachableFrom([defaultTip], bySha);
   const defaultSpine = firstParentChain(defaultTip, bySha);
@@ -103,7 +127,7 @@ export function applyGlance(
   // most of history would shield every already-landed feature.
   const openTips = new Set<string>();
   for (const ref of history.refs) {
-    if (ref.type !== "branch" || isDefaultName(ref.name)) continue;
+    if (ref.type !== "branch" || isDefaultRef(ref.name, defaultName)) continue;
     if (bySha.has(ref.sha) && !reachableDefault.has(ref.sha)) openTips.add(ref.sha);
   }
   const openSpines = new Set<string>();
@@ -153,7 +177,7 @@ export function applyGlance(
       // not the default, not itself an open branch tip, not yet in default,
       // but reachable from one — and long enough to be worth folding.
       if (
-        isDefaultName(line.name) ||
+        isDefaultRef(line.name, defaultName) ||
         openTips.has(line.tipSha) ||
         reachableDefault.has(line.tipSha) ||
         !reachableOpen.has(line.tipSha)
