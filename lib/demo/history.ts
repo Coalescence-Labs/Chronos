@@ -108,11 +108,19 @@ export function demoHistory(): RepoHistory {
   main = add("Scaffold app shell and design tokens", [main], "ada");
 
   let develop = add("Wire normalized git model", [main], "margaret");
+  // Tips of develop-staged features that still have a live ref after merge
+  // (COA-209 regression shape — Glance must capsule-collapse these too).
+  const liveStagedTips: Ref[] = [];
 
   for (const feature of FEATURES) {
     let branch = develop;
     for (const message of feature.commits) {
       branch = add(message, [branch], feature.by);
+    }
+    // Keep a live ref on the last develop-only feature so Glance Feature B
+    // exercises the live-tip-already-merged path (not only merge-message recovery).
+    if (feature.name === "feature/open-edges") {
+      liveStagedTips.push({ name: feature.name, type: "branch", sha: branch });
     }
     develop = add(`Merge ${feature.name} into develop`, [develop, branch], "ada");
 
@@ -142,6 +150,7 @@ export function demoHistory(): RepoHistory {
     { name: "develop", type: "branch", sha: develop },
     { name: "feature/ai-branch-summaries-zdr-spike", type: "branch", sha: wip },
     { name: "feature/perf-budget", type: "branch", sha: perf },
+    ...liveStagedTips,
     ...tags,
   ];
 
