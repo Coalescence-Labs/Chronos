@@ -75,6 +75,7 @@ Chronos/
     DESIGN.md               # visual language + polish bar
     PRIVACY.md              # security + ZDR model
     AUTH.md                 # WorkOS AuthKit accounts (COA-200)
+    adr/                    # decision records (006 = rate limits & caching, proposed)
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
   app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /callback + /sign-in AuthKit; /account; /styleguide; /repo/[owner]/[repo] = graph view; /demo = synthetic graph, no network)
