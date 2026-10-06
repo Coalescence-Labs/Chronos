@@ -1,3 +1,16 @@
+.home {
+  position: relative;
+  isolation: isolate;
+}
+
+:global(html):has(.home) {
+  overscroll-behavior-y: none;
+}
+
+.home :global(main) {
+  overscroll-behavior-y: contain;
+}
+
 .hero {
   flex: 1;
   display: grid;
@@ -45,6 +58,24 @@
 
 .demoHint a:hover {
   color: var(--accent-strong);
+}
+
+.footer {
+    place-self: center;
+    display: grid;
+    place-items: center;
+    max-width: 38rem;
+    font-size: var(--text-xs);
+    line-height: var(--leading-tight);
+}
+
+.footerInner {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
 }
 
 .disclosure {

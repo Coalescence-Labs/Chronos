@@ -87,6 +87,7 @@ Chronos/
     demo/                   # deterministic synthetic history backing /demo
     ai/                     # empty until decisions #4/#5 resolve
   components/
+    background/             # HomePageBackground: cached Chronos graph geometry + frosted layer
     graph/                  # GraphView: virtualized SVG renderer over layout output
     repo/                   # GraphExplorer (layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm
     auth/                   # AuthProvider + minimal AccountControls (no multi-repo switcher) + GitHubConnectionCard (/account)
@@ -96,7 +97,7 @@ Chronos/
   proxy.ts                  # Next.js 16 AuthKit session refresh (auth optional; public routes stay open)
   docs/AUTH.md              # WorkOS accounts, MFA/passkeys investigation, GitHub-login vs repo-OAuth split
   public/                   # fonts (Satoshi), PWA icons, sw.js
-  scripts/                  # generate-icons.ts (regenerates PWA icons from tokens)
+  scripts/                  # generate-icons.ts (PWA icons), capture-home-graph.ts (offline origin/main geometry)
   tests/                    # bun test suites (boundaries, ingest, design tokens, pwa, graph layout/view/pipeline)
     e2e/                    # Playwright (*.e2e.ts; bun run test:e2e) — phone + laptop projects, BFF mocked
 ```

@@ -76,6 +76,22 @@ bun run typecheck  # tsc --noEmit (TypeScript strict)
 
 Contributors and agents: read [AGENTS.md](AGENTS.md) first.
 
+### Home graph snapshot
+
+The frosted, slowly scrolling home background uses a compact snapshot of Chronos's
+latest 80 published commits, generated with the repo view's layout and SVG paths.
+It uses the repo view's left inset and 100% zoom dimensions, without stretching.
+Only geometry is saved; home visits and builds never fetch or regenerate it.
+Reduced-motion preferences keep it still. Refresh explicitly:
+
+```bash
+git fetch origin main
+bun run capture:home-graph
+```
+
+Capture requires the Chronos origin and reads only `origin/main`. The generated
+asset lives at `components/background/chronos-graph.json`.
+
 ## License
 
 [Apache License 2.0](LICENSE) — Copyright 2026 Coalescence Labs. Free to use, fork, self-host, and modify, with an explicit patent grant.

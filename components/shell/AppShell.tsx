@@ -36,12 +36,14 @@ function BrandMark() {
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, skipLink = true }: { children: ReactNode; skipLink?: boolean }) {
   return (
     <div className={styles.shell}>
-      <a className={styles.skipLink} href="#main">
-        Skip to content
-      </a>
+      {skipLink && (
+        <a className={styles.skipLink} href="#main">
+          Skip to content
+        </a>
+      )}
       <header className={styles.header}>
         <Link className={styles.brand} href="/">
           <BrandMark />
