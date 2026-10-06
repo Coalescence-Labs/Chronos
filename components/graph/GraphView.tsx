@@ -11,6 +11,14 @@ import {
 import { track } from "@/lib/analytics";
 import { attributeBranches, packShelves, pinnedLines } from "@/lib/graph";
 import type { Capsule, EdgeKind, GraphLayout, RepoHistory } from "@/lib/graph";
+import {
+  BASE_EDGE_WIDTH,
+  BASE_LANE_WIDTH,
+  BASE_NODE_RADIUS,
+  BASE_ROW_HEIGHT,
+  edgePath,
+  laneColor,
+} from "./geometry";
 import styles from "./graph.module.css";
 
 /**
@@ -29,17 +37,10 @@ import styles from "./graph.module.css";
  * - merges read by shape, not color alone: merge commits are hollow rings
  */
 
-const BASE_ROW_HEIGHT = 44; // --touch-target at zoom 1
-const BASE_LANE_WIDTH = 18;
 const OVERSCAN_ROWS = 10;
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 1.75;
 const ZOOM_STEP = 1.2;
-const LANE_COLOR_COUNT = 8; // --lane-0 … --lane-7 in app/globals.css
-
-function laneColor(lane: number): string {
-  return `var(--lane-${lane % LANE_COLOR_COUNT})`;
-}
 
 /** Long-term branches render as filled pills (main is always lane 0). */
 function branchRole(name: string): "main" | "develop" | undefined {
@@ -61,43 +62,6 @@ function estimateBadgeWidth(name: string): number {
 }
 
 const SHELF_HEIGHT = 26;
-
-/**
- * Child→parent path: drop out of the child, travel down the via lane, and
- * curve into the parent. Bends are smooth half-row S-curves; the degenerate
- * one-row gap collapses to a single curve.
- */
-function edgePath(
-  x0: number,
-  y0: number,
-  xVia: number,
-  x1: number,
-  y1: number,
-  rowHeight: number,
-): string {
-  if (x0 === xVia && xVia === x1) return `M ${x0} ${y0} L ${x1} ${y1}`;
-  if (y1 - y0 <= rowHeight) {
-    const yMid = (y0 + y1) / 2;
-    return `M ${x0} ${y0} C ${x0} ${yMid}, ${x1} ${yMid}, ${x1} ${y1}`;
-  }
-  const parts = [`M ${x0} ${y0}`];
-  let yCursor = y0;
-  if (xVia !== x0) {
-    const yBend = y0 + rowHeight;
-    const yMid = y0 + rowHeight / 2;
-    parts.push(`C ${x0} ${yMid}, ${xVia} ${yMid}, ${xVia} ${yBend}`);
-    yCursor = yBend;
-  }
-  if (xVia !== x1) {
-    const yBend = y1 - rowHeight;
-    if (yBend > yCursor) parts.push(`L ${xVia} ${yBend}`);
-    const yMid = y1 - rowHeight / 2;
-    parts.push(`C ${xVia} ${yMid}, ${x1} ${yMid}, ${x1} ${y1}`);
-  } else {
-    parts.push(`L ${xVia} ${y1}`);
-  }
-  return parts.join(" ");
-}
 
 export interface GraphViewProps {
   history: RepoHistory;
@@ -462,8 +426,8 @@ export function GraphView({
     (edge) => edge.fromRow >= startRow && edge.fromRow < endRow,
   );
 
-  const nodeRadius = Math.max(3.5, 4.5 * zoom);
-  const edgeWidth = Math.max(1.25, 1.75 * zoom);
+  const nodeRadius = Math.max(3.5, BASE_NODE_RADIUS * zoom);
+  const edgeWidth = Math.max(1.25, BASE_EDGE_WIDTH * zoom);
 
   // Sticky badges (variant B): a branch whose tip scrolled off the top keeps
   // its name pinned to its lane at the top edge while the line is in view.

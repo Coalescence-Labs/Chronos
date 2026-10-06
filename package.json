@@ -11,7 +11,8 @@
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
     "typecheck": "tsc --noEmit",
-    "shot": "bun scripts/screenshot.mjs"
+    "shot": "bun scripts/screenshot.mjs",
+    "capture:home-graph": "bun scripts/capture-home-graph.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

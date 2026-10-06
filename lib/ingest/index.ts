@@ -43,4 +43,4 @@ export const githubPublicUrlAdapter: IngestAdapter = {
  * is submitted, so proxying is disclosed before any data flows.
  */
 export const PROXY_DISCLOSURE =
-  "Public repo data is fetched through the Chronos server, used only to draw your graph, and never stored or logged.";
+  "Repo data passes through our server only to draw your graph — never stored, never logged.";

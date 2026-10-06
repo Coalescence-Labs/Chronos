@@ -39,6 +39,27 @@ How it works and what this document binds:
 
 Default bias remains: minimize what *rests* on our servers, and never retain or train on repo data.
 
+## Home background snapshot (COA-204)
+
+The owner's requested background is a static asset from Chronos's own public
+history. Visitor repo ingestion retains its zero-persistence posture.
+
+### Privacy pre-flight — COA-204 (home background)
+
+1. **What leaves:** node coordinates, merge flags, edge paths, lane indices, and
+   canvas dimensions from 80 locally fetched `Coalescence-Labs/Chronos` commits.
+   No messages, authors, dates, SHAs, labels, secrets, or visitor data are saved.
+2. **Where:** checked into the project and served by Vercel. Capture uses local
+   git; no new API, analytics, or third-party request.
+3. **Minimum:** bounded geometry from `origin/main` only; capture requires the
+   Chronos GitHub origin and excludes local branches and work.
+4. **Retention & training:** the asset persists until refreshed or removed;
+   no AI provider or training path.
+5. **Consent:** the owner requested this public graph; visitors submit no data.
+6. **Least privilege:** no new scopes or credentials; logs show only path and count.
+7. **Untrusted input:** paths are generated from numeric layout coordinates and
+   rendered through React SVG props.
+
 ## GitHub repo connection (COA-202)
 
 Account-linked **GitHub App** install for **private repos + authenticated rate limits**. Distinct from WorkOS "Sign in with GitHub" (identity only — see [AUTH.md](AUTH.md)). Owner decision: GitHub App over OAuth App (stricter, truly read-only permissions).

@@ -153,6 +153,10 @@
   padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   text-align: center;
+  background-color: color-mix(in srgb, var(--bg) 55%, transparent);
+  background-image:
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--bg) 70%, transparent), transparent 75%),
+    var(--glass-bg);
 }
 
 .footerTheme {
