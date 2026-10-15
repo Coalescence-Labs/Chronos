@@ -11,6 +11,7 @@
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
     "typecheck": "tsc --noEmit",
+    "bench:performance": "bun scripts/benchmark-performance.ts",
     "shot": "bun scripts/screenshot.mjs",
     "capture:home-graph": "bun scripts/capture-home-graph.ts"
   },

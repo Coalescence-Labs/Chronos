@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { GraphView } from "@/components/graph/GraphView";
-import { CopyButton, InspectionSurface } from "@/components/ui";
+import { CopyButton } from "@/components/ui/CopyButton";
+import { InspectionSurface } from "@/components/ui/InspectionSurface";
 import { layoutMsBucket, sizeBucket, track } from "@/lib/analytics";
 import type { SizeBucket } from "@/lib/analytics";
-import { applyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
-import type { Capsule, RepoHistory } from "@/lib/graph";
+import { canApplyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
+import type { Capsule, GlanceResult, RepoHistory } from "@/lib/graph";
+import type { GlanceWorkerClient } from "./glance-worker-client";
 import styles from "./repo.module.css";
 
 /**
@@ -17,14 +19,22 @@ import styles from "./repo.module.css";
  * progressively) and /demo (synthetic history, no network).
  *
  * Layout runs synchronously in useMemo — the perf test on the 20k-commit
- * fixture keeps it inside budget, so no worker yet (revisit if that fails).
+ * fixture keeps it inside budget. Glance runs on demand in a worker.
  */
 
 const PHONE_MAX_LANES = 8;
 const PHONE_BREAKPOINT = 700;
 
-const GLANCE_ON = { hideMergedIntoDefault: true, collapseMergedIntoNonDefault: true };
 const NO_CAPSULES: Map<string, Capsule> = new Map();
+
+interface GlanceState {
+  repoKey: string;
+  request: number;
+  history: RepoHistory;
+  defaultBranch?: string;
+  result?: GlanceResult;
+  failed?: boolean;
+}
 
 export interface GraphExplorerProps {
   history: RepoHistory;
@@ -52,8 +62,57 @@ export function GraphExplorer({
 }: GraphExplorerProps) {
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [glance, setGlance] = useState(false);
+  const [glanceRequest, setGlanceRequest] = useState(0);
   const [reflowing, setReflowing] = useState(false);
   const [maxLanes, setMaxLanes] = useState(DEFAULT_MAX_LANES);
+  const glanceClientRef = useRef<GlanceWorkerClient | null>(null);
+  const [glanceState, setGlanceState] = useState<GlanceState | null>(null);
+  const repoKey = `${owner}/${repo}`;
+  const canGlance = useMemo(() => canApplyGlance(history, defaultBranch), [history, defaultBranch]);
+  const currentGlance = glanceState?.repoKey === repoKey && glanceState.history === history && glanceState.defaultBranch === defaultBranch
+    ? glanceState : null;
+  const displayedGlance = currentGlance ?? (glanceState?.repoKey === repoKey && glanceState.request === glanceRequest ? glanceState : null);
+  const active = glance && canGlance && displayedGlance?.result?.applied === true;
+  const busy = glance && canGlance && !currentGlance?.result;
+  const glanceFailed = !glance && currentGlance?.failed;
+  const view = active ? displayedGlance.result!.history : history;
+  const capsules = active ? displayedGlance.result!.capsules : NO_CAPSULES;
+
+  useEffect(() => {
+    if (!glance || !canGlance) return;
+    let current = true;
+    const fail = () => {
+      if (!current) return;
+      current = false;
+      glanceClientRef.current?.cancel();
+      setGlanceState({ repoKey, request: glanceRequest, history, defaultBranch, failed: true });
+      setGlance(false);
+    };
+    const timer = setTimeout(fail, 15_000);
+    const calculate = async () => {
+      const { GlanceWorkerClient } = await import("./glance-worker-client");
+      if (!current) return;
+      const client = glanceClientRef.current ??= new GlanceWorkerClient();
+      const result = await client.calculate(history, defaultBranch);
+      clearTimeout(timer);
+      if (current) setGlanceState({ repoKey, request: glanceRequest, history, defaultBranch, result });
+    };
+    calculate().catch((error: Error) => {
+      if (!current || error.name === "AbortError") return;
+      clearTimeout(timer);
+      fail();
+    });
+    return () => {
+      current = false;
+      clearTimeout(timer);
+      glanceClientRef.current?.cancel();
+    };
+  }, [glance, canGlance, history, defaultBranch, repoKey, glanceRequest]);
+
+  useEffect(() => () => {
+    glanceClientRef.current?.dispose();
+    glanceClientRef.current = null;
+  }, []);
 
   useEffect(() => {
     const update = () =>
@@ -73,26 +132,15 @@ export function GraphExplorer({
       return;
     }
     setReflowing(true);
-    track({ name: "interaction", props: { kind: "glance" } }); // user toggled Glance
     const timer = setTimeout(() => setReflowing(false), 280);
     return () => clearTimeout(timer);
-  }, [glance]);
+  }, [active]);
 
   // A commit opening in the inspector is an "inspect" interaction (whether via
   // click, keyboard, or a pinned-badge jump); deselecting (→ null) isn't.
   useEffect(() => {
     if (selectedSha) track({ name: "interaction", props: { kind: "inspect" } });
   }, [selectedSha]);
-
-  // One glance transform per history; reused to both gate the toggle (applied
-  // is false when no default branch) and supply the glanced view when on.
-  const glanced = useMemo(
-    () => applyGlance(history, GLANCE_ON, defaultBranch),
-    [history, defaultBranch],
-  );
-  const canGlance = glanced.applied;
-  const view = glance && canGlance ? glanced.history : history;
-  const capsules = glance && canGlance ? glanced.capsules : NO_CAPSULES;
 
   const layout = useMemo(() => layoutGraph(view, { maxLanes }), [view, maxLanes]);
 
@@ -134,9 +182,12 @@ export function GraphExplorer({
           <span className={styles.repoSlash}>/</span>
           {repo}
         </h1>
-        {status && (
+        {(status || busy || glanceFailed) && (
           <p className={styles.status} role="status">
             {status}
+            {(busy || glanceFailed) && status && " · "}
+            {busy && "preparing Glance…"}
+            {glanceFailed && "couldn't apply Glance · try again"}
           </p>
         )}
         <div className={styles.actions}>
@@ -156,14 +207,19 @@ export function GraphExplorer({
           <button
             type="button"
             className={`${styles.glanceToggle} ${styles.glanceHoverB}`}
-            aria-pressed={glance}
+            aria-pressed={active}
+            aria-busy={busy}
             disabled={!canGlance}
             title={
               canGlance
                 ? "Hide merged branches and collapse staged ones"
                 : "Glance needs an identifiable default branch"
             }
-            onClick={() => setGlance((on) => !on)}
+            onClick={() => {
+              track({ name: "interaction", props: { kind: "glance" } });
+              if (!glance) setGlanceRequest((request) => request + 1);
+              setGlance((on) => !on);
+            }}
           >
             Glance
           </button>

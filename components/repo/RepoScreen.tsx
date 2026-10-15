@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 import { msBucket, track } from "@/lib/analytics";
 import type { RepoHistory } from "@/lib/graph";
 import {

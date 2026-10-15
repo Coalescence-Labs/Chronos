@@ -39,6 +39,46 @@ How it works and what this document binds:
 
 Default bias remains: minimize what *rests* on our servers, and never retain or train on repo data.
 
+## Route preparation and browser-local Glance
+
+The owner approved intent-based route preparation and a browser-local Glance
+worker on 2026-10-13. The existing home disclosure now explains that entering
+an address can prepare a page before submission; history is fetched afterwards.
+
+### Privacy pre-flight — approved performance batch
+
+1. **What leaves:** validated `owner` and `repo` in the existing
+   `/repo/[owner]/[repo]` route request when a valid address is pasted or
+   Visualize receives keyboard focus or sustained hover. Input queries,
+   fragments and unrelated URL fields are stripped by `parseRepoInput`.
+   No history, commits or refs are fetched by route prefetch. Glance passes
+   normalized commit fields (sha, parents, author, date, message) and refs
+   (name, type, sha) to a worker **inside the same browser**, not to a server.
+2. **Where:** route/code preparation goes to Chronos's existing origin; the
+   worker's code is a same-origin static asset. The worker performs no fetch,
+   analytics, AI or third-party call with repo data.
+3. **Minimum:** one validated route per intent, deduplicated for 30 seconds;
+   hover is delayed 150ms and cancelled on submit, pointer leave/down, input
+   changes or unmount. Home hydration prepares demo and repo-view code without
+   sending a visitor's repo identity. History ingestion still begins only on
+   navigation.
+4. **Retention & training:** existing Chronos zero-persistence/no-content-log
+   policy applies. Next's route cache and one computed Glance snapshot are
+   in tab memory; no durable repo cache, extra telemetry or AI/training path.
+   The worker and its derived snapshot are released when the explorer unmounts.
+5. **Consent:** deliberate address entry plus paste/focus/hover intent; the
+   home proxy disclosure is visible before submission and names the earlier
+   address request. Warming does not submit or display a repository.
+6. **Least privilege:** no new scopes, credentials or installation permissions.
+   Sign-in/connect/disconnect actions are never prefetched. Existing httpOnly
+   session refresh may accompany same-origin route requests; the auth/session
+   data flow remains the one documented under COA-200.
+7. **Secrets:** worker messages contain no tokens or session data; no new
+   repo-content, identifier or error-content logging.
+8. **Untrusted input:** existing input validation constructs the route; React
+   renders repo text as text. Commit messages and refs never become executable
+   worker source or request destinations.
+
 ## Home background snapshot (COA-204)
 
 The owner's requested background is a static asset from Chronos's own public

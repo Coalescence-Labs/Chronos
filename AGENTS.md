@@ -75,6 +75,7 @@ Chronos/
     DESIGN.md               # visual language + polish bar
     PRIVACY.md              # security + ZDR model
     AUTH.md                 # WorkOS AuthKit accounts (COA-200)
+    PERFORMANCE.md          # navigation baseline, <250ms goal, proposed improvements
     adr/                    # decision records (006 = rate limits & caching, proposed)
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
@@ -89,7 +90,7 @@ Chronos/
   components/
     background/             # HomePageBackground: cached Chronos graph geometry + frosted layer
     graph/                  # GraphView: virtualized SVG renderer over layout output
-    repo/                   # GraphExplorer (layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm
+    repo/                   # GraphExplorer (on-demand Glance worker -> layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm (intent prefetch)
     auth/                   # AuthProvider + minimal AccountControls (no multi-repo switcher) + GitHubConnectionCard (/account)
     ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
     shell/                  # AppShell (responsive scaffold)
@@ -98,6 +99,7 @@ Chronos/
   docs/AUTH.md              # WorkOS accounts, MFA/passkeys investigation, GitHub-login vs repo-OAuth split
   public/                   # fonts (Satoshi), PWA icons, sw.js
   scripts/                  # generate-icons.ts (PWA icons), capture-home-graph.ts (offline origin/main geometry)
+                            # benchmark-performance.ts (synthetic production navigation + graph compute)
   tests/                    # bun test suites (boundaries, ingest, design tokens, pwa, graph layout/view/pipeline)
     e2e/                    # Playwright (*.e2e.ts; bun run test:e2e) — phone + laptop projects, BFF mocked
 ```

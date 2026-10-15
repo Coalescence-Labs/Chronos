@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { RepoScreen } from "@/components/repo/RepoScreen";
-import { AppShell } from "@/components/shell/AppShell";
 import { repoMetadata } from "@/lib/seo";
 
 interface RepoPageProps {
@@ -14,9 +13,5 @@ export async function generateMetadata({ params }: RepoPageProps): Promise<Metad
 
 export default async function RepoPage({ params }: RepoPageProps) {
   const { owner, repo } = await params;
-  return (
-    <AppShell>
-      <RepoScreen owner={decodeURIComponent(owner)} repo={decodeURIComponent(repo)} />
-    </AppShell>
-  );
+  return <RepoScreen owner={decodeURIComponent(owner)} repo={decodeURIComponent(repo)} />;
 }

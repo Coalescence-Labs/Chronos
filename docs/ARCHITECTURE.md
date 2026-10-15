@@ -71,6 +71,22 @@ These are unresolved. Resolve them deliberately (with the owner), then move the 
 
 The promise is "at a glance" — so **time-to-first-useful-graph** is the headline metric. Big repos must not hang the main thread (consider web workers for layout). Set a perf budget when render tech (#2) is chosen.
 
+The owner's navigation goal is **every page transition below 250ms**, including
+slower connections. The initial production-build baseline, measurement limits,
+and proposed implementation sequence live in [PERFORMANCE.md](PERFORMANCE.md).
+Destination paint and first useful graph are measured separately; a loading
+surface alone does not meet the useful-graph goal. Cache policy remains proposed
+under decision #6.
+
+Approved performance batch (2026-10-13): Glance uses the same pure transform
+in a browser worker loaded on request, with cancellation, generation checks and
+one mount-scoped derived result. Layout remains synchronous. Validated repo
+intent warms route/code only; history ingestion still begins on navigation.
+Repo routes share an AppShell layout and retain RepoScreen's existing loading
+surface. An additional route Suspense boundary was rejected after measurement
+showed it delayed unprepared graph readiness by about 300ms.
+See [PRIVACY.md](PRIVACY.md#route-preparation-and-browser-local-glance).
+
 ## Module boundaries to preserve
 
 - `lib/ingest/*` — source-specific adapters → normalized model. Swappable (URL / GitHub / local).
