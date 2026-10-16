@@ -43,4 +43,4 @@ export const githubPublicUrlAdapter: IngestAdapter = {
  * is submitted, so proxying is disclosed before any data flows.
  */
 export const PROXY_DISCLOSURE =
-  "Repo data passes through our server only to draw your graph — never stored, never logged.";
+  "Entering an address can send it to our server to prepare the page. Repo history is fetched after you submit — only to draw your graph, never stored or logged.";

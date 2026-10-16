@@ -1,0 +1,12 @@
+---
+description: Chronos branch naming — purpose prefixes only, never t3code
+alwaysApply: true
+---
+
+# Branch naming
+
+Follow [AGENTS.md](AGENTS.md) §4, the canonical branch naming policy.
+
+- Use a lowercase purpose prefix: `feature/`, `bugfix/`, `hotfix/`, `maintenance/`, `perf/`, `refactor/`, `docs/`, `test/`, or `ci/`.
+- Follow it with a kebab-case description and a lowercase Linear identifier when available, e.g. `perf/coa-236-speed-up-page-transitions`.
+- Never create or push a branch whose name starts with `t3code`. Rename tool-generated branches to a permitted name before committing or pushing.

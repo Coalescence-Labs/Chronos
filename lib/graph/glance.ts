@@ -89,6 +89,11 @@ function resolveDefault(
   return head ? { tipSha: head.sha } : undefined;
 }
 
+export function canApplyGlance(history: RepoHistory, defaultBranch?: string): boolean {
+  const resolved = resolveDefault(history, defaultBranch);
+  return resolved !== undefined && history.commits.some((commit) => commit.sha === resolved.tipSha);
+}
+
 function isDefaultRef(name: string, defaultName: string | undefined): boolean {
   if (defaultName !== undefined) return name === defaultName;
   return isHeuristicDefaultName(name);

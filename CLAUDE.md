@@ -21,3 +21,7 @@ Privacy is a product promise, not a feature. **Before adding any AI feature or a
 ## Runtime
 
 Bun everywhere — `bun`, `bun run`, `bun test`. Never `npm`/`yarn`/`node`/`ts-node`.
+
+## Branch naming
+
+Follow [AGENTS.md](AGENTS.md) §4: use a purpose prefix such as `feature/`, `bugfix/`, `maintenance/`, or `perf/`. Branch names starting with `t3code` are forbidden, including tool-generated names; rename them before committing or pushing.

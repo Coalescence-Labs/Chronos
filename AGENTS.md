@@ -59,6 +59,7 @@ Linear is how Chronos work stays visible — for humans and for AI agents. Treat
 - **Language:** TypeScript, strict.
 - **Style:** match surrounding code; comment density and naming should be indistinguishable from neighboring files. Don't add narration comments.
 - **Commits/PRs:** branch off the default branch before committing; only commit/push when asked. Prefer Linear identifiers (e.g. `COA-123`) in branch/PR titles when a ticket exists.
+- **Branch names:** use a lowercase purpose prefix: `feature/`, `bugfix/`, `hotfix/`, `maintenance/`, `perf/`, `refactor/`, `docs/`, `test/`, or `ci/`, followed by a kebab-case description. Include the lowercase Linear identifier when available, e.g. `perf/coa-236-speed-up-page-transitions`. Never create or push a branch whose name starts with `t3code`. If tooling creates one automatically, rename it to a permitted name before committing or pushing; tool defaults do not override this rule.
 - **Tests:** colocate or under `tests/`; prefer `bun test`. Write tests for graph-layout logic especially — it's the core and the easiest place for subtle bugs.
 
 ## 5. Repository map (intended)
@@ -75,6 +76,7 @@ Chronos/
     DESIGN.md               # visual language + polish bar
     PRIVACY.md              # security + ZDR model
     AUTH.md                 # WorkOS AuthKit accounts (COA-200)
+    PERFORMANCE.md          # navigation baseline, <250ms goal, proposed improvements
     adr/                    # decision records (006 = rate limits & caching, proposed)
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
@@ -89,7 +91,7 @@ Chronos/
   components/
     background/             # HomePageBackground: cached Chronos graph geometry + frosted layer
     graph/                  # GraphView: virtualized SVG renderer over layout output
-    repo/                   # GraphExplorer (layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm
+    repo/                   # GraphExplorer (on-demand Glance worker -> layout -> GraphView -> inspector), RepoScreen (live ingest), RepoUrlForm (intent prefetch)
     auth/                   # AuthProvider + minimal AccountControls (no multi-repo switcher) + GitHubConnectionCard (/account)
     ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
     shell/                  # AppShell (responsive scaffold)
@@ -98,6 +100,7 @@ Chronos/
   docs/AUTH.md              # WorkOS accounts, MFA/passkeys investigation, GitHub-login vs repo-OAuth split
   public/                   # fonts (Satoshi), PWA icons, sw.js
   scripts/                  # generate-icons.ts (PWA icons), capture-home-graph.ts (offline origin/main geometry)
+                            # benchmark-performance.ts (synthetic production navigation + graph compute)
   tests/                    # bun test suites (boundaries, ingest, design tokens, pwa, graph layout/view/pipeline)
     e2e/                    # Playwright (*.e2e.ts; bun run test:e2e) — phone + laptop projects, BFF mocked
 ```
