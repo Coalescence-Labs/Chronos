@@ -47,7 +47,7 @@ function toError(response: Response): IngestError {
   if (response.status === 404 || response.status === 451) {
     return new IngestError(
       "not-found",
-      "Repository not found. It may be private, misspelled, or require a connected GitHub account.",
+      "Repository not found. It may be private or misspelled. Check GitHub App access in your account: organization repos need an organization-approved installation with this repo selected.",
     );
   }
   const remaining = response.headers.get("x-ratelimit-remaining");
@@ -61,6 +61,9 @@ function toError(response: Response): IngestError {
       "GitHub's rate limit was reached. Please try again in a few minutes.",
       retryAfterSeconds,
     );
+  }
+  if (response.status === 401) {
+    return new IngestError("upstream", "GitHub authorization expired or was revoked. Reconnect GitHub in your account.");
   }
   return new IngestError(
     "upstream",

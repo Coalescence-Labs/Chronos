@@ -1,7 +1,10 @@
 import { isAuthConfigured } from "@/lib/auth/config";
 import type { GitHubAppSessionData } from "./types";
+import { githubInstallBindings } from "./bindings";
 
-/** WorkOS metadata keys (≤40 chars). Values are strings ≤600 chars; no tokens. */
+const INSTALL_PREFIX = "chronosGhInstall_";
+
+/** Legacy keys, retained for migration. New bindings use one key per install. */
 export const GITHUB_INSTALL_METADATA_KEYS = {
   installationId: "chronosGhInstallationId",
   accountLogin: "chronosGhAccountLogin",
@@ -13,24 +16,45 @@ export const GITHUB_INSTALL_METADATA_KEYS = {
 export type GitHubInstallMetadataBinding = Pick<
   GitHubAppSessionData,
   "installationId" | "accountLogin" | "accountType" | "connectedAt" | "permissions"
->;
+> & { additionalInstallations?: GitHubInstallMetadataBinding[] };
 
 export function githubInstallMetadataFromSession(
   data: GitHubAppSessionData,
 ): Record<string, string> {
-  return {
-    [GITHUB_INSTALL_METADATA_KEYS.installationId]: String(data.installationId),
-    [GITHUB_INSTALL_METADATA_KEYS.accountLogin]: data.accountLogin,
-    [GITHUB_INSTALL_METADATA_KEYS.accountType]: data.accountType,
-    [GITHUB_INSTALL_METADATA_KEYS.connectedAt]: data.connectedAt,
-    [GITHUB_INSTALL_METADATA_KEYS.permissions]: data.permissions,
-  };
+  return Object.fromEntries(githubInstallBindings(data).map((binding) => [
+    `${INSTALL_PREFIX}${binding.installationId}`,
+    JSON.stringify([
+      binding.accountLogin, binding.accountType, binding.connectedAt, binding.permissions,
+    ]),
+  ]));
 }
 
 export function parseGitHubInstallMetadata(
   metadata: Record<string, string> | undefined,
 ): GitHubInstallMetadataBinding | undefined {
   if (!metadata) return undefined;
+  const bindings: GitHubInstallMetadataBinding[] = [];
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!key.startsWith(INSTALL_PREFIX)) continue;
+    const installationId = Number(key.slice(INSTALL_PREFIX.length));
+    try {
+      const fields: unknown = JSON.parse(value);
+      if (!Number.isSafeInteger(installationId) || installationId <= 0 ||
+        !Array.isArray(fields) || fields.length !== 4) continue;
+      const [accountLogin, accountType, connectedAt, permissions] = fields;
+      if (typeof accountLogin !== "string" || !accountLogin ||
+        (accountType !== "User" && accountType !== "Organization") ||
+        typeof connectedAt !== "string" || !Number.isFinite(Date.parse(connectedAt)) ||
+        typeof permissions !== "string") continue;
+      bindings.push({ installationId, accountLogin, accountType, connectedAt, permissions });
+    } catch {
+      // Ignore malformed bindings without discarding other connections.
+    }
+  }
+  if (bindings.length) {
+    const [first, ...additionalInstallations] = bindings;
+    return { ...first!, ...(additionalInstallations.length ? { additionalInstallations } : {}) };
+  }
   const installationRaw = metadata[GITHUB_INSTALL_METADATA_KEYS.installationId];
   const installationId = installationRaw
     ? Number.parseInt(installationRaw, 10)
@@ -61,14 +85,17 @@ export function parseGitHubInstallMetadata(
   };
 }
 
-function clearGitHubInstallMetadataPatch(): Record<string, null> {
-  return {
+function clearGitHubInstallMetadataPatch(metadata?: Record<string, string>): Record<string, null> {
+  const patch = {
+    ...Object.fromEntries(Object.keys(metadata ?? {})
+      .filter((key) => key.startsWith(INSTALL_PREFIX)).map((key) => [key, null])),
     [GITHUB_INSTALL_METADATA_KEYS.installationId]: null,
     [GITHUB_INSTALL_METADATA_KEYS.accountLogin]: null,
     [GITHUB_INSTALL_METADATA_KEYS.accountType]: null,
     [GITHUB_INSTALL_METADATA_KEYS.connectedAt]: null,
     [GITHUB_INSTALL_METADATA_KEYS.permissions]: null,
   };
+  return Object.fromEntries(Object.entries(patch).filter(([key]) => metadata && key in metadata));
 }
 
 async function workosClient() {
@@ -81,11 +108,14 @@ function metadataWritePersisted(
   data: GitHubAppSessionData,
 ): boolean {
   const parsed = parseGitHubInstallMetadata(metadata);
-  return (
-    parsed !== undefined &&
-    parsed.installationId === data.installationId &&
-    parsed.accountLogin === data.accountLogin
-  );
+  if (!parsed) return false;
+  const actual = githubInstallBindings(parsed);
+  return actual.length === githubInstallBindings(data).length &&
+    githubInstallBindings(data).every((binding) => actual.some((saved) =>
+      saved.installationId === binding.installationId &&
+      saved.accountLogin === binding.accountLogin && saved.accountType === binding.accountType &&
+      saved.connectedAt === binding.connectedAt && saved.permissions === binding.permissions,
+    ));
 }
 
 export async function writeGitHubInstallMetadata(
@@ -96,9 +126,16 @@ export async function writeGitHubInstallMetadata(
     throw new Error("WorkOS is not configured — cannot persist GitHub install metadata");
   }
   const workos = await workosClient();
+  const current = await workos.userManagement.getUser(workosUserId);
+  const patch = { ...clearGitHubInstallMetadataPatch(current.metadata),
+    ...githubInstallMetadataFromSession(data) };
+  const retainedKeys = Object.keys(current.metadata ?? {}).filter((key) => !(key in patch));
+  if (retainedKeys.length + Object.values(patch).filter((value) => value !== null).length > 10) {
+    throw new Error("GitHub connections exceed WorkOS metadata capacity");
+  }
   const updated = await workos.userManagement.updateUser({
     userId: workosUserId,
-    metadata: githubInstallMetadataFromSession(data),
+    metadata: patch,
   });
   if (!metadataWritePersisted(updated.metadata, data)) {
     throw new Error("GitHub install metadata did not persist on WorkOS user");
@@ -108,9 +145,10 @@ export async function writeGitHubInstallMetadata(
 export async function clearGitHubInstallMetadata(workosUserId: string): Promise<void> {
   if (!isAuthConfigured()) return;
   const workos = await workosClient();
+  const current = await workos.userManagement.getUser(workosUserId);
   const updated = await workos.userManagement.updateUser({
     userId: workosUserId,
-    metadata: clearGitHubInstallMetadataPatch(),
+    metadata: clearGitHubInstallMetadataPatch(current.metadata),
   });
   if (parseGitHubInstallMetadata(updated.metadata)) {
     throw new Error("GitHub install metadata was not cleared on WorkOS user");

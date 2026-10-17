@@ -6,11 +6,11 @@ import { deleteInstallation } from "./install";
 import { peekGitHubInstallBinding } from "./resolve-session";
 import { destroyGitHubAppSession } from "./session";
 import { clearGitHubInstallMetadata } from "./workos-metadata";
+import { githubInstallBindings } from "./bindings";
 
 /**
- * POST-only disconnect — clears sealed gh-session and best-effort uninstalls
- * the GitHub App installation. User may still remove the App from GitHub
- * Settings → Applications if uninstall fails.
+ * POST-only disconnect — clears every binding and credential. Shared organization
+ * installations stay on GitHub; personal installations are best-effort removed.
  */
 export async function disconnectGitHubAction(): Promise<void> {
   const { withAuth } = await import("@workos-inc/authkit-nextjs");
@@ -19,15 +19,19 @@ export async function disconnectGitHubAction(): Promise<void> {
   }));
   const binding = await peekGitHubInstallBinding(user?.id);
   if (isGitHubAppConfigured() && binding) {
-    try {
-      await deleteInstallation(binding.installationId);
-    } catch {
-      // Session clear still proceeds; UI discloses manual uninstall.
+    for (const install of githubInstallBindings(binding)) {
+      if (install.accountType === "Organization") continue;
+      try {
+        await deleteInstallation(install.installationId);
+      } catch {
+        // Session clear still proceeds; UI discloses manual uninstall.
+      }
     }
   }
-  if (user?.id) {
-    await clearGitHubInstallMetadata(user.id);
+  try {
+    if (user?.id) await clearGitHubInstallMetadata(user.id);
+  } finally {
+    await destroyGitHubAppSession();
   }
-  await destroyGitHubAppSession();
   redirect("/account?github=disconnected");
 }

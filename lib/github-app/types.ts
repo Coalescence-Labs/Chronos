@@ -1,4 +1,4 @@
-/** Sealed server-side GitHub App install binding — never sent to the client. */
+/** GitHub bindings and credentials — sealed, never readable by browser JS. */
 export interface GitHubAppSessionData {
   /** GitHub App installation id — used to mint short-lived access tokens. */
   installationId: number;
@@ -10,7 +10,17 @@ export interface GitHubAppSessionData {
   connectedAt: string;
   /** Permission summary stored for UI disclosure (not used for authz). */
   permissions: string;
+  additionalInstallations?: GitHubInstallBinding[];
+  /** GitHub user credentials, sealed in gh-session only; never in metadata/UI. */
+  userAccessToken?: string;
+  userRefreshToken?: string;
+  userTokenExpiresAt?: number;
 }
+
+export type GitHubInstallBinding = Pick<
+  GitHubAppSessionData,
+  "installationId" | "accountLogin" | "accountType" | "connectedAt" | "permissions"
+>;
 
 /** Public connection status — allowlisted fields only. */
 export interface PublicGitHubConnection {
@@ -20,4 +30,5 @@ export interface PublicGitHubConnection {
   /** ISO timestamp of the install; null when unknown (pre-connectedAt sessions). */
   connectedAt: string | null;
   configured: boolean;
+  accounts?: { login: string; accountType: "User" | "Organization"; connectedAt: string | null }[];
 }

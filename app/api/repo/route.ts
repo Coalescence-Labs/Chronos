@@ -9,9 +9,9 @@ import { errorResponse, jsonResponse } from "@/lib/ingest/respond";
  * normalized model. Repo data transits this route transiently — nothing
  * is persisted or logged (docs/PRIVACY.md "Ingestion").
  *
- * When a GitHub OAuth session is present (COA-202), upstream calls use the
- * user's token (private repos + authenticated rate budget); otherwise the
- * optional app-pool token or anonymous GitHub access.
+ * Connected requests verify the user's repo access before minting a token for
+ * the owner's GitHub App installation; otherwise they use the optional public
+ * app-pool token or anonymous GitHub access.
  *
  * GET /api/repo?repo=<url or owner/repo>
  * → refs + the first commit page of the default branch; the client backfills
@@ -21,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   try {
     const id = parseRepoInput(searchParams.get("repo") ?? "");
-    const auth = await githubAuthForRequest();
+    const auth = await githubAuthForRequest(id);
     const meta = await fetchRepoMeta(id, auth);
     const [refs, firstPage] = await Promise.all([
       fetchRefs(id, auth),

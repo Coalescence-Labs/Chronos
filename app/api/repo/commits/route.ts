@@ -25,7 +25,7 @@ export async function GET(request: Request): Promise<Response> {
       throw new IngestError("invalid-input", "Invalid commit or branch reference.");
     }
     const page = Number(searchParams.get("page") ?? "1");
-    const auth = await githubAuthForRequest();
+    const auth = await githubAuthForRequest(id);
 
     const result = await fetchCommitPage(id, sha, page, auth);
     const body: CommitsPageResponse = {

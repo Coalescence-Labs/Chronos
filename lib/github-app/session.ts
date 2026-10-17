@@ -7,6 +7,7 @@ import {
   isGitHubAppConfigured,
 } from "./config";
 import type { GitHubAppSessionData, PublicGitHubConnection } from "./types";
+import { githubInstallBindings } from "./bindings";
 
 function cookieSecure(): boolean {
   if (process.env.NODE_ENV === "production") return true;
@@ -56,11 +57,15 @@ export async function saveGitHubAppSession(
   session.workosUserId = data.workosUserId;
   session.connectedAt = data.connectedAt;
   session.permissions = data.permissions;
+  session.additionalInstallations = data.additionalInstallations;
+  session.userAccessToken = data.userAccessToken;
+  session.userRefreshToken = data.userRefreshToken;
+  session.userTokenExpiresAt = data.userTokenExpiresAt;
   await session.save();
 }
 
 export async function destroyGitHubAppSession(): Promise<void> {
-  if (!isGitHubAppConfigured()) return;
+  if (!githubSessionPassword()) return;
   try {
     const session = await getGitHubAppSession();
     session.destroy();
@@ -94,6 +99,12 @@ export async function readGitHubAppSessionForUser(
       workosUserId: session.workosUserId,
       connectedAt: session.connectedAt ?? new Date(0).toISOString(),
       permissions: session.permissions ?? "contents:read,metadata:read",
+      ...(session.additionalInstallations?.length
+        ? { additionalInstallations: session.additionalInstallations }
+        : {}),
+      ...(session.userAccessToken ? { userAccessToken: session.userAccessToken } : {}),
+      ...(session.userRefreshToken ? { userRefreshToken: session.userRefreshToken } : {}),
+      ...(session.userTokenExpiresAt ? { userTokenExpiresAt: session.userTokenExpiresAt } : {}),
     };
   } catch {
     return undefined;
@@ -115,11 +126,15 @@ export function toPublicGitHubConnection(
   // readGitHubAppSessionForUser backfills the epoch for legacy sessions — not a real date.
   const connectedAtMs = Date.parse(session.connectedAt);
   return {
-    connected: true,
+    connected: Boolean(session.userAccessToken),
     login: session.accountLogin,
     permissions: session.permissions,
     connectedAt: connectedAtMs > 0 ? session.connectedAt : null,
     configured: true,
+    accounts: githubInstallBindings(session).map((binding) => ({
+      login: binding.accountLogin, accountType: binding.accountType,
+      connectedAt: Date.parse(binding.connectedAt) > 0 ? binding.connectedAt : null,
+    })),
   };
 }
 
@@ -129,7 +144,7 @@ export function assertNoSecretsInPublicGitHubConnection(
 ): void {
   const blob = JSON.stringify(connection);
   if (
-    /accessToken|access_token|refreshToken|private_key|GITHUB_APP_PRIVATE_KEY|installationId|ghs_|ghp_|gho_/i.test(
+    /accessToken|access_token|refreshToken|private_key|GITHUB_APP_PRIVATE_KEY|installationId|ghs_|ghp_|gho_|ghu_|ghr_/i.test(
       blob,
     )
   ) {

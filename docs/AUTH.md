@@ -107,7 +107,9 @@ privacy surface.
 **Reversible choice (owner-ratified for this PR):** user installs the Chronos
 GitHub App; Chronos seals `installationId` (+ account login) in encrypted
 httpOnly `gh-session`; BFF mints short-lived installation access tokens with
-the App private key. No OAuth App authorize/code-exchange path.
+the App private key. GitHub App user authorization verifies the installation
+and checks the user's access before an installation token is used. This does
+not use a separate OAuth App or broader OAuth scopes.
 
 
 ## GitHub App connect (COA-202)
@@ -121,6 +123,10 @@ Browser ──► /api/github/connect ──► GitHub App install UI
      /api/github/callback ◄── installation_id + state
                 │
                 ▼
+     GitHub App user authorization ──► /api/github/callback?code=…&state=…
+                │                      (verify user can access installation)
+                │
+                ▼
      seal installationId in gh-session (iron-session)
      persist binding in WorkOS user metadata (chronosGh* keys)
      redirect /account?github=connected
@@ -129,13 +135,39 @@ Browser ──► /api/github/connect ──► GitHub App install UI
 | Path | Role |
 |------|------|
 | `/api/github/connect` | Start App install (requires WorkOS user) |
-| `/api/github/callback` | Setup URL; seals `installationId`; never returns tokens |
-| `/api/github/disconnect` | **POST only** — clears `gh-session` + best-effort uninstall |
-| `/api/github/status` | Public `{ connected, login, permissions, connectedAt, configured }` |
+| `/api/github/callback` | Setup + authorization callback; validates user and installation; never returns tokens |
+| `/api/github/disconnect` | **POST only** — clears all connections; preserves organization installations |
+| `/api/github/status` | Public `{ connected, login, permissions, connectedAt, configured, accounts? }` |
 
-BFF `/api/repo*` mints an installation access token when a matching session
-exists (including rehydrated from metadata), else optional `GITHUB_TOKEN` app
-pool, else anonymous.
+BFF `/api/repo*` selects the installation whose account login matches the repo
+owner (case-insensitive). Before minting an installation token it checks
+`GET /repos/{owner}/{repo}` with the GitHub **user** access token. Installation
+access can exceed an organization member's access, so checking only the
+installation would expose private repos. GitHub user tokens are refreshed
+server-side when needed and sealed only in `gh-session`; never in WorkOS
+metadata or public JSON. Missing user authorization never permits an
+installation-token mint. Unconnected owners use the optional public app pool
+or anonymous access.
+
+### Personal and organization connections
+
+GitHub App installations are per account/organization. Personal private-repo
+access does not grant access to organization repos. Use **Add organization** on
+`/account`, choose the organization in GitHub, and select its repos. Organization
+policy may require an owner's approval; a pending request is not a connection.
+After approval, repeat connect. The callback preserves existing installations
+and their original connection dates. Both repo entry and commit pagination
+select the matching installation automatically; no connection switcher is needed.
+
+Connect state is encrypted, expires after ten minutes, and binds both callback
+stages to the current WorkOS user. A returned installation id is checked against
+the GitHub user's paginated `GET /user/installations` response before saving.
+See [GitHub's setup URL guidance](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url).
+
+Disconnect removes all of the user's Chronos bindings and sealed credentials.
+Personal installations are best-effort uninstalled. Organization installations
+are left in place because other members may use them; an organization owner
+can remove them through GitHub settings.
 
 ### Durable install binding (WorkOS metadata — owner-ratified)
 
@@ -144,11 +176,15 @@ users stay connected across sign-out / sign-in without reinstalling:
 
 | Key | Value |
 |-----|--------|
-| `chronosGhInstallationId` | GitHub App installation id (string) |
-| `chronosGhAccountLogin` | Account login shown on `/account` |
-| `chronosGhAccountType` | `User` or `Organization` |
-| `chronosGhConnectedAt` | ISO timestamp (first connect; preserved on repo change) |
-| `chronosGhPermissions` | e.g. `contents:read,metadata:read` |
+| `chronosGhInstall_<installationId>` | JSON tuple `[accountLogin, accountType, connectedAt, permissions]` |
+
+The original five keys (`chronosGhInstallationId`, `chronosGhAccountLogin`,
+`chronosGhAccountType`, `chronosGhConnectedAt`, `chronosGhPermissions`) remain
+readable and migrate on the next write. Writes verify every saved binding and
+preserve unrelated metadata. Each installation uses one key; WorkOS's ten-key
+limit bounds the number of connections, with any unrelated metadata counting
+toward the same limit. Exceeding capacity fails without dropping existing binds.
+This per-installation metadata encoding is a reversible implementation choice.
 
 WorkOS limits: ≤10 metadata keys, key ≤40 chars, value ≤600 chars. No tokens,
 no repo content.
@@ -157,7 +193,7 @@ no repo content.
 |--------|---------------|--------------|-----------------|-------------------|
 | **Connect / callback** | (signed in) | write | write | user installs |
 | **Sign-out** | clear | clear | **keep** | **keep** |
-| **Disconnect** | (signed in) | clear | clear | best-effort uninstall |
+| **Disconnect** | (signed in) | clear | clear | personal: best-effort uninstall; org: keep |
 | **Sign-in (return)** | write | rehydrate from metadata if missing | read | unchanged |
 
 Rehydrate **must** run in a Route Handler (e.g. `GET /api/github/status` or
@@ -166,8 +202,11 @@ BFF `/api/repo*`) — Next.js does not apply `Set-Cookie` from RSC render.
 calls `/api/github/status` once to seal the cookie, then later loads skip that
 step.
 
-If metadata references a revoked installation, Chronos clears the metadata keys
-and treats the user as disconnected.
+If metadata references a revoked installation, Chronos removes that binding
+while retaining other connections. Transient GitHub errors do not erase bindings.
+Metadata restores installation identities, not GitHub user credentials. After
+sign-out, users **Reconnect GitHub** to verify access again; the existing App
+installations remain. Legacy cookies also require reconnect before private access.
 
 ### Shared browser / cross-account safety
 
@@ -181,7 +220,7 @@ re-seal `gh-session` after metadata rehydrate for **B** (`persistSession: true`)
 WorkOS `chronosGh*` metadata is stored **on the WorkOS user record** (keyed by
 user id). It is not readable across accounts and is not a cross-user leak; it
 exists so the **same** user can sign back in without reinstalling the GitHub App.
-Sign-out clears cookies only; disconnect clears metadata + uninstall.
+Sign-out clears cookies only; disconnect clears metadata and credentials.
 
 No multi-repo switcher (COA-201).
 
@@ -192,13 +231,21 @@ callback keeps the original `connectedAt` when the installation id is unchanged.
 ### Owner setup (GitHub App)
 
 1. Create a GitHub App (Settings → Developer settings → GitHub Apps).
+   Allow installation on **Any account** so organizations can install it.
 2. Permissions: **Contents → Read-only**, **Metadata → Read-only**. No write.
 3. Setup URL: `http://localhost:3005/api/github/callback` (and production).
    Enable **Redirect on update** so Change repos lands back on `/account`.
+   Register the same URL under **Callback URL** for GitHub App user authorization.
+   Leave **Request user authorization during installation** off: Chronos performs
+   authorization after validating the installation callback state. Keep expiring
+   user access tokens enabled.
 4. Webhooks: optional — disable or leave unused for v1 connect-only.
-5. Generate a private key (PEM); note App ID and slug.
+5. Generate a private key (PEM) and a client secret; note App ID, client ID and slug.
 6. Env (see `.env.example`): `GITHUB_APP_ID`, `GITHUB_APP_SLUG`,
-   `GITHUB_APP_PRIVATE_KEY`, `GITHUB_SESSION_PASSWORD` (≥32 chars).
+   `GITHUB_APP_PRIVATE_KEY`, `GITHUB_SESSION_PASSWORD` (≥32 chars),
+   `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` (server-only).
+   Existing deployments need the two client credentials and Callback URL before
+   this update can connect repos. Users reconnect once to verify GitHub access.
 
 ## Dashboard setup (owner)
 

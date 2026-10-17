@@ -27,7 +27,7 @@ const FACTS: { claim: string; detail: ReactNode }[] = [
   { claim: "Read-only access", detail: "Contents and metadata. Can’t push or edit." },
   { claim: "Repos you choose", detail: "Only the ones you pick on GitHub." },
   { claim: "No repo data stored", detail: "Commits pass through to draw the graph." },
-  { claim: "Encrypted session", detail: "Install ID and username. No tokens saved." },
+  { claim: "Encrypted session", detail: "GitHub authorization stays in an encrypted, server-only cookie. No repo data saved." },
   {
     claim: "Revoke anytime",
     detail: (
@@ -51,6 +51,7 @@ const BANNERS: Record<string, { tone: BannerTone; message: ReactNode }> = {
     ),
   },
   denied: { tone: "neutral", message: "Install cancelled. Nothing was saved." },
+  pending: { tone: "neutral", message: "Organization access requested. After an owner approves it on GitHub, connect the organization here." },
   error: { tone: "danger", message: "Couldn’t connect to GitHub. Try again." },
 };
 
@@ -181,19 +182,25 @@ export function GitHubConnectionCard({ connection, status }: GitHubConnectionCar
           <h3 className={styles.name}>
             GitHub <span className={styles.badge}>not connected</span>
           </h3>
-          <p className={styles.desc}>Private repos and higher rate limits.</p>
+          <p className={styles.desc}>
+            {connection.login ? "Reconnect to verify your GitHub access. Your installations are saved." : "Private repos and higher rate limits."}
+          </p>
           <div className={styles.actions}>
             <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
-              Install GitHub App
+              {connection.login ? "Reconnect GitHub" : "Install GitHub App"}
             </a>
           </div>
         </div>
         <Facts className={styles.facts} />
+        <p className={styles.orgHelp}>
+          Organization repos need the App installed on that organization, with the repos selected.
+          An organization owner may need to approve access.
+        </p>
       </Surface>
     );
   }
 
-  const since = connection.connectedAt?.slice(0, 10);
+  const accounts = connection.accounts ?? [{ login: connection.login, connectedAt: connection.connectedAt }];
 
   return (
     <Surface level={1} padded={false} className={styles.card}>
@@ -210,18 +217,26 @@ export function GitHubConnectionCard({ connection, status }: GitHubConnectionCar
           </span>
         </h3>
         <p className={styles.meta}>
-          <span className={styles.login}>@{connection.login}</span>
-          {since && (
-            <>
-              {" · "}
-              <span className={styles.nowrap}>since {since}</span>
-            </>
-          )}
+          {accounts.map((account) => (
+            <span className={styles.account} key={account.login}>
+              <span className={styles.login}>@{account.login}</span>
+              {account.connectedAt && (
+                <>{" · "}<span className={styles.nowrap}>since {account.connectedAt.slice(0, 10)}</span></>
+              )}
+            </span>
+          ))}
         </p>
         <div className={styles.actions}>
-          <DisconnectGitHubButton />
+          <a className={`${buttonStyles.button} ${buttonStyles.ghost}`} href={CONNECT_HREF}>
+            Add organization
+          </a>
+          <DisconnectGitHubButton all={accounts.length > 1} />
         </div>
       </div>
+      <p className={styles.orgHelp}>
+        Install on each organization to read its selected repos. An owner may need to approve.
+        Disconnect removes your connections here; organization installations stay on GitHub.
+      </p>
       <div className={styles.more}>
         <details>
           <summary className={styles.summary}>

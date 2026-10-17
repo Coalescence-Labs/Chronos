@@ -15,10 +15,10 @@ const sampleSession = {
 };
 
 describe("GitHub install WorkOS metadata", () => {
-  test("serialize and parse round-trip with five chronosGh keys", () => {
+  test("serialize and parse round-trip within WorkOS metadata limits", () => {
     const serialized = githubInstallMetadataFromSession(sampleSession);
-    expect(Object.keys(serialized)).toHaveLength(5);
-    for (const key of Object.values(GITHUB_INSTALL_METADATA_KEYS)) {
+    expect(Object.keys(serialized)).toHaveLength(1);
+    for (const key of Object.keys(serialized)) {
       expect(key.length).toBeLessThanOrEqual(40);
       const value = serialized[key];
       expect(value).toBeDefined();
@@ -31,6 +31,24 @@ describe("GitHub install WorkOS metadata", () => {
       connectedAt: sampleSession.connectedAt,
       permissions: sampleSession.permissions,
     });
+  });
+
+  test("reads legacy five-key bindings", () => {
+    const legacy = Object.fromEntries(Object.entries(GITHUB_INSTALL_METADATA_KEYS).map(
+      ([field, key]) => [key, String(sampleSession[field as keyof typeof sampleSession])],
+    ));
+    expect(parseGitHubInstallMetadata(legacy)?.installationId).toBe(4242);
+  });
+
+  test("round-trips personal and organization installs without persisting user tokens", () => {
+    const organization = { ...sampleSession, installationId: 8080, accountLogin: "acme", accountType: "Organization" as const };
+    const serialized = githubInstallMetadataFromSession({
+      ...sampleSession, additionalInstallations: [organization],
+      userAccessToken: "ghu_secret", userRefreshToken: "ghr_secret",
+    });
+    expect(Object.keys(serialized)).toHaveLength(2);
+    expect(parseGitHubInstallMetadata(serialized)?.additionalInstallations?.[0]?.accountLogin).toBe("acme");
+    expect(JSON.stringify(serialized)).not.toMatch(/ghu_|ghr_|workosUserId/);
   });
 
   test("parse rejects incomplete metadata", () => {

@@ -7,7 +7,9 @@ import {
   createInstallState,
   GITHUB_COOKIE_POSTURE,
   isGitHubAppConfigured,
+  githubAppSetupUrl,
 } from "@/lib/github-app";
+import { sealGitHubConnectState } from "@/lib/github-app/user-auth";
 
 /**
  * GET /api/github/connect — start GitHub App install (COA-202).
@@ -32,7 +34,10 @@ export async function GET(request: Request): Promise<Response> {
 
   const state = createInstallState();
   const jar = await cookies();
-  jar.set(GITHUB_COOKIE_POSTURE.stateCookieName, state, {
+  jar.set(GITHUB_COOKIE_POSTURE.stateCookieName, await sealGitHubConnectState({
+    state, workosUserId: user.id, stage: "install",
+    redirectUri: githubAppSetupUrl(new URL(request.url).origin),
+  }), {
     httpOnly: true,
     sameSite: "lax",
     secure:

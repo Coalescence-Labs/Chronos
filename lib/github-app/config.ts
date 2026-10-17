@@ -33,6 +33,14 @@ export function githubAppSlug(): string | undefined {
   return process.env.GITHUB_APP_SLUG?.trim() || undefined;
 }
 
+export function githubAppClientId(): string | undefined {
+  return process.env.GITHUB_APP_CLIENT_ID?.trim() || undefined;
+}
+
+export function githubAppClientSecret(): string | undefined {
+  return process.env.GITHUB_APP_CLIENT_SECRET?.trim() || undefined;
+}
+
 /**
  * PEM private key. Env often stores newlines as `\n` — normalize before use.
  */
@@ -67,6 +75,8 @@ export function isGitHubAppConfigured(): boolean {
   return Boolean(
     githubAppId() &&
       githubAppSlug() &&
+      githubAppClientId() &&
+      githubAppClientSecret() &&
       githubAppPrivateKey() &&
       githubSessionPassword(),
   );

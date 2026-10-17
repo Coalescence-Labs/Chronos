@@ -1,6 +1,6 @@
 # Privacy at Chronos
 
-Chronos draws a beautiful picture of a git repo's history so you can understand it at a glance. To do that, it needs to read the repo — and that's the only thing it does with your data. Nothing is stored, nothing is logged, nothing is sold, and nothing is used to train AI.
+Chronos draws a beautiful picture of a git repo's history so you can understand it at a glance. Repo history isn't stored, logged, sold, or used to train AI.
 
 This page explains, in plain language, exactly what happens to data when you use Chronos. If you want the binding engineering rules behind these promises, see [docs/PRIVACY.md](docs/PRIVACY.md).
 
@@ -25,7 +25,7 @@ This page explains, in plain language, exactly what happens to data when you use
 
 When you ask Chronos to visualize a repo, it fetches the git history it needs to build the graph — commit relationships, branch tips, merges, dates, and the like — **through our server**, and sends the resulting picture back to your browser.
 
-That trip through our server exists for one reason: to keep things secure (so any access token never touches the browser). While the data is in transit, three rules apply:
+That trip through our server keeps access credentials out of browser JavaScript. While the data is in transit, three rules apply:
 
 - **We never store it.** Repo content is held only long enough to answer your request, then discarded. There is no database of repos you've viewed.
 - **We never log it.** Commit messages, branch names, SHAs, and author details are not written to our logs.
@@ -35,11 +35,21 @@ We also fetch the **minimum** needed to draw the graph — the structural git me
 
 ---
 
-## Public repos only (for now)
+## Public and private repos
 
-Today, Chronos works with **public repositories only**. We don't ask for access to private repos, and we don't request permission to write to anything — Chronos only ever *reads*.
+Public repos work without signing in. Private repos require a separate, opt-in
+connection to the Chronos GitHub App. You choose the repos on GitHub; Chronos
+requests only **read access to contents and metadata**. Personal and organization
+installations are separate, and organization policy may require an owner's
+approval. Chronos checks your own GitHub access before reading a connected repo.
 
-If we ever add private-repo support, it will be a deliberate, clearly-disclosed change with its own privacy review — not something that happens quietly.
+GitHub authorization is kept in an encrypted, httpOnly cookie for up to seven
+days, unreadable to browser JavaScript. WorkOS stores only the installation IDs,
+account names/types, connection dates and permission summaries needed to remember
+your connections — never GitHub tokens or repo content. Signing out clears the
+cookies; reconnecting verifies your GitHub access again. Disconnect clears your
+saved connections. Shared organization installations stay on GitHub so other
+members can keep using them; an organization owner can remove them there.
 
 ---
 
