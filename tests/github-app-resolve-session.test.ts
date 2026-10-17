@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import * as realGitHubAppConfig from "@/lib/github-app/config";
 import * as realInstall from "@/lib/github-app/install";
+import type { GitHubAppSessionData, GitHubInstallBinding } from "@/lib/github-app/types";
 
 const workosUserId = "user_01REHYDRATE";
 const metadataBinding = {
@@ -20,6 +21,10 @@ let cookieSession:
   | (typeof metadataBinding & { workosUserId: string })
   | undefined = undefined;
 let metadataDisabled = false;
+let additionalBindings: GitHubInstallBinding[] = [];
+const revoked = new Set<number>();
+const transient = new Set<number>();
+const metadataWrites: GitHubAppSessionData[] = [];
 
 const AUTH_ENV = {
   WORKOS_CLIENT_ID: "client_test",
@@ -55,25 +60,34 @@ mock.module("@/lib/github-app/session", () => ({
 mock.module("@/lib/github-app/workos-metadata", () => ({
   readGitHubInstallMetadata: async (userId: string) => {
     if (metadataDisabled) return undefined;
-    return userId === workosUserId ? metadataBinding : undefined;
+    return userId === workosUserId ? {
+      ...metadataBinding,
+      ...(additionalBindings.length ? { additionalInstallations: additionalBindings } : {}),
+    } : undefined;
   },
-  writeGitHubInstallMetadata: async () => {},
+  writeGitHubInstallMetadata: async (_id: string, data: GitHubAppSessionData) => { metadataWrites.push(data); },
   clearGitHubInstallMetadata: async () => {},
 }));
 
 mock.module("@/lib/github-app/install", () => ({
   ...realInstall,
-  fetchInstallationAccount: async (installationId: number) => ({
+  fetchInstallationAccount: async (installationId: number) => {
+    if (revoked.has(installationId)) throw new realInstall.GitHubInstallationReadError(404);
+    if (transient.has(installationId)) throw new realInstall.GitHubInstallationReadError(503);
+    return {
     installationId,
     accountLogin: metadataBinding.accountLogin,
     accountType: metadataBinding.accountType,
-  }),
+    };
+  },
 }));
 
 afterEach(() => {
   saveCalls = 0;
   cookieSession = undefined;
   metadataDisabled = false;
+  additionalBindings = [];
+  revoked.clear(); transient.clear(); metadataWrites.length = 0;
   for (const key of Object.keys(AUTH_ENV) as (keyof typeof AUTH_ENV)[]) {
     const value = savedAuthEnv[key];
     if (value === undefined) delete process.env[key];
@@ -82,6 +96,24 @@ afterEach(() => {
 });
 
 describe("resolveGitHubAppSessionForUser", () => {
+  test("a revoked installation does not erase another connected installation", async () => {
+    additionalBindings = [{ ...metadataBinding, installationId: 9002 }];
+    revoked.add(9001);
+    const { resolveGitHubAppSessionForUser } = await import("@/lib/github-app/resolve-session");
+    const result = await resolveGitHubAppSessionForUser(workosUserId);
+    expect(result?.installationId).toBe(9002);
+    expect(metadataWrites[0]?.installationId).toBe(9002);
+    expect(metadataWrites[0]?.additionalInstallations).toBeUndefined();
+  });
+
+  test("a transient lookup error preserves the other binding in the restored cookie", async () => {
+    additionalBindings = [{ ...metadataBinding, installationId: 9002 }];
+    transient.add(9002);
+    const { resolveGitHubAppSessionForUser } = await import("@/lib/github-app/resolve-session");
+    const result = await resolveGitHubAppSessionForUser(workosUserId);
+    expect(result?.additionalInstallations?.[0]?.installationId).toBe(9002);
+    expect(metadataWrites).toEqual([]);
+  });
   test("rehydrates from WorkOS metadata when gh-session is absent", async () => {
     const { resolveGitHubAppSessionForUser } = await import("@/lib/github-app/resolve-session");
     const session = await resolveGitHubAppSessionForUser(workosUserId);

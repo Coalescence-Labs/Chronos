@@ -1,5 +1,6 @@
 import { resolveGitHubAccessToken } from "@/lib/github-app";
 import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
+import type { RepoId } from "./parse";
 
 /**
  * Resolve BFF GitHub auth for the current request cookies.
@@ -9,7 +10,7 @@ import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
  * AuthKit is loaded dynamically so bun unit tests that import `/api/repo`
  * do not pull `server-only` into the static module graph.
  */
-export async function githubAuthForRequest(): Promise<GitHubRequestAuth> {
+export async function githubAuthForRequest(repo: RepoId): Promise<GitHubRequestAuth> {
   let workosUserId: string | null = null;
   try {
     const { withAuth } = await import("@workos-inc/authkit-nextjs");
@@ -18,6 +19,6 @@ export async function githubAuthForRequest(): Promise<GitHubRequestAuth> {
   } catch {
     // WorkOS unconfigured, outside Next runtime, or proxy skip — anonymous.
   }
-  const accessToken = await resolveGitHubAccessToken(workosUserId);
+  const accessToken = await resolveGitHubAccessToken(workosUserId, repo);
   return accessToken ? { accessToken } : {};
 }

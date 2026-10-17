@@ -4,7 +4,7 @@ import { disconnectGitHubAction } from "@/lib/github-app/actions";
 import { Button } from "@/components/ui/Button";
 
 /** Account-page disconnect — clears sealed session + best-effort uninstall. */
-export function DisconnectGitHubButton() {
+export function DisconnectGitHubButton({ all = false }: { all?: boolean }) {
   return (
     <Button
       type="button"
@@ -20,7 +20,7 @@ export function DisconnectGitHubButton() {
         })();
       }}
     >
-      Disconnect
+      {all ? "Disconnect all" : "Disconnect"}
     </Button>
   );
 }

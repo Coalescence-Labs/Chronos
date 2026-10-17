@@ -62,6 +62,34 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).not.toContain("since");
   });
 
+  test("personal and organization connections remain visible with an add action", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{
+      ...CONNECTED,
+      accounts: [
+        { login: "ada", accountType: "User", connectedAt: CONNECTED.connectedAt },
+        { login: "acme", accountType: "Organization", connectedAt: null },
+      ],
+    }} />);
+    expect(html).toContain("@ada");
+    expect(html).toContain("@acme");
+    expect(html).toContain("Add organization");
+    expect(html).toContain("Disconnect all");
+    expect(html).toContain("organization installations stay on GitHub");
+  });
+
+  test("saved installations without user authorization offer reconnect", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...CONNECTED, connected: false }} />);
+    expect(html).toContain("Reconnect GitHub");
+    expect(html).toContain("Your installations are saved");
+    expect(html).not.toContain("Install GitHub App");
+  });
+
+  test("an organization approval request is distinct from a successful connection", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={CONNECTED} status="pending" />);
+    expect(html).toContain("Organization access requested");
+    expect(html).not.toContain("Repos you selected will now load");
+  });
+
   test("unconfigured environments show setup guidance and no install action", () => {
     const html = renderToStaticMarkup(
       <GitHubConnectionCard connection={{ ...NOT_CONNECTED, configured: false }} />,

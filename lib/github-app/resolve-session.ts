@@ -14,6 +14,7 @@ import {
   writeGitHubInstallMetadata,
 } from "./workos-metadata";
 import type { GitHubAppSessionData } from "./types";
+import { githubInstallBindings, mergeGitHubInstallation } from "./bindings";
 
 export type ResolveGitHubSessionOptions = {
   /**
@@ -32,10 +33,15 @@ export async function peekGitHubInstallBinding(
 ): Promise<GitHubAppSessionData | undefined> {
   if (!workosUserId) return undefined;
   const fromCookie = await readGitHubAppSessionForUser(workosUserId);
-  if (fromCookie) return fromCookie;
   const fromMetadata = await readGitHubInstallMetadata(workosUserId);
-  if (!fromMetadata) return undefined;
-  return { ...fromMetadata, workosUserId };
+  if (!fromMetadata) return fromCookie;
+  let result: GitHubAppSessionData = { ...fromMetadata, workosUserId };
+  if (fromCookie) {
+    for (const binding of githubInstallBindings(fromCookie)) {
+      result = mergeGitHubInstallation(result, { ...binding, workosUserId });
+    }
+  }
+  return result;
 }
 
 /**
@@ -56,34 +62,40 @@ export async function resolveGitHubAppSessionForUser(
   const fromMetadata = await readGitHubInstallMetadata(workosUserId);
   if (!fromMetadata) return undefined;
 
-  try {
-    const account = await fetchInstallationAccount(fromMetadata.installationId);
-    const session: GitHubAppSessionData = {
-      installationId: account.installationId,
-      accountLogin: account.accountLogin,
-      accountType: account.accountType,
-      workosUserId,
-      connectedAt: fromMetadata.connectedAt,
-      permissions: fromMetadata.permissions,
-    };
-    if (options?.persistSession) {
-      await saveGitHubAppSession(session);
-    }
-    if (
-      account.accountLogin !== fromMetadata.accountLogin ||
-      account.accountType !== fromMetadata.accountType
-    ) {
-      try {
-        await writeGitHubInstallMetadata(workosUserId, session);
-      } catch {
-        // Stale login/type in metadata is cosmetic; install id still valid.
+  const bindings = githubInstallBindings(fromMetadata);
+  const valid: typeof bindings = [];
+  const retained: typeof bindings = [];
+  let changed = false;
+  for (const binding of bindings) {
+    try {
+      const account = await fetchInstallationAccount(binding.installationId);
+      const updated = { ...binding, ...account };
+      valid.push(updated);
+      retained.push(updated);
+      changed ||= account.accountLogin !== binding.accountLogin || account.accountType !== binding.accountType;
+    } catch (error) {
+      if (error instanceof GitHubInstallationReadError && error.status === 404) {
+        changed = true;
+      } else {
+        retained.push(binding);
       }
     }
-    return session;
-  } catch (error) {
-    if (error instanceof GitHubInstallationReadError && error.status === 404) {
-      await clearGitHubInstallMetadata(workosUserId);
-    }
-    return undefined;
   }
+  if (changed) {
+    if (!retained.length) await clearGitHubInstallMetadata(workosUserId);
+    else await writeGitHubInstallMetadata(workosUserId, {
+      ...retained[0]!, workosUserId,
+      ...(retained.length > 1 ? { additionalInstallations: retained.slice(1) } : {}),
+    });
+  }
+  if (!valid.length) return undefined;
+  const session: GitHubAppSessionData = {
+    ...retained[0]!,
+    workosUserId,
+    ...(retained.length > 1 ? { additionalInstallations: retained.slice(1) } : {}),
+  };
+  if (options?.persistSession) {
+    await saveGitHubAppSession(session);
+  }
+  return session;
 }

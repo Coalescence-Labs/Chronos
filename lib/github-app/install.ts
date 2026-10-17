@@ -68,7 +68,7 @@ export async function fetchInstallationAccount(
 
   const login = body.account?.login;
   const type = body.account?.type;
-  if (!body.id || !login || (type !== "User" && type !== "Organization")) {
+  if (body.id !== installationId || !login || (type !== "User" && type !== "Organization")) {
     throw new Error("GitHub App installation missing account");
   }
 

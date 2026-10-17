@@ -6,9 +6,10 @@ import {
   destroyGitHubAppSession,
   peekGitHubInstallBinding,
 } from "@/lib/github-app";
+import { githubInstallBindings } from "@/lib/github-app/bindings";
 
 /**
- * POST /api/github/disconnect — clear sealed session + best-effort uninstall.
+ * POST /api/github/disconnect — clear connections; preserve shared org installs.
  * GET returns 405 (no CSRF / prefetch disconnect).
  */
 export async function POST(): Promise<Response> {
@@ -17,16 +18,20 @@ export async function POST(): Promise<Response> {
   }));
   const binding = await peekGitHubInstallBinding(user?.id);
   if (binding) {
-    try {
-      await deleteInstallation(binding.installationId);
-    } catch {
-      // Cookie clear still proceeds.
+    for (const install of githubInstallBindings(binding)) {
+      if (install.accountType === "Organization") continue;
+      try {
+        await deleteInstallation(install.installationId);
+      } catch {
+        // Cookie clear still proceeds.
+      }
     }
   }
-  if (user?.id) {
-    await clearGitHubInstallMetadata(user.id);
+  try {
+    if (user?.id) await clearGitHubInstallMetadata(user.id);
+  } finally {
+    await destroyGitHubAppSession();
   }
-  await destroyGitHubAppSession();
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
 

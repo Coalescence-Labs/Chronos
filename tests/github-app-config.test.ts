@@ -32,11 +32,15 @@ describe("github app config", () => {
       GITHUB_APP_SLUG: process.env.GITHUB_APP_SLUG,
       GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
       GITHUB_SESSION_PASSWORD: process.env.GITHUB_SESSION_PASSWORD,
+      GITHUB_APP_CLIENT_ID: process.env.GITHUB_APP_CLIENT_ID,
+      GITHUB_APP_CLIENT_SECRET: process.env.GITHUB_APP_CLIENT_SECRET,
     };
     delete process.env.GITHUB_APP_ID;
     delete process.env.GITHUB_APP_SLUG;
     delete process.env.GITHUB_APP_PRIVATE_KEY;
     delete process.env.GITHUB_SESSION_PASSWORD;
+    delete process.env.GITHUB_APP_CLIENT_ID;
+    delete process.env.GITHUB_APP_CLIENT_SECRET;
     try {
       expect(isGitHubAppConfigured()).toBe(false);
       process.env.GITHUB_APP_ID = "12345";
@@ -45,6 +49,9 @@ describe("github app config", () => {
       process.env.GITHUB_SESSION_PASSWORD = "short";
       expect(isGitHubAppConfigured()).toBe(false);
       process.env.GITHUB_SESSION_PASSWORD = "x".repeat(32);
+      expect(isGitHubAppConfigured()).toBe(false);
+      process.env.GITHUB_APP_CLIENT_ID = "Iv1.test";
+      process.env.GITHUB_APP_CLIENT_SECRET = "test-client-secret";
       expect(isGitHubAppConfigured()).toBe(true);
     } finally {
       for (const [key, value] of Object.entries(previous)) {
@@ -104,6 +111,8 @@ describe("github app config", () => {
       workosUserId: "user_1",
       connectedAt: "2026-10-01T00:00:00.000Z",
       permissions: "contents:read,metadata:read",
+      userAccessToken: "ghu_private_user_token",
+      userRefreshToken: "ghr_private_refresh_token",
     });
     expect(connected).toEqual({
       connected: true,
@@ -111,10 +120,11 @@ describe("github app config", () => {
       permissions: "contents:read,metadata:read",
       connectedAt: "2026-10-01T00:00:00.000Z",
       configured: true,
+      accounts: [{ login: "ada", accountType: "User", connectedAt: "2026-10-01T00:00:00.000Z" }],
     });
     assertNoSecretsInPublicGitHubConnection(connected);
     expect(JSON.stringify(connected)).not.toMatch(
-      /ghs_|accessToken|installationId|PRIVATE KEY|SECRET/i,
+      /ghs_|ghu_|ghr_|accessToken|installationId|PRIVATE KEY|SECRET/i,
     );
   });
 
