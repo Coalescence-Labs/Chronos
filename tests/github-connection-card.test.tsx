@@ -45,7 +45,7 @@ describe("GitHub connection card (COA-202)", () => {
   test("connected collapses the facts and offers disconnect + repo selection", () => {
     const html = renderToStaticMarkup(<GitHubConnectionCard connection={CONNECTED} />);
     expect(html).toContain("@ada");
-    expect(html).toContain("since 2026-10-01");
+    expect(html.replace(/<[^>]+>/g, "")).toContain("since 2026-10-01");
     expect(html).toContain("Disconnect");
     expect(html).toContain("Change repos");
     expect(html).not.toContain("Install GitHub App");
