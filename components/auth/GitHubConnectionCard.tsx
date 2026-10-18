@@ -5,6 +5,7 @@ import { Surface } from "@/components/ui/Surface";
 import type { PublicGitHubConnection } from "@/lib/github-app/types";
 import { DisconnectGitHubButton } from "./DisconnectGitHubButton";
 import styles from "./github-connection.module.css";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Account-page GitHub App card (COA-202). Before install, every consent fact
@@ -13,7 +14,7 @@ import styles from "./github-connection.module.css";
  */
 
 const CONNECT_HREF = "/api/github/connect";
-const GITHUB_INSTALLATIONS_URL = "https://github.com/settings/installations";
+const GITHUB_INSTALLATIONS_URL = "https://github.com/settings/apps/authorizations";
 
 function GitHubSettingsLink() {
   return (
@@ -32,7 +33,7 @@ const FACTS: { claim: string; detail: ReactNode }[] = [
     claim: "Revoke anytime",
     detail: (
       <>
-        Disconnect here or in <GitHubSettingsLink />.
+        Disconnect across devices here or revoke authorization in <GitHubSettingsLink />. Installations stay on GitHub.
       </>
     ),
   },
@@ -46,10 +47,14 @@ const BANNERS: Record<string, { tone: BannerTone; message: ReactNode }> = {
     tone: "neutral",
     message: (
       <>
-        Disconnected. Still in <GitHubSettingsLink />? Uninstall it there.
+        Disconnected from Chronos. Your GitHub App installations stay on GitHub.
       </>
     ),
   },
+  "disconnected-manual": { tone: "neutral", message: <>Disconnected from Chronos. GitHub revocation couldn’t be confirmed. Revoke Chronos in <GitHubSettingsLink />.</> },
+  unavailable: { tone: "danger", message: "Couldn't reach the connection service. Please retry shortly." },
+  "access-denied": { tone: "danger", message: "GitHub couldn’t verify all saved installations. Use the GitHub account with access to them, and check organization approval and SSO." },
+  "connection-limit": { tone: "danger", message: "This account has reached its connection limit. Your existing connections are unchanged." },
   denied: { tone: "neutral", message: "Install cancelled. Nothing was saved." },
   pending: { tone: "neutral", message: "Organization access requested. After an owner approves it on GitHub, connect the organization here." },
   error: { tone: "danger", message: "Couldn’t connect to GitHub. Try again." },
@@ -129,7 +134,7 @@ function StatusBanner({ status, connected }: { status: string | undefined; conne
   );
 }
 
-/** Shown while server rehydrates gh-session from WorkOS metadata — not “not connected”. */
+/** Shown until the connection's durable binding and live GitHub access are checked. */
 export function GitHubConnectionCardPending() {
   return (
     <Surface level={1} padded={false} className={styles.card} role="status" aria-busy="true">
@@ -140,7 +145,7 @@ export function GitHubConnectionCardPending() {
         <h3 className={styles.name}>
           GitHub <span className={styles.badgePending}>checking…</span>
         </h3>
-        <p className={styles.desc}>Restoring your GitHub App install…</p>
+          <p className={styles.desc}>Checking GitHub access…</p>
       </div>
     </Surface>
   );
@@ -150,9 +155,10 @@ export interface GitHubConnectionCardProps {
   connection: PublicGitHubConnection;
   /** `?github=` result from connect / callback / disconnect. */
   status?: string;
+  onRetry?: () => void;
 }
 
-export function GitHubConnectionCard({ connection, status }: GitHubConnectionCardProps) {
+export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConnectionCardProps) {
   if (!connection.configured) {
     return (
       <Surface level={1} padded={false} className={styles.card}>
@@ -164,8 +170,24 @@ export function GitHubConnectionCard({ connection, status }: GitHubConnectionCar
             GitHub <span className={styles.badge}>unavailable</span>
           </h3>
           <p className={styles.desc}>
-            Set <code>GITHUB_APP_*</code> and <code>GITHUB_SESSION_PASSWORD</code> to enable.
+            GitHub connections aren’t available in this deployment.
           </p>
+        </div>
+      </Surface>
+    );
+  }
+
+  if (connection.state === "unavailable") {
+    return (
+      <Surface level={1} padded={false} className={styles.card}>
+        <div className={styles.header}>
+          <span className={styles.glyph}><GitHubMark /></span>
+          <h3 className={styles.name}>GitHub <span className={styles.badge}>check unavailable</span></h3>
+          <p className={styles.desc} role="alert">Couldn’t verify GitHub access. Retry the check, or retry disconnect if it didn’t finish.</p>
+          <div className={styles.actions}>
+            <Button variant="ghost" onClick={onRetry}>Retry check</Button>
+            <DisconnectGitHubButton all />
+          </div>
         </div>
       </Surface>
     );
@@ -180,14 +202,14 @@ export function GitHubConnectionCard({ connection, status }: GitHubConnectionCar
             <GitHubMark />
           </span>
           <h3 className={styles.name}>
-            GitHub <span className={styles.badge}>not connected</span>
+            GitHub <span className={styles.badge}>{connection.state === "reconnect-required" ? "reconnect required" : "not connected"}</span>
           </h3>
           <p className={styles.desc}>
-            {connection.login ? "Reconnect to verify your GitHub access. Your installations are saved." : "Private repos and higher rate limits."}
+            {connection.login || connection.state === "reconnect-required" ? "Reconnect to verify your GitHub access. Check organization approval and SSO in GitHub if access changed." : "Private repos and higher rate limits."}
           </p>
           <div className={styles.actions}>
             <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
-              {connection.login ? "Reconnect GitHub" : "Install GitHub App"}
+              {connection.login || connection.state === "reconnect-required" ? "Reconnect GitHub" : "Install GitHub App"}
             </a>
           </div>
         </div>
@@ -235,7 +257,7 @@ export function GitHubConnectionCard({ connection, status }: GitHubConnectionCar
       </div>
       <p className={styles.orgHelp}>
         Install on each organization to read its selected repos. An owner may need to approve.
-        Disconnect removes your connections here; organization installations stay on GitHub.
+        Disconnect revokes your connections across devices; installations stay on GitHub.
       </p>
       <div className={styles.more}>
         <details>

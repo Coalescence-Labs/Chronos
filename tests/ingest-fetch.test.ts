@@ -47,6 +47,20 @@ describe("fetchCommitPage", () => {
 });
 
 describe("error mapping", () => {
+  test("secondary rate limits preserve Retry-After even with primary budget remaining", async () => {
+    restore = mockGitHub(() => githubJson({ message: "Secondary rate limit exceeded" }, {
+      status: 403, headers: { "retry-after": "42", "x-ratelimit-remaining": "1234" },
+    }));
+    await expect(fetchRepoMeta(id)).rejects.toMatchObject({ code: "rate-limited", retryAfterSeconds: 42 });
+  });
+  test("a secondary limit without timing headers uses GitHub's minimum wait", async () => {
+    restore = mockGitHub(() => githubJson({ message: "You have exceeded a secondary rate limit." }, { status: 403 }));
+    await expect(fetchRepoMeta(id)).rejects.toMatchObject({ code: "rate-limited", retryAfterSeconds: 60 });
+  });
+  test("organization SSO errors provide an actionable recovery path", async () => {
+    restore = mockGitHub(() => githubJson({}, { status: 403, headers: { "x-github-sso": "required" } }));
+    await expect(fetchRepoMeta(id)).rejects.toMatchObject({ code: "access-denied", message: expect.stringContaining("SSO") });
+  });
   test("403 with remaining=0 → rate-limited, with retryAfterSeconds from the reset header", async () => {
     const reset = Math.floor(Date.now() / 1000) + 120;
     restore = mockGitHub(() =>
@@ -70,9 +84,9 @@ describe("error mapping", () => {
     await expect(fetchRepoMeta(id)).rejects.toMatchObject({ code: "rate-limited" });
   });
 
-  test("403 with budget remaining is a generic upstream error, not rate-limit", async () => {
+  test("403 with budget remaining explains denied access", async () => {
     restore = mockGitHub(() => githubJson({}, { status: 403, headers: { "x-ratelimit-remaining": "57" } }));
-    await expect(fetchRepoMeta(id)).rejects.toMatchObject({ code: "upstream" });
+    await expect(fetchRepoMeta(id)).rejects.toMatchObject({ code: "access-denied" });
   });
 
   test("404 / 451 → not-found", async () => {

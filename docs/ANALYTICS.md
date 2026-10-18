@@ -45,7 +45,7 @@ This is the binding contract for every event and every property. It is enforced 
 
 ---
 
-## 3. The tooling: Vercel Web Analytics + Speed Insights
+## 3. The tooling: Vercel Web Analytics
 
 We use Vercel's first-party analytics because it is **cookieless and privacy-friendly by default**, requires no third-party service, and integrates with the existing Vercel deployment.
 
@@ -58,10 +58,15 @@ We use Vercel's first-party analytics because it is **cookieless and privacy-fri
 
 ### How Vercel Speed Insights works
 
-- **`@vercel/speed-insights`** provides a `<SpeedInsights />` component that reports **Core Web Vitals** (FCP, LCP, etc.) and a **Real Experience Score**, aggregated by route, device, and country. ([Speed Insights overview](https://vercel.com/docs/speed-insights))
-- It is sampled real-user monitoring (RUM) and, like Web Analytics, is **cookieless**. It complements — but does **not** replace — our own `time-to-first-graph` custom metric, because RES/LCP measure paint, not "graph is usable."
+- **Disabled and removed on 2026-10-17.** Browser verification showed that its
+  payload contains both a route template and an independent full URL, plus DOM
+  attribution selectors that can contain commit SHAs. Cookieless collection and
+  route templating do not make those fields safe. Coarse graph-performance custom
+  events remain available through the scrubbed Web Analytics collector.
 
-> ⚠️ **The repo-path leak.** Speed Insights buckets data by **route/path**, and Web Analytics records **page paths** by default. Chronos' graph route is `/repo/[owner]/[repo]`, so the *raw* path contains the repo owner and name. Left untouched, default page-path analytics would record **which repos people view** — a direct violation of §2. **This must be scrubbed** (§4). For Speed Insights, Next.js App Router reports the **route template** (`/repo/[owner]/[repo]`), not the filled-in path, which keeps it safe — but this must be verified in the dashboard during COA-98, not assumed.
+Any future RUM collector must prove that every outgoing field excludes private
+repo identity and content before it can be enabled. A dashboard's route grouping
+is insufficient evidence of payload redaction.
 
 ---
 
@@ -108,7 +113,8 @@ Design choices that matter:
 
 - **Allowlist, not denylist.** We name the routes we *will* report. Anything new fails closed (returns `null`) until someone adds it deliberately — so a future route can never silently leak.
 - **Query and hash are always dropped.** Even though Chronos shouldn't put secrets in the query string, we strip it unconditionally (the [Vercel redaction guide](https://vercel.com/docs/analytics/redacting-sensitive-data) shows the per-param approach; we go further and template the whole path).
-- **Same control covers Speed Insights.** App Router already reports the route template for RUM, but COA-98 must confirm no concrete `/repo/owner/name` path appears in the Speed Insights dashboard.
+- **Separate collectors need separate validation.** The Web Analytics hook does
+  not sanitize Speed Insights. That collector stays disabled.
 
 ---
 
@@ -187,9 +193,13 @@ In the Vercel **Web Analytics → Custom Events** view (filterable by event name
 - **Lazy-paging depth:** max `lazy_page.depth` distribution — validates the eager-3-pages default (ADR 006 / COA-74).
 - **Rate-limit incidence:** `count(rate_limited) ÷ count(repo_submitted)` — if non-trivial, it sharpens the COA-74 caching / app-token decision.
 
-### Speed Insights route-template check (manual gate)
+### Real-user monitoring privacy gate
 
-Speed Insights buckets by route, and Next App Router reports the **template** (`/repo/[owner]/[repo]`), not the filled-in path — so it inherits the no-repo-identity guarantee. **Verify once after deploy** in the Speed Insights dashboard that the routes list shows only `/`, `/repo/[owner]/[repo]`, `/demo`, `/styleguide` — never a concrete `/repo/owner/name`. (Manual, like the Lighthouse installability gate; it can't be asserted from a unit test against a live dashboard.)
+Speed Insights is removed. Before adding another collector, capture its complete
+outgoing payload after repo navigation and commit interaction. Check URLs, query
+strings, DOM selectors, referrers and attribution fields for repo identifiers.
+Use synthetic data and intercept the network so the verification itself sends
+no private data. Dashboard route templates alone do not meet this gate.
 
 ---
 
@@ -212,7 +222,10 @@ Speed Insights buckets by route, and Next App Router reports the **template** (`
 
 ### Pre-flight note
 
-Analytics is a new egress path, so **COA-96 must clear `.claude/skills/privacy-preflight/`** before merge — naming the data (enums/counts/durations only), the destination (Vercel, cookieless), retention (Vercel's anonymized aggregates; daily-rotating hash, no cross-site/cross-day identity), and the consent surface (disclosure in `/PRIVACY.md` + env off-switch + `va-disable` opt-out). Speed Insights in COA-98 is the same destination but a separately-mounted collector, so confirm it inherits the same route-template-only guarantee.
+Analytics egress requires `.claude/skills/privacy-preflight/`: enums/counts/duration
+buckets only, sent to Vercel under its documented aggregate retention terms, with
+the public privacy disclosure and opt-out controls. Speed Insights does not inherit
+Web Analytics' redaction and remains disabled.
 
 ---
 

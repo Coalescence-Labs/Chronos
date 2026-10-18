@@ -30,6 +30,7 @@ describe("GitHub install WorkOS metadata", () => {
       accountType: sampleSession.accountType,
       connectedAt: sampleSession.connectedAt,
       permissions: sampleSession.permissions,
+      authorizationVersion: "initial",
     });
   });
 
@@ -62,15 +63,11 @@ describe("GitHub install WorkOS metadata", () => {
 });
 
 describe("rehydrate and WorkOS API wiring", () => {
-  test("resolve-session rehydrates from metadata and clears revoked installs", async () => {
+  test("resolve-session requires authoritative bindings without writing empty credentials", async () => {
     const source = await Bun.file("lib/github-app/resolve-session.ts").text();
     expect(source).toContain("readGitHubInstallMetadata");
-    expect(source).toContain("fetchInstallationAccount");
-    expect(source).toContain("saveGitHubAppSession");
-    expect(source).toContain("persistSession");
-    expect(source).toContain("clearGitHubInstallMetadata");
-    expect(source).toContain("GitHubInstallationReadError");
-    expect(source).toMatch(/error\.status\s*===\s*404/);
+    expect(source).toContain("authorizationVersion");
+    expect(source).not.toContain("saveGitHubAppSession");
   });
 
   test("workos-metadata write/clear use updateUser with string or null values", async () => {
@@ -82,15 +79,14 @@ describe("rehydrate and WorkOS API wiring", () => {
     expect(source).toContain("did not persist on WorkOS user");
   });
 
-  test("account GitHub card uses warm cookie or status API rehydrate", async () => {
+  test("account GitHub card checks live status before claiming access", async () => {
     const page = await Bun.file("app/account/page.tsx").text();
     expect(page).toContain("AccountGitHubConnection");
     expect(page).not.toContain("Suspense");
     expect(page).not.toContain("GitHubConnectionCardPending");
 
     const card = await Bun.file("components/auth/AccountGitHubConnection.tsx").text();
-    expect(card).toContain("readGitHubAppSessionForUser");
-    expect(card).toContain("peekGitHubInstallBinding");
+    expect(card).not.toContain("toPublicGitHubConnection");
     expect(card).toContain("AccountGitHubConnectionRehydrate");
     expect(card).not.toContain("resolveGitHubAppSessionForUser");
 
@@ -110,14 +106,17 @@ describe("sign-out vs disconnect semantics", () => {
     expect(signOutSource).not.toContain("writeGitHubInstallMetadata");
   });
 
-  test("disconnect clears metadata and uninstalls", async () => {
+  test("disconnect delegates to one revocation service without uninstalling shared apps", async () => {
     const disconnectRoute = await Bun.file("app/api/github/disconnect/route.ts").text();
     const disconnectAction = await Bun.file("lib/github-app/actions.ts").text();
     for (const source of [disconnectRoute, disconnectAction]) {
-      expect(source).toContain("clearGitHubInstallMetadata");
-      expect(source).toContain("deleteInstallation");
-      expect(source).toContain("destroyGitHubAppSession");
+      expect(source).toContain("disconnectGitHubForUser");
+      expect(source).not.toContain("deleteInstallation");
     }
+    const service = await Bun.file("lib/github-app/disconnect.ts").text();
+    expect(service).toContain("clearGitHubInstallMetadata");
+    expect(service).toContain("revokeGitHubUserGrant");
+    expect(service).toContain("destroyGitHubAppSession");
   });
 
   test("callback writes metadata on connect", async () => {

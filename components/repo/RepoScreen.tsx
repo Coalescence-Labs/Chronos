@@ -30,6 +30,7 @@ interface LoadedState {
   /** GitHub default branch from the BFF — threaded into Glance (COA-211). */
   defaultBranch: string;
   truncated: boolean;
+  referencesTruncated?: boolean;
   /** More pages remain within the cap — scrolling will load them. */
   hasMore: boolean;
   complete: boolean;
@@ -55,6 +56,8 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const [attempt, setAttempt] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pagingNote, setPagingNote] = useState<{ key: string; note: string } | null>(null);
+  const pagingRetryAt = useRef(0);
   // A note after a manual refresh ("up to date" / "updated"), tagged with the
   // request it belongs to so it clears itself when the repo/attempt changes.
   const [refreshNote, setRefreshNote] = useState<{ key: string; note: string } | null>(null);
@@ -76,15 +79,18 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     requestKeyRef.current = requestKey;
     loadMoreRef.current = null;
     historyRef.current = null;
     pagesLoadedRef.current = 0;
+    pagingRetryAt.current = 0;
     firstPaintRef.current = false;
     startedAtRef.current = performance.now();
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
-      onProgress: (h, { defaultBranch }) => {
+      signal: controller.signal,
+      onProgress: (h, { defaultBranch, referencesTruncated }) => {
         if (!cancelled) {
           historyRef.current = h;
           setLoaded({
@@ -92,6 +98,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             history: snapshot(h),
             defaultBranch,
             truncated: false,
+            referencesTruncated,
             hasMore: false,
             complete: false,
           });
@@ -117,6 +124,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           history: snapshot(result.history),
           defaultBranch: result.defaultBranch,
           truncated: result.truncated,
+          referencesTruncated: result.referencesTruncated,
           hasMore: result.loadMore !== undefined,
           complete: true,
         });
@@ -139,11 +147,13 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
 
     return () => {
       cancelled = true;
+      controller.abort();
       loadMoreRef.current = null;
     };
   }, [owner, repo, requestKey]);
 
   const handleNearEnd = useCallback(() => {
+    if (Date.now() < pagingRetryAt.current) return;
     const loadMore = loadMoreRef.current;
     if (!loadMore) return;
     loadMoreRef.current = null;
@@ -151,6 +161,8 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
     loadMore()
       .then((result) => {
         if (requestKeyRef.current !== requestKey) return; // navigated away
+        pagingRetryAt.current = 0;
+        setPagingNote(null);
         loadMoreRef.current = result.loadMore ?? null;
         historyRef.current = result.history;
         setLoaded({
@@ -158,15 +170,21 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           history: snapshot(result.history),
           defaultBranch: result.defaultBranch,
           truncated: result.truncated,
+          referencesTruncated: result.referencesTruncated,
           hasMore: result.loadMore !== undefined,
           complete: true,
         });
         pagesLoadedRef.current += 1;
         track({ name: "lazy_page", props: { depth: pagesLoadedRef.current } });
       })
-      .catch(() => {
-        // Transient (e.g. rate limit): re-arm so the next scroll retries.
-        if (requestKeyRef.current === requestKey) loadMoreRef.current = loadMore;
+      .catch((cause: unknown) => {
+        if (requestKeyRef.current !== requestKey) return;
+        const seconds = cause instanceof IngestError && cause.code === "rate-limited" ? cause.retryAfterSeconds : undefined;
+        pagingRetryAt.current = seconds ? Date.now() + seconds * 1000 : 0;
+        setPagingNote({ key: requestKey, note: seconds
+          ? `older commits paused · try again in ${formatRetryWait(seconds)}`
+          : "couldn’t load older commits · scroll again to retry" });
+        loadMoreRef.current = loadMore;
       })
       .finally(() => setLoadingMore(false));
   }, [requestKey]);
@@ -262,6 +280,8 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             loaded.truncated &&
             " · showing the most recent pages of a longer history"}
           {refreshing && " · refreshing…"}
+          {loaded?.referencesTruncated && " · showing the first 100 branches and 100 tags"}
+          {pagingNote?.key === requestKey && ` · ${pagingNote.note}`}
           {!refreshing && note && ` · ${note}`}
         </>
       }

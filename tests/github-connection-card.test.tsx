@@ -39,7 +39,7 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).not.toContain("<details");
     for (const claim of CONSENT_CLAIMS) expect(html).toContain(claim);
     expect(html).toContain("Contents and metadata");
-    expect(html).toContain("https://github.com/settings/installations");
+    expect(html).toContain("https://github.com/settings/apps/authorizations");
   });
 
   test("connected collapses the facts and offers disconnect + repo selection", () => {
@@ -74,13 +74,13 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).toContain("@acme");
     expect(html).toContain("Add organization");
     expect(html).toContain("Disconnect all");
-    expect(html).toContain("organization installations stay on GitHub");
+    expect(html).toContain("installations stay on GitHub");
   });
 
   test("saved installations without user authorization offer reconnect", () => {
     const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...CONNECTED, connected: false }} />);
     expect(html).toContain("Reconnect GitHub");
-    expect(html).toContain("Your installations are saved");
+    expect(html).toContain("Check organization approval and SSO");
     expect(html).not.toContain("Install GitHub App");
   });
 
@@ -95,7 +95,7 @@ describe("GitHub connection card (COA-202)", () => {
       <GitHubConnectionCard connection={{ ...NOT_CONNECTED, configured: false }} />,
     );
     expect(html).toContain("unavailable");
-    expect(html).toContain("GITHUB_SESSION_PASSWORD");
+    expect(html).toContain("aren’t available in this deployment");
     expect(html).not.toContain("/api/github/connect");
   });
 

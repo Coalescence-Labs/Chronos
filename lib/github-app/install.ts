@@ -1,6 +1,7 @@
-import { githubAppSlug } from "./config";
+import { githubAppId, githubAppSlug } from "./config";
 import { createGitHubAppJwt } from "./jwt";
 import type { RepoId } from "@/lib/ingest/github/parse";
+import { githubFetch, githubResponseError } from "./http";
 
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "chronos-branch-graph";
@@ -45,7 +46,7 @@ export async function fetchInstallationAccount(
   installationId: number,
 ): Promise<InstallationAccount> {
   const jwt = createGitHubAppJwt();
-  const response = await fetch(
+  const response = await githubFetch(
     `https://api.github.com/app/installations/${installationId}`,
     {
       headers: {
@@ -83,12 +84,30 @@ export async function fetchInstallationAccount(
 /**
  * Mint a short-lived installation access token (≈1h). Server-only.
  */
-export async function createInstallationAccessToken(
+const installationTokens = new Map<string, { expires: number; promise: Promise<string> }>();
+
+export function createInstallationAccessToken(installationId: number, repo?: RepoId): Promise<string> {
+  if (!repo) return mintInstallationAccessToken(installationId);
+  const now = Date.now();
+  for (const [key, entry] of installationTokens) if (entry.expires <= now) installationTokens.delete(key);
+  const key = `${githubAppId()}:${installationId}:${repo.repo.toLowerCase()}`;
+  const existing = installationTokens.get(key);
+  if (existing) return existing.promise;
+  if (installationTokens.size >= 256) installationTokens.delete(installationTokens.keys().next().value!);
+  const entry = { expires: now + 12_000, promise: Promise.resolve("") };
+  entry.promise = mintInstallationAccessToken(installationId, repo, (expires) => { entry.expires = expires; })
+    .catch((error: unknown) => { installationTokens.delete(key); throw error; });
+  installationTokens.set(key, entry);
+  return entry.promise;
+}
+
+async function mintInstallationAccessToken(
   installationId: number,
   repo?: RepoId,
+  setExpiry?: (expires: number) => void,
 ): Promise<string> {
   const jwt = createGitHubAppJwt();
-  const response = await fetch(
+  const response = await githubFetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
@@ -108,13 +127,15 @@ export async function createInstallationAccessToken(
   );
 
   if (!response.ok) {
-    throw new Error("Failed to mint GitHub installation token");
+    throw await githubResponseError(response);
   }
 
-  const body = (await response.json()) as { token?: string };
+  const body = (await response.json()) as { token?: string; expires_at?: string };
   if (!body.token) {
     throw new Error("GitHub installation token response missing token");
   }
+  const expires = Date.parse(body.expires_at ?? "");
+  setExpiry?.(Number.isFinite(expires) ? Math.min(Date.now() + 55 * 60_000, expires - 60_000) : 0);
   return body.token;
 }
 
@@ -126,7 +147,7 @@ export async function deleteInstallation(
   installationId: number,
 ): Promise<boolean> {
   const jwt = createGitHubAppJwt();
-  const response = await fetch(
+  const response = await githubFetch(
     `https://api.github.com/app/installations/${installationId}`,
     {
       method: "DELETE",

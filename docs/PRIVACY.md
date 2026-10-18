@@ -30,7 +30,7 @@ Before merging **any** AI feature or **any** new path that sends user/repo data 
 
 How it works and what this document binds:
 
-- **GitHub App credentials / installation binding rest server-side** — App private key in env; sealed `installationId` (+ account login) in an encrypted, httpOnly, SameSite, Secure `gh-session` cookie — never readable by browser JS, never in the client bundle or logs (Principle 3, 6). The same non-token binding (installation id, account login/type, connected-at, permissions) is also stored in **WorkOS user metadata** so sign-in can rehydrate `gh-session` after sign-out. Short-lived installation access tokens are minted on the server and not stored in the session or metadata.
+- **GitHub App credentials / installation binding rest server-side** — App private key in env; sealed credentials and bindings in an encrypted, httpOnly, SameSite, Secure `gh-session` cookie — never readable by browser JS, never in the client bundle or logs (Principle 3, 6). Non-token bindings and a non-secret revocation version also live in **WorkOS user metadata**, allowing reconnect without reinstalling. Installation tokens are restricted to one repo and read permissions, held only in bounded process memory until before expiry, never in the session or metadata. A bounded 60-second process-memory grace window coordinates user-token rotation. No credentials enter an external cache or database.
 - **The server proxies GitHub API calls.** Public-repo (and, when connected, private-repo) git metadata flows GitHub → our server → browser **transiently**. **Zero server-side persistence of repo content**, and **no logging of repo content or tokens** (Principle 1, applied as "minimize what *rests*").
 - **Fetch the minimum:** only graph-relevant commit fields (sha, parents, author, date, message, refs) — not file contents/diffs unless a specific feature needs them and re-clears pre-flight.
 - **Caching** may be both server-side (short-TTL, content-addressed, no PII beyond what GitHub already exposes) and client-side; neither may become a durable store of repo data (see #6).
@@ -108,15 +108,28 @@ Account-linked **GitHub App** install for **private repos + authenticated rate l
 
 1. **What leaves:**
    - **Install consent:** user installs the Chronos GitHub App and selects which repos (or all) the App may access. Chronos receives `installation_id` + account login (for disclosure UI).
-   - **User verification:** GitHub App authorization code, client ID/secret and callback URI go to GitHub's token endpoint; refresh token on renewal. `GET /user/installations` verifies the selected installation; `GET /repos/{owner}/{repo}` with the user token checks access on each BFF request before an installation token is minted.
+   - **User verification:** GitHub App authorization code, PKCE verifier, client ID/secret and callback URI go to GitHub's token endpoint; refresh token on renewal. `offline_access` forces token expiration without adding repo permissions. `GET /user/installations` verifies saved installations; `GET /repos/{owner}/{repo}` with the user token checks access on every BFF request before an installation token is minted or reused. Disconnect sends the user token and App client credentials to GitHub's grant-revocation endpoint when available.
    - **While connected, BFF proxy:** same graph-relevant fields as public ingest — sha, parents, author name/login, commit date, commit message, branch/tag refs — for **public or private** repos the user and installation can both read. **Not fetched:** file contents, diffs, issues, PRs, Actions or org membership lists.
-2. **Where:** GitHub (`github.com` App install/authorization UI and `/login/oauth/access_token`, plus `api.github.com`). Chronos BFF receives responses and forwards the normalized model to the browser. Multiple install bindings live in (a) Chronos `gh-session` cookie (iron-session), **separate from** WorkOS `wos-session`, and (b) **WorkOS user metadata** (`chronosGhInstall_<id>` keys — installation id, account login/type, connected-at, permissions; no tokens). GitHub user access/refresh tokens exist only in the encrypted httpOnly `gh-session`, never in WorkOS. Short-lived installation access tokens (~1h) are minted server-side with the App JWT and discarded after the request.
+2. **Where:** Existing GitHub install/authorization UI, token endpoint and API; no new provider. Bindings live in encrypted `gh-session` and WorkOS metadata (`chronosGhInstall_<id>` plus `chronosGhVersion`), separate from WorkOS `wos-session`. User credentials stay in the sealed cookie and bounded, ephemeral server refresh coordination, never WorkOS. Repo-scoped installation tokens stay in process memory for at most 55 minutes and expire before GitHub's token expiry. There is no durable credential cache or repo-content cache.
 3. **Minimum:** GitHub App permissions **Contents: Read** + **Metadata: Read** only. No write. No durable Chronos DB of repos, installation tokens, or repo content. Cookie max-age 7 days; metadata persists until **Disconnect** (not sign-out).
-4. **Retention & training:** GitHub retains App installations per their policies. Chronos holds install bindings in httpOnly `gh-session` and WorkOS metadata (no repo content); user credentials last only for the seven-day sealed session. Not an AI path — no ZDR question. **Sign-out** clears `wos-session` + `gh-session` but **keeps** WorkOS metadata and does **not** uninstall the App; GitHub user verification is required again on reconnect. **Disconnect** clears metadata + `gh-session`, best-effort uninstalls personal installations, and preserves shared organization installations. Organization owners can remove those on GitHub.
+
+Each binding includes `installationId`, account login/type, connected-at date and
+read-permission summary. Disconnect clears metadata bindings while retaining the
+non-secret revocation version described below.
+4. **Retention & training:** Existing GitHub/WorkOS terms apply; no AI path or added content retention. **Sign-out** clears both cookies and **keeps** install metadata, requiring user verification on reconnect. **Disconnect** clears bindings and the cookie, rotates a non-secret revocation marker and attempts GitHub user-grant revocation. The marker remains to reject older sessions. No App installation is uninstalled: owner-authorized removal stays in GitHub. In-memory refresh coordination lasts at most 60 seconds; repo-scoped installation tokens expire within 55 minutes or sooner. All process-memory state dies with the instance.
 5. **Consent:** explicit **Install GitHub App**, **Reconnect GitHub**, or **Add organization** on `/account`, followed by GitHub's install and user-authorization screens. Read-only permissions and encrypted credential storage are disclosed before install; once connected the facts fold behind "Access and privacy". Organization approval requests are shown as pending. Public paste needs no GitHub connect.
 6. **Least privilege:** truly read-only App permissions; never request Contents: Write, Administration, or other write-oriented grants.
 7. **Secrets:** `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_SESSION_PASSWORD`, App JWTs, user access/refresh tokens, and installation access tokens are server-only — never in client bundle, `/api/github/status`, `/api/auth/me`, logs, or error bodies. Installation ids are not exposed in public status JSON. Tokens are never saved in WorkOS metadata.
 8. **Untrusted input:** private commit messages / branch names remain untrusted — sanitize before render (existing ingest posture).
+
+### Request abuse protection
+
+Request counters retain only a per-process salted hash of the active user ID or
+trusted client address, a count and a one-minute expiry (at most 10,000 entries).
+They never leave the process, enter logs or persist. No repo identity/content is
+part of a counter key. Other hosts ignore client-supplied forwarding headers and
+use a shared anonymous bucket. Deployment-wide limits belong in the hosting
+firewall; no new external data service is introduced.
 
 ## User accounts: WorkOS AuthKit (COA-200)
 
@@ -155,7 +168,7 @@ and `/demo` remain usable with **no account**. Engineering notes:
 8. **Untrusted input:** AuthKit-hosted UI handles credential capture; Chronos
    renders allowlisted identity fields only.
 
-## Analytics (Vercel Web Analytics + Speed Insights)
+## Analytics (Vercel Web Analytics)
 
 **Security update (2026-10-17): Speed Insights is disabled.** Its independent URL
 and DOM-attribution fields can disclose repo names and commit SHAs. Route templating
@@ -171,7 +184,7 @@ Cookieless, anonymous, first-party product analytics (no third party, no cross-d
 
 ### Privacy pre-flight — COA-96 (analytics)
 1. **What leaves:** anonymous page-view events (templated path, referrer, coarse geo/device; cookieless daily hash) → Vercel. No repo identifiers (scrubbed) and no repo content.
-2. **Where:** Vercel Web Analytics + Speed Insights (`/_vercel/insights`, `/_vercel/speed-insights`).
+2. **Where:** Vercel Web Analytics (`/_vercel/insights`). Speed Insights is removed.
 3. **Minimum:** path templated to the route, query/hash dropped, allowlist fail-closed; this is the smallest payload that still answers the product questions.
 4. **Retention/training:** product analytics, not an AI path — no ZDR question; cookieless, aggregated, no training.
 5. **Consent:** cookieless/anonymous (no consent banner needed); disclosed in the public [PRIVACY.md](../PRIVACY.md). Opt-out via the env switch.

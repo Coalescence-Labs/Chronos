@@ -38,6 +38,22 @@ function withAppEnv(run: () => Promise<void>): Promise<void> {
 }
 
 describe("github app install token exchange", () => {
+  test("concurrent reads reuse a repo-scoped token while other repos remain isolated", async () => {
+    await withAppEnv(async () => {
+      let calls = 0;
+      const original = globalThis.fetch;
+      globalThis.fetch = (async (_input, init) => {
+        calls++;
+        const scope = JSON.parse(String(init?.body)).repositories[0];
+        return Response.json({ token: `ghs_fake_${scope}`, expires_at: new Date(Date.now() + 3600_000).toISOString() }, { status: 201 });
+      }) as typeof fetch;
+      restore = () => { globalThis.fetch = original; };
+      const tokens = await Promise.all(Array.from({ length: 10 }, () => createInstallationAccessToken(99881, { owner: "acme", repo: "one" })));
+      expect(calls).toBe(1); expect(new Set(tokens)).toEqual(new Set(["ghs_fake_one"]));
+      expect(await createInstallationAccessToken(99881, { owner: "acme", repo: "two" })).toBe("ghs_fake_two");
+      expect(calls).toBe(2);
+    });
+  });
   test("createInstallationAccessToken POSTs with App JWT Bearer", async () => {
     await withAppEnv(async () => {
       let auth = "";

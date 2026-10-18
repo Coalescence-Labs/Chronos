@@ -9,6 +9,9 @@ export type IngestErrorCode =
   | "not-found"
   | "rate-limited"
   | "too-large"
+  | "reconnect-required"
+  | "access-denied"
+  | "auth-refreshing"
   | "upstream";
 
 export class IngestError extends Error {
@@ -47,5 +50,8 @@ export const INGEST_ERROR_STATUS: Record<IngestErrorCode, number> = {
   "not-found": 404,
   "rate-limited": 429,
   "too-large": 422,
+  "reconnect-required": 401,
+  "access-denied": 403,
+  "auth-refreshing": 409,
   upstream: 502,
 };

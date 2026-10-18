@@ -3,6 +3,7 @@ import { IngestError } from "../errors";
 import { toBranchRefs, toCommitNode, toTagRefs } from "./map";
 import type { GitHubCommitItem, GitHubRefItem } from "./map";
 import type { RepoId } from "./parse";
+import { githubFetch, githubResponseError } from "@/lib/github-app/http";
 
 /**
  * Server-side GitHub REST fetchers — the upstream half of the BFF proxy
@@ -31,6 +32,7 @@ export interface GitHubRequestAuth {
   accessToken?: string;
   privateAccessVerified?: boolean;
   repoMeta?: RepoMeta;
+  signal?: AbortSignal;
 }
 
 function githubHeaders(auth?: GitHubRequestAuth): HeadersInit {
@@ -45,34 +47,6 @@ function githubHeaders(auth?: GitHubRequestAuth): HeadersInit {
   return headers;
 }
 
-function toError(response: Response): IngestError {
-  if (response.status === 404 || response.status === 451) {
-    return new IngestError(
-      "not-found",
-      "Repository not found. It may be private or misspelled. Check GitHub App access in your account: organization repos need an organization-approved installation with this repo selected.",
-    );
-  }
-  const remaining = response.headers.get("x-ratelimit-remaining");
-  if (response.status === 429 || (response.status === 403 && remaining === "0")) {
-    const reset = Number(response.headers.get("x-ratelimit-reset"));
-    const retryAfterSeconds = Number.isFinite(reset)
-      ? Math.max(0, reset - Math.floor(Date.now() / 1000))
-      : undefined;
-    return new IngestError(
-      "rate-limited",
-      "GitHub's rate limit was reached. Please try again in a few minutes.",
-      retryAfterSeconds,
-    );
-  }
-  if (response.status === 401) {
-    return new IngestError("upstream", "GitHub authorization expired or was revoked. Reconnect GitHub in your account.");
-  }
-  return new IngestError(
-    "upstream",
-    `GitHub returned an unexpected response (${response.status}).`,
-  );
-}
-
 async function githubGet(
   path: string,
   params: Record<string, string>,
@@ -82,11 +56,12 @@ async function githubGet(
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
-  const response = await fetch(url, {
+  const response = await githubFetch(url, {
     headers: githubHeaders(auth),
     cache: "no-store",
+    signal: auth?.signal,
   });
-  if (!response.ok) throw toError(response);
+  if (!response.ok) throw await githubResponseError(response);
   return response;
 }
 
@@ -116,18 +91,19 @@ export async function fetchRepoMeta(
 export async function fetchRefs(
   id: RepoId,
   auth?: GitHubRequestAuth,
-): Promise<Ref[]> {
+): Promise<{ refs: Ref[]; truncated: boolean }> {
   const { owner, repo } = id;
   const perPage = { per_page: String(REFS_PER_PAGE) };
-  const [branches, tags] = await Promise.all([
-    githubGet(`/repos/${owner}/${repo}/branches`, perPage, auth).then(
-      (response) => response.json() as Promise<GitHubRefItem[]>,
-    ),
-    githubGet(`/repos/${owner}/${repo}/tags`, perPage, auth).then(
-      (response) => response.json() as Promise<GitHubRefItem[]>,
-    ),
+  const [branchesResponse, tagsResponse] = await Promise.all([
+    githubGet(`/repos/${owner}/${repo}/branches`, perPage, auth),
+    githubGet(`/repos/${owner}/${repo}/tags`, perPage, auth),
   ]);
-  return [...toBranchRefs(branches), ...toTagRefs(tags)];
+  const branches = await branchesResponse.json() as GitHubRefItem[];
+  const tags = await tagsResponse.json() as GitHubRefItem[];
+  return {
+    refs: [...toBranchRefs(branches), ...toTagRefs(tags)],
+    truncated: [branchesResponse, tagsResponse].some((response) => /rel="next"/.test(response.headers.get("link") ?? "")),
+  };
 }
 
 export interface CommitPage {
@@ -148,14 +124,15 @@ export async function fetchCommitPage(
   url.searchParams.set("sha", sha);
   url.searchParams.set("per_page", String(COMMITS_PER_PAGE));
   url.searchParams.set("page", String(page));
-  const response = await fetch(url, {
+  const response = await githubFetch(url, {
     headers: githubHeaders(auth),
     cache: "no-store",
+    signal: auth?.signal,
   });
 
   // 409 = empty repository: a valid history with zero commits, not an error.
   if (response.status === 409) return { commits: [], hasMore: false };
-  if (!response.ok) throw toError(response);
+  if (!response.ok) throw await githubResponseError(response);
 
   const items = (await response.json()) as GitHubCommitItem[];
   const link = response.headers.get("link") ?? "";

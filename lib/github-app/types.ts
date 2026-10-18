@@ -15,6 +15,7 @@ export interface GitHubAppSessionData {
   userAccessToken?: string;
   userRefreshToken?: string;
   userTokenExpiresAt?: number;
+  authorizationVersion?: string;
 }
 
 export type GitHubInstallBinding = Pick<
@@ -30,5 +31,6 @@ export interface PublicGitHubConnection {
   /** ISO timestamp of the install; null when unknown (pre-connectedAt sessions). */
   connectedAt: string | null;
   configured: boolean;
+  state?: "connected" | "disconnected" | "reconnect-required" | "unavailable";
   accounts?: { login: string; accountType: "User" | "Organization"; connectedAt: string | null }[];
 }

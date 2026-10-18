@@ -78,7 +78,7 @@ describe("optional WorkOS auth gate", () => {
     const handlerSource = await Bun.file("lib/auth/proxy-handler.ts").text();
     // Gate must run before any authkit invocation — order matters for the throw.
     const gateIdx = handlerSource.indexOf("if (!isAuthConfigured())");
-    const nextIdx = handlerSource.indexOf("NextResponse.next()");
+    const nextIdx = handlerSource.indexOf("NextResponse.next(");
     const authkitCallIdx = handlerSource.indexOf("authkitProxy({");
     expect(gateIdx).toBeGreaterThan(-1);
     expect(nextIdx).toBeGreaterThan(gateIdx);

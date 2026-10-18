@@ -10,6 +10,7 @@ const personal: GitHubAppSessionData = {
 };
 let activeUser = "user_test";
 let accessibleId = 200;
+let authorizationVersion = "initial";
 const jar = new Map<string, string>();
 const writes: GitHubAppSessionData[] = [];
 const saves: GitHubAppSessionData[] = [];
@@ -27,6 +28,9 @@ mock.module("next/headers", () => ({ cookies: async () => ({
   delete: (key: string) => { jar.delete(key); },
 }) }));
 mock.module("@workos-inc/authkit-nextjs", () => ({ withAuth: async () => ({ user: { id: activeUser } }) }));
+mock.module("@/lib/github-app/metadata-client", () => ({
+  githubMetadataClient: () => ({ userManagement: { getUser: async () => ({ metadata: { chronosGhVersion: authorizationVersion } }) } }),
+}));
 mock.module("@/lib/github-app", () => ({
   ...realGitHubApp,
   isGitHubAppConfigured: () => true,
@@ -40,12 +44,12 @@ beforeEach(() => {
   for (const [key, value] of Object.entries(env)) { previous[key] = process.env[key]; process.env[key] = value; }
   globalThis.fetch = (async (input) => String(input).startsWith("https://github.com/login/oauth/access_token")
     ? Response.json({ access_token: "ghu_test_user", refresh_token: "ghr_test_refresh", expires_in: 28800 })
-    : Response.json({ installations: [{ id: accessibleId }] })) as typeof fetch;
+    : Response.json({ installations: [{ id: accessibleId }, { id: 100 }] })) as typeof fetch;
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;
   jar.clear(); writes.length = 0; saves.length = 0;
-  activeUser = "user_test"; accessibleId = 200;
+  activeUser = "user_test"; accessibleId = 200; authorizationVersion = "initial";
   for (const [key, value] of Object.entries(previous)) {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;
   }
@@ -68,11 +72,14 @@ describe("verified organization connect callback", () => {
     const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
     expect(pending.workosUserId).toBe("user_test");
     expect(pending.installationId).toBe(200);
+    expect(pending.codeVerifier).toHaveLength(43);
+    expect(authorize.searchParams.get("code_challenge_method")).toBe("S256");
     const { GET } = await import("@/app/api/github/callback/route");
     const result = await GET(new Request(`https://chronos.test/api/github/callback?code=test-code&state=${pending.state}`));
     expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("connected");
     expect(writes[0]?.accountLogin).toBe("acme");
-    expect(writes[0]?.additionalInstallations?.[0]?.installationId).toBe(100);
+    expect(writes[0]?.additionalInstallations).toBeUndefined();
+    expect(saves[0]?.additionalInstallations?.[0]?.installationId).toBe(100);
     expect(saves[0]?.userAccessToken).toBe("ghu_test_user");
     expect(jar.has(GITHUB_COOKIE_POSTURE.stateCookieName)).toBe(false);
   });
@@ -82,9 +89,26 @@ describe("verified organization connect callback", () => {
     const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
     const { GET } = await import("@/app/api/github/callback/route");
     const result = await GET(new Request(`https://chronos.test/api/github/callback?code=test-code&state=${pending.state}`));
-    expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("error");
+    expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("access-denied");
     expect(writes).toEqual([]);
     expect(saves).toEqual([]);
+  });
+
+  test("a callback started before disconnect cannot restore a connection", async () => {
+    await startInstall();
+    const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
+    authorizationVersion = "revoked-version";
+    const { GET } = await import("@/app/api/github/callback/route");
+    await GET(new Request(`https://chronos.test/api/github/callback?code=test-code&state=${pending.state}`));
+    expect(writes).toEqual([]); expect(saves).toEqual([]);
+  });
+
+  test("an invalid callback cannot erase another pending flow", async () => {
+    await startInstall();
+    const sealed = jar.get(GITHUB_COOKIE_POSTURE.stateCookieName);
+    const { GET } = await import("@/app/api/github/callback/route");
+    await GET(new Request("https://chronos.test/api/github/callback?state=forged"));
+    expect(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName)).toBe(sealed);
   });
 
   test("switching Chronos accounts invalidates pending connect state", async () => {

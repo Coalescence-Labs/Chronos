@@ -246,6 +246,8 @@ test("a failed loadMore re-arms and succeeds on the next scroll (COA-92)", async
   await expect(page.getByRole("listbox", { name: /60 commits/ })).toBeVisible();
 
   // Scroll away and back to re-trigger → page 4 retried → succeeds → 80.
+  await expect(page.getByText(/older commits paused/)).toBeVisible();
+  await page.waitForTimeout(1100); // Respect the upstream Retry-After before retrying.
   await graph.evaluate(async (el) => {
     el.scrollTo({ top: 0 });
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));

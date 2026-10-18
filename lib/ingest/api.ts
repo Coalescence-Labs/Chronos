@@ -12,6 +12,7 @@ export interface RepoResponse {
   history: RepoHistory;
   /** Next commit page of the default branch, or null when complete. */
   nextPage: number | null;
+  referencesTruncated?: boolean;
 }
 
 export interface CommitsPageResponse {

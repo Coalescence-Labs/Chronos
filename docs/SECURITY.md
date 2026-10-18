@@ -43,3 +43,40 @@ repo names and commit identifiers even when a route template is also present.
 Allowlisted, bucketed graph-performance events continue through Web Analytics with
 URL scrubbing. Any replacement real-user monitoring must prove that every outgoing
 field excludes repo identity/content before being enabled.
+
+## Connection lifecycle and operational bounds
+
+Private requests check the active WorkOS user, authoritative installation bindings
+and their revocation version, and fresh GitHub user/repo access. Installation tokens
+grant read access to one repository. Disconnect rotates the durable version before
+reporting success; GitHub grant revocation is attempted independently. A revoked or
+old cookie cannot become valid again after reconnect. Chronos never uninstalls an
+App on behalf of a user whose repository access does not establish ownership.
+
+GitHub calls have a 12-second deadline, a 5 MiB raw-body limit and at most 32 concurrent
+requests per instance. WorkOS metadata calls use a 12-second timeout with automatic
+retries disabled. BFF GitHub work shares a 20-second deadline; client requests are
+cancellable and bounded at 25 seconds. Only
+explicit refresh-token conflicts retry automatically, up to four times with bounded
+backoff; 429s and general upstream failures do not.
+
+Per-instance fairness limits allow 120 requests/minute per signed-in user and 60 per
+anonymous address (or a shared anonymous pool when a trusted address is unavailable).
+Only Vercel's replaced forwarding header is trusted; arbitrary client forwarding
+headers never select a new bucket on other hosts. Buckets retain salted hashes and
+counts for one minute, cap at 10,000 entries, and are never logged or persisted.
+Connection-management requests use a separate 30/minute bucket.
+Configure **Vercel Firewall rate limits** for `/api/repo*` and `/api/github/*` before
+large-scale exposure: process-local limits cannot enforce a deployment-wide quota.
+
+Refresh coordination and installation-token reuse are intentionally ephemeral and
+instance-local. Cross-instance refresh conflicts recover through bounded browser
+retries; persistent provider failure asks for reconnect. A distributed coordinator
+would require a separate infrastructure/privacy decision. No Redis/database or
+additional provider has been introduced by this change. Repo caching ADR 006 remains
+open; none of its proposed repo-content caching is implemented.
+
+The CSP uses a fresh request nonce with strict script execution, forbids framing,
+objects and unsafe base URLs, and permits inline styles only for graph geometry.
+This requires dynamic HTML rendering. The service worker continues to exclude repo
+pages and API responses from its cache.
