@@ -41,6 +41,16 @@ describe("GitHub install WorkOS metadata", () => {
     expect(parseGitHubInstallMetadata(legacy)?.installationId).toBe(4242);
   });
 
+  test("legacy bindings reject malformed IDs and dates", () => {
+    const legacy = Object.fromEntries(Object.entries(GITHUB_INSTALL_METADATA_KEYS).map(
+      ([field, key]) => [key, String(sampleSession[field as keyof typeof sampleSession])],
+    ));
+    for (const id of ["4242junk", "1.5", "9007199254740992", "Infinity"]) {
+      expect(parseGitHubInstallMetadata({ ...legacy, chronosGhInstallationId: id })).toBeUndefined();
+    }
+    expect(parseGitHubInstallMetadata({ ...legacy, chronosGhConnectedAt: "invalid" })).toBeUndefined();
+  });
+
   test("round-trips personal and organization installs without persisting user tokens", () => {
     const organization = { ...sampleSession, installationId: 8080, accountLogin: "acme", accountType: "Organization" as const };
     const serialized = githubInstallMetadataFromSession({

@@ -113,6 +113,48 @@ describe("multiple install persistence and disconnect", () => {
     expect(JSON.stringify(metadata)).not.toMatch(/ghu_|ghr_|userAccessToken|userRefreshToken/);
   });
 
+  test("adding an organization migrates a legacy personal connection that is absent from the incoming patch", async () => {
+    metadata = {
+      chronosGhInstallationId: "100", chronosGhAccountLogin: "ada", chronosGhAccountType: "User",
+      chronosGhConnectedAt: binding.connectedAt, chronosGhPermissions: binding.permissions, unrelated: "keep",
+    };
+    await Promise.all([200, 300].map((installationId) => writeGitHubInstallMetadata("user_test", {
+      ...binding, installationId, accountLogin: `org-${installationId}`, accountType: "Organization", additionalInstallations: undefined,
+    })));
+    expect(Object.keys(metadata).sort()).toEqual(["chronosGhInstall_100", "chronosGhInstall_200", "chronosGhInstall_300", "unrelated"]);
+    const saved = parseGitHubInstallMetadata(metadata)!;
+    expect(saved.accountLogin).toBe("ada");
+    expect(saved.connectedAt).toBe(binding.connectedAt);
+    expect(saved.additionalInstallations).toHaveLength(2);
+  });
+
+  test("migrating leftover legacy keys cannot overwrite a newer binding", async () => {
+    metadata = {
+      ...metadata,
+      chronosGhInstallationId: "100", chronosGhAccountLogin: "old-name", chronosGhAccountType: "User",
+      chronosGhConnectedAt: "2025-01-01T00:00:00Z", chronosGhPermissions: binding.permissions,
+    };
+    await writeGitHubInstallMetadata("user_test", {
+      ...binding, installationId: 300, accountLogin: "third", accountType: "Organization", additionalInstallations: undefined,
+    });
+    expect(parseGitHubInstallMetadata(metadata)?.accountLogin).toBe("ada");
+    expect(metadata.chronosGhInstallationId).toBeUndefined();
+  });
+
+  test("legacy bindings left behind after revocation cannot reappear during reconnect", async () => {
+    metadata = {
+      chronosGhVersion: "revoked-version", unrelated: "keep",
+      chronosGhInstallationId: "100", chronosGhAccountLogin: "ada", chronosGhAccountType: "User",
+      chronosGhConnectedAt: binding.connectedAt, chronosGhPermissions: binding.permissions,
+    };
+    await writeGitHubInstallMetadata("user_test", {
+      ...binding, installationId: 200, accountLogin: "acme", accountType: "Organization",
+      authorizationVersion: "revoked-version", additionalInstallations: undefined,
+    });
+    expect(Object.keys(metadata).sort()).toEqual(["chronosGhInstall_200", "chronosGhVersion", "unrelated"]);
+    expect(parseGitHubInstallMetadata(metadata)?.installationId).toBe(200);
+  });
+
   test("metadata capacity failure leaves existing connections intact", async () => {
     metadata = Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`other${index}`, "keep"]));
     const before = { ...metadata };

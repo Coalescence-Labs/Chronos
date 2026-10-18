@@ -65,7 +65,7 @@ export function parseGitHubInstallMetadata(
   if (authorizationVersion(metadata) !== INITIAL_GITHUB_AUTHORIZATION_VERSION) return undefined;
   const installationRaw = metadata[GITHUB_INSTALL_METADATA_KEYS.installationId];
   const installationId = installationRaw
-    ? Number.parseInt(installationRaw, 10)
+    ? Number(installationRaw)
     : NaN;
   const accountLogin = metadata[GITHUB_INSTALL_METADATA_KEYS.accountLogin]?.trim();
   const accountTypeRaw = metadata[GITHUB_INSTALL_METADATA_KEYS.accountType];
@@ -75,11 +75,11 @@ export function parseGitHubInstallMetadata(
     "contents:read,metadata:read";
 
   if (
-    !Number.isFinite(installationId) ||
+    !Number.isSafeInteger(installationId) ||
     installationId <= 0 ||
     !accountLogin ||
     (accountTypeRaw !== "User" && accountTypeRaw !== "Organization") ||
-    !connectedAt
+    !connectedAt || !Number.isFinite(Date.parse(connectedAt))
   ) {
     return undefined;
   }
@@ -146,7 +146,12 @@ export async function writeGitHubInstallMetadata(
   }
   const legacyPatch = Object.fromEntries(Object.values(GITHUB_INSTALL_METADATA_KEYS)
     .filter((key) => key in (current.metadata ?? {})).map((key) => [key, null]));
+  const legacy = expectedVersion === INITIAL_GITHUB_AUTHORIZATION_VERSION
+    ? parseGitHubInstallMetadata(Object.fromEntries(Object.keys(legacyPatch).map((key) => [key, current.metadata![key]!])))
+    : undefined;
+  const migrated = legacy ? githubInstallMetadataFromSession({ ...legacy, workosUserId }) : {};
   const patch = { ...legacyPatch,
+    ...Object.fromEntries(Object.entries(migrated).filter(([key]) => !(key in (current.metadata ?? {})))),
     ...githubInstallMetadataFromSession(data) };
   const retainedKeys = Object.keys(current.metadata ?? {}).filter((key) => !(key in patch));
   const reserve = current.metadata?.[VERSION_KEY] ? 0 : 1;
