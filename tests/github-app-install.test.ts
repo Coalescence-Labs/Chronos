@@ -2,7 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import {
   createInstallationAccessToken,
-  deleteInstallation,
   fetchInstallationAccount,
 } from "@/lib/github-app/install";
 import { createGitHubAppJwt } from "@/lib/github-app/jwt";
@@ -92,14 +91,14 @@ describe("github app install token exchange", () => {
   test("fetchInstallationAccount reads account login via App JWT", async () => {
     await withAppEnv(async () => {
       const original = globalThis.fetch;
-      globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      globalThis.fetch = (async () =>
         new Response(
           JSON.stringify({
             id: 42,
             account: { login: "ada", type: "User" },
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
-        )) as typeof fetch;
+        )) as unknown as typeof fetch;
       restore = () => {
         globalThis.fetch = original;
       };
@@ -113,20 +112,22 @@ describe("github app install token exchange", () => {
     });
   });
 
-  test("deleteInstallation treats 204 and 404 as success", async () => {
+  test("malformed token responses fail and do not poison the shared token cache", async () => {
     await withAppEnv(async () => {
       const original = globalThis.fetch;
       let calls = 0;
-      globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      globalThis.fetch = (async () => {
         calls++;
-        return new Response(null, { status: calls === 1 ? 204 : 404 });
-      }) as typeof fetch;
+        return Response.json({ token: calls === 1 ? { unexpected: "object" } : "ghs_fake_recovered" });
+      }) as unknown as typeof fetch;
       restore = () => {
         globalThis.fetch = original;
       };
 
-      expect(await deleteInstallation(1)).toBe(true);
-      expect(await deleteInstallation(1)).toBe(true);
+      const repo = { owner: "acme", repo: "malformed" };
+      await expect(createInstallationAccessToken(90091, repo)).rejects.toThrow("missing token");
+      expect(await createInstallationAccessToken(90091, repo)).toBe("ghs_fake_recovered");
+      expect(calls).toBe(2);
     });
   });
 

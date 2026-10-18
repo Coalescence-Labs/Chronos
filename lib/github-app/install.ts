@@ -88,8 +88,7 @@ export async function fetchInstallationAccount(
 const installationTokens = new Map<string, { expires: number; promise: Promise<string> }>();
 const cacheKeySecret = randomBytes(32);
 
-export function createInstallationAccessToken(installationId: number, repo?: RepoId): Promise<string> {
-  if (!repo) return mintInstallationAccessToken(installationId);
+export function createInstallationAccessToken(installationId: number, repo: RepoId): Promise<string> {
   const now = Date.now();
   for (const [key, entry] of installationTokens) if (entry.expires <= now) installationTokens.delete(key);
   const key = createHmac("sha256", cacheKeySecret)
@@ -106,7 +105,7 @@ export function createInstallationAccessToken(installationId: number, repo?: Rep
 
 async function mintInstallationAccessToken(
   installationId: number,
-  repo?: RepoId,
+  repo: RepoId,
   setExpiry?: (expires: number) => void,
 ): Promise<string> {
   const jwt = createGitHubAppJwt();
@@ -116,7 +115,7 @@ async function mintInstallationAccessToken(
       method: "POST",
       body: JSON.stringify({
         permissions: { contents: "read", metadata: "read" },
-        ...(repo ? { repositories: [repo.repo] } : {}),
+        repositories: [repo.repo],
       }),
       headers: {
         Accept: "application/vnd.github+json",
@@ -135,35 +134,10 @@ async function mintInstallationAccessToken(
   }
 
   const body = (await response.json()) as { token?: string; expires_at?: string };
-  if (!body.token) {
+  if (typeof body.token !== "string" || !body.token) {
     throw new Error("GitHub installation token response missing token");
   }
-  const expires = Date.parse(body.expires_at ?? "");
+  const expires = Date.parse(typeof body.expires_at === "string" ? body.expires_at : "");
   setExpiry?.(Number.isFinite(expires) ? Math.min(Date.now() + 55 * 60_000, expires - 60_000) : 0);
   return body.token;
-}
-
-/**
- * Uninstall the App for this installation (best-effort on Disconnect).
- * GitHub may also require the user to revoke from github.com settings.
- */
-export async function deleteInstallation(
-  installationId: number,
-): Promise<boolean> {
-  const jwt = createGitHubAppJwt();
-  const response = await githubFetch(
-    `https://api.github.com/app/installations/${installationId}`,
-    {
-      method: "DELETE",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${jwt}`,
-        "X-GitHub-Api-Version": API_VERSION,
-        "User-Agent": USER_AGENT,
-      },
-      cache: "no-store",
-    },
-  );
-  // 204 success; 404 already gone — both fine for disconnect.
-  return response.ok || response.status === 404;
 }
