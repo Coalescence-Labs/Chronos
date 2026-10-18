@@ -142,10 +142,12 @@ export function GitHubConnectionCardPending() {
         <span className={`${styles.glyph} ${styles.glyphPending}`} aria-hidden="true">
           <GitHubMark />
         </span>
-        <h3 className={styles.name}>
-          GitHub <span className={styles.badgePending}>checking…</span>
-        </h3>
+        <div className={styles.heading}>
+          <h3 className={styles.name}>
+            GitHub <span className={styles.badgePending}>checking…</span>
+          </h3>
           <p className={styles.desc}>Checking GitHub access…</p>
+        </div>
       </div>
     </Surface>
   );
@@ -166,12 +168,14 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
           <span className={`${styles.glyph} ${styles.glyphMuted}`}>
             <GitHubMark />
           </span>
-          <h3 className={`${styles.name} ${styles.nameMuted}`}>
-            GitHub <span className={styles.badge}>unavailable</span>
-          </h3>
-          <p className={styles.desc}>
-            GitHub connections aren’t available in this deployment.
-          </p>
+          <div className={styles.heading}>
+            <h3 className={`${styles.name} ${styles.nameMuted}`}>
+              GitHub <span className={styles.badge}>unavailable</span>
+            </h3>
+            <p className={styles.desc}>
+              GitHub connections aren’t available in this deployment.
+            </p>
+          </div>
         </div>
       </Surface>
     );
@@ -182,12 +186,14 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
       <Surface level={1} padded={false} className={styles.card}>
         <div className={styles.header}>
           <span className={styles.glyph}><GitHubMark /></span>
-          <h3 className={styles.name}>GitHub <span className={styles.badge}>check unavailable</span></h3>
-          <p className={styles.desc} role="alert">Couldn’t verify GitHub access. Retry the check, or retry disconnect if it didn’t finish.</p>
-          <div className={styles.actions}>
-            <Button variant="ghost" onClick={onRetry}>Retry check</Button>
-            <DisconnectGitHubButton all />
+          <div className={styles.heading}>
+            <h3 className={styles.name}>GitHub <span className={styles.badge}>check unavailable</span></h3>
+            <p className={styles.desc} role="alert">Couldn’t verify GitHub access. Retry the check, or retry disconnect if it didn’t finish.</p>
           </div>
+        </div>
+        <div className={styles.actions}>
+          <Button variant="ghost" onClick={onRetry}>Retry check</Button>
+          <DisconnectGitHubButton all />
         </div>
       </Surface>
     );
@@ -201,17 +207,19 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
           <span className={styles.glyph}>
             <GitHubMark />
           </span>
-          <h3 className={styles.name}>
-            GitHub <span className={styles.badge}>{connection.state === "reconnect-required" ? "reconnect required" : "not connected"}</span>
-          </h3>
-          <p className={styles.desc}>
-            {connection.login || connection.state === "reconnect-required" ? "Reconnect to verify your GitHub access. Check organization approval and SSO in GitHub if access changed." : "Private repos and higher rate limits."}
-          </p>
-          <div className={styles.actions}>
-            <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
-              {connection.login || connection.state === "reconnect-required" ? "Reconnect GitHub" : "Install GitHub App"}
-            </a>
+          <div className={styles.heading}>
+            <h3 className={styles.name}>
+              GitHub <span className={styles.badge}>{connection.state === "reconnect-required" ? "reconnect required" : "not connected"}</span>
+            </h3>
+            <p className={styles.desc}>
+              {connection.login || connection.state === "reconnect-required" ? "Reconnect to verify your GitHub access. Check organization approval and SSO in GitHub if access changed." : "Private repos and higher rate limits."}
+            </p>
           </div>
+        </div>
+        <div className={styles.actions}>
+          <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
+            {connection.login || connection.state === "reconnect-required" ? "Reconnect GitHub" : "Install GitHub App"}
+          </a>
         </div>
         <Facts className={styles.facts} />
         <p className={styles.orgHelp}>
@@ -238,29 +246,31 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
             connected
           </span>
         </h3>
-        <p className={styles.meta}>
-          {accounts.map((account) => (
-            <span className={styles.account} key={account.login}>
-              <span className={styles.login}>@{account.login}</span>
-              {account.connectedAt && (
-                <>{" · "}<span className={styles.nowrap}>since {account.connectedAt.slice(0, 10)}</span></>
-              )}
-            </span>
-          ))}
-        </p>
-        <div className={styles.actions}>
-          <a className={`${buttonStyles.button} ${buttonStyles.ghost}`} href={CONNECT_HREF}>
-            Add organization
-          </a>
-          <DisconnectGitHubButton all={accounts.length > 1} />
-        </div>
+      </div>
+      <ul className={styles.accounts} role="list" aria-label="Connected GitHub accounts">
+        {accounts.map((account) => (
+          <li className={styles.account} key={account.login}>
+            <span className={styles.login}>@{account.login}</span>
+            {account.connectedAt && (
+              <span className={styles.since}>
+                since <time dateTime={account.connectedAt}>{account.connectedAt.slice(0, 10)}</time>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className={styles.actions}>
+        <a className={`${buttonStyles.button} ${buttonStyles.ghost}`} href={CONNECT_HREF}>
+          Add organization
+        </a>
+        <DisconnectGitHubButton all={accounts.length > 1} />
       </div>
       <p className={styles.orgHelp}>
         Install on each organization to read its selected repos. An owner may need to approve.
         Disconnect revokes your connections across devices; installations stay on GitHub.
       </p>
       <div className={styles.more}>
-        <details>
+        <details className={styles.privacy}>
           <summary className={styles.summary}>
             <Chevron />
             Access and privacy
