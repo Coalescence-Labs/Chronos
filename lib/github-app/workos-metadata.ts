@@ -113,7 +113,7 @@ function authorizationVersion(metadata?: Record<string, string>): string {
 export async function readGitHubAuthorizationVersion(workosUserId: string): Promise<string> {
   const user = await githubMetadataClient().userManagement.getUser(workosUserId);
   const version = authorizationVersion(user.metadata);
-  if (version.startsWith("revoking:")) throw new IngestError("upstream", "GitHub disconnect is incomplete. Retry disconnect from your account.");
+  if (version.startsWith("revoking:")) throw new IngestError("disconnect-incomplete", "GitHub disconnect is incomplete. Retry disconnect from your account.");
   return version;
 }
 
@@ -188,7 +188,7 @@ export async function readGitHubInstallMetadata(
   if (!isAuthConfigured()) return undefined;
   const user = await githubMetadataClient().userManagement.getUser(workosUserId);
   if (authorizationVersion(user.metadata).startsWith("revoking:")) {
-    throw new IngestError("upstream", "GitHub disconnect is incomplete. Retry disconnect from your account.");
+    throw new IngestError("disconnect-incomplete", "GitHub disconnect is incomplete. Retry disconnect from your account.");
   }
   return parseGitHubInstallMetadata(user.metadata);
 }

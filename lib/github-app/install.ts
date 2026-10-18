@@ -2,6 +2,7 @@ import { githubAppId, githubAppSlug } from "./config";
 import { createGitHubAppJwt } from "./jwt";
 import type { RepoId } from "@/lib/ingest/github/parse";
 import { githubFetch, githubResponseError } from "./http";
+import { createHmac, randomBytes } from "node:crypto";
 
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "chronos-branch-graph";
@@ -85,12 +86,14 @@ export async function fetchInstallationAccount(
  * Mint a short-lived installation access token (≈1h). Server-only.
  */
 const installationTokens = new Map<string, { expires: number; promise: Promise<string> }>();
+const cacheKeySecret = randomBytes(32);
 
 export function createInstallationAccessToken(installationId: number, repo?: RepoId): Promise<string> {
   if (!repo) return mintInstallationAccessToken(installationId);
   const now = Date.now();
   for (const [key, entry] of installationTokens) if (entry.expires <= now) installationTokens.delete(key);
-  const key = `${githubAppId()}:${installationId}:${repo.repo.toLowerCase()}`;
+  const key = createHmac("sha256", cacheKeySecret)
+    .update(`${githubAppId()}:${installationId}:${repo.repo.toLowerCase()}`).digest("hex");
   const existing = installationTokens.get(key);
   if (existing) return existing.promise;
   if (installationTokens.size >= 256) installationTokens.delete(installationTokens.keys().next().value!);
@@ -127,6 +130,7 @@ async function mintInstallationAccessToken(
   );
 
   if (!response.ok) {
+    if (response.status === 401) throw new Error("GitHub App credentials could not be verified");
     throw await githubResponseError(response);
   }
 

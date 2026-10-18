@@ -82,6 +82,22 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).toContain("Reconnect GitHub");
     expect(html).toContain("Check organization approval and SSO");
     expect(html).not.toContain("Install GitHub App");
+    expect(html).toContain("Disconnect");
+  });
+
+  test("a provider outage offers a check without suggesting a new connection", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...NOT_CONNECTED, state: "unavailable" }} onRetry={() => {}} />);
+    expect(html).toContain("Retry check");
+    expect(html).not.toContain("Install GitHub App");
+    expect(html).not.toContain("Disconnect");
+  });
+
+  test("an interrupted disconnect offers recovery while private access stays blocked", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...NOT_CONNECTED, state: "disconnect-incomplete" }} />);
+    expect(html).toContain("Disconnect all");
+    expect(html).toContain("Private access is blocked");
+    expect(html).not.toContain("Retry check");
+    expect(html).not.toContain("/api/github/connect");
   });
 
   test("an organization approval request is distinct from a successful connection", () => {

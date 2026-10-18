@@ -6,7 +6,7 @@ import { saveGitHubAppSession } from "./session";
 import { refreshGitHubUserToken } from "./user-auth";
 import { fetchRepoMeta, type GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 import type { RepoId } from "@/lib/ingest/github/parse";
-import { coordinateGitHubRefresh } from "./coordination";
+import { coordinateGitHubRefresh, waitForSharedCredential } from "./coordination";
 import { IngestError } from "@/lib/ingest/errors";
 import type { GitHubAppSessionData } from "./types";
 
@@ -30,23 +30,23 @@ export async function resolveGitHubRequestAuth(
     install.accountLogin.toLowerCase() === repo.owner.toLowerCase(),
   );
   if (binding && userSession?.userAccessToken) {
-    const userToken = await activeGitHubUserToken(userSession);
+    const userToken = await activeGitHubUserToken(userSession, signal);
     // Installation tokens cover the whole installation; user access may be narrower.
     signal?.throwIfAborted();
     const repoMeta = await fetchRepoMeta(repo, { accessToken: userToken, signal });
-    const accessToken = await createInstallationAccessToken(binding.installationId, repo);
+    const accessToken = await waitForSharedCredential(createInstallationAccessToken(binding.installationId, repo), signal);
     signal?.throwIfAborted();
     return { accessToken, privateAccessVerified: true, repoMeta, signal };
   }
   return { accessToken: githubAppPoolToken(), privateAccessVerified: false, signal };
 }
 
-export async function activeGitHubUserToken(session: GitHubAppSessionData): Promise<string> {
+export async function activeGitHubUserToken(session: GitHubAppSessionData, signal?: AbortSignal): Promise<string> {
   if (!session.userAccessToken) throw new IngestError("reconnect-required", "Reconnect GitHub to verify your repository access.");
   if (!session.userTokenExpiresAt || session.userTokenExpiresAt >= Date.now() + 60_000) return session.userAccessToken;
   if (!session.userRefreshToken) throw new IngestError("reconnect-required", "GitHub authorization expired. Reconnect GitHub in your account.");
-  const refreshed = await coordinateGitHubRefresh(session.workosUserId, session.userRefreshToken,
-    () => refreshGitHubUserToken(session.userRefreshToken!));
+  const refreshed = await waitForSharedCredential(coordinateGitHubRefresh(session.workosUserId, session.userRefreshToken,
+    () => refreshGitHubUserToken(session.userRefreshToken!)), signal);
   await saveGitHubAppSession({ ...session, ...refreshed });
   return refreshed.userAccessToken!;
 }

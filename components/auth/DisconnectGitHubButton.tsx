@@ -12,7 +12,7 @@ export function DisconnectGitHubButton({ all = false }: { all?: boolean }) {
   const [error, setError] = useState("");
   const router = useRouter();
   return (
-    <div className={styles.disconnectAction}>
+    <>
     <Button
       type="button"
       variant="danger"
@@ -38,6 +38,6 @@ export function DisconnectGitHubButton({ all = false }: { all?: boolean }) {
       {busy ? "Disconnecting…" : all ? "Disconnect all" : "Disconnect"}
     </Button>
     {error && <p className={styles.actionError} role="alert">{error}</p>}
-    </div>
+    </>
   );
 }

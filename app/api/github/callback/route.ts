@@ -108,7 +108,7 @@ export async function GET(request: Request): Promise<Response> {
       ...credentials,
       authorizationVersion,
     });
-    // Durable binding first — if the cookie save fails, sign-in can still rehydrate.
+    // Save credentials only after the authoritative binding accepts this authorization.
     await writeGitHubInstallMetadata(user.id, { ...session, additionalInstallations: undefined });
     await saveGitHubAppSession(session);
     accountUrl.searchParams.set("github", "connected");

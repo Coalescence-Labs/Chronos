@@ -38,11 +38,14 @@ expiry; do not broaden the exception to other packages or advisories.
 
 ## Telemetry
 
-Speed Insights is disabled. Its URL and DOM attribution fields can reveal private
+The Speed Insights SDK is removed. Its URL and DOM attribution fields can reveal private
 repo names and commit identifiers even when a route template is also present.
 Allowlisted, bucketed graph-performance events continue through Web Analytics with
 URL scrubbing. Any replacement real-user monitoring must prove that every outgoing
 field excludes repo identity/content before being enabled.
+Disable the Speed Insights collector in the Vercel dashboard as well, so older
+open pages cannot keep submitting to it. Removing the SDK takes effect only when
+the updated code is deployed and loaded.
 
 ## Connection lifecycle and operational bounds
 
@@ -68,6 +71,12 @@ counts for one minute, cap at 10,000 entries, and are never logged or persisted.
 Connection-management requests use a separate 30/minute bucket.
 Configure **Vercel Firewall rate limits** for `/api/repo*` and `/api/github/*` before
 large-scale exposure: process-local limits cannot enforce a deployment-wide quota.
+On 2026-10-18 the project's read-only Firewall API inspection returned no active
+or draft custom configuration. A starting rollout policy is 300 repo requests and
+60 connection requests per address per minute, initially observed in log mode and
+then enforced after checking shared-address traffic. Keep GitHub callbacks usable
+and return HTTP 429 for APIs rather than an interactive browser challenge. These
+are proposed operator settings, not globally enforced application limits.
 
 Refresh coordination and installation-token reuse are intentionally ephemeral and
 instance-local. Cross-instance refresh conflicts recover through bounded browser

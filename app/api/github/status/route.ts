@@ -33,8 +33,9 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const reconnect = error instanceof IngestError && ["reconnect-required", "access-denied"].includes(error.code);
+    const incomplete = error instanceof IngestError && error.code === "disconnect-incomplete";
     const body = { ...toPublicGitHubConnection(session), connected: false,
-      state: reconnect ? "reconnect-required" as const : "unavailable" as const };
+      state: incomplete ? "disconnect-incomplete" as const : reconnect ? "reconnect-required" as const : "unavailable" as const };
     assertNoSecretsInPublicGitHubConnection(body);
     return NextResponse.json(body, {
       status: reconnect ? 200 : error instanceof IngestError && error.code === "rate-limited" ? 429 : 503,

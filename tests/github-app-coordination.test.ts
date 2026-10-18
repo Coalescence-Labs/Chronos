@@ -1,7 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { coordinateGitHubRefresh } from "@/lib/github-app/coordination";
+import { coordinateGitHubRefresh, waitForSharedCredential } from "@/lib/github-app/coordination";
 
 describe("GitHub credential refresh coordination", () => {
+  test("cancelling one waiter does not discard the credential another request needs", async () => {
+    let finish!: (value: string) => void;
+    const shared = new Promise<string>((resolve) => { finish = resolve; });
+    const controller = new AbortController();
+    const cancelled = waitForSharedCredential(shared, controller.signal);
+    const active = waitForSharedCredential(shared);
+    controller.abort(new Error("cancelled"));
+    await expect(cancelled).rejects.toThrow("cancelled");
+    finish("rotated_fake");
+    expect(await active).toBe("rotated_fake");
+  });
   test("concurrent and slightly delayed requests share one rotation", async () => {
     let calls = 0;
     const rotate = async () => { calls++; await Promise.resolve(); return { userAccessToken: "ghu_rotated_fake" }; };

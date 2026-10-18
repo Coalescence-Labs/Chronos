@@ -181,19 +181,19 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
     );
   }
 
-  if (connection.state === "unavailable") {
+  if (connection.state === "unavailable" || connection.state === "disconnect-incomplete") {
+    const incomplete = connection.state === "disconnect-incomplete";
     return (
       <Surface level={1} padded={false} className={styles.card}>
         <div className={styles.header}>
           <span className={styles.glyph}><GitHubMark /></span>
           <div className={styles.heading}>
-            <h3 className={styles.name}>GitHub <span className={styles.badge}>check unavailable</span></h3>
-            <p className={styles.desc} role="alert">Couldn’t verify GitHub access. Retry the check, or retry disconnect if it didn’t finish.</p>
+            <h3 className={styles.name}>GitHub <span className={styles.badge}>{incomplete ? "disconnect incomplete" : "check unavailable"}</span></h3>
+            <p className={styles.desc} role="alert">{incomplete ? "Disconnect didn’t finish. Private access is blocked until you retry disconnect." : "Couldn’t verify GitHub access. Retry the check shortly."}</p>
           </div>
         </div>
         <div className={styles.actions}>
-          <Button variant="ghost" onClick={onRetry}>Retry check</Button>
-          <DisconnectGitHubButton all />
+          {incomplete ? <DisconnectGitHubButton all /> : <Button variant="ghost" onClick={onRetry}>Retry check</Button>}
         </div>
       </Surface>
     );
@@ -220,6 +220,7 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
           <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
             {connection.login || connection.state === "reconnect-required" ? "Reconnect GitHub" : "Install GitHub App"}
           </a>
+          {connection.login && <DisconnectGitHubButton all={(connection.accounts?.length ?? 0) > 1} />}
         </div>
         <Facts className={styles.facts} />
         <p className={styles.orgHelp}>

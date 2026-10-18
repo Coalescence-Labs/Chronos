@@ -12,6 +12,7 @@ export type IngestErrorCode =
   | "reconnect-required"
   | "access-denied"
   | "auth-refreshing"
+  | "disconnect-incomplete"
   | "upstream";
 
 export class IngestError extends Error {
@@ -53,5 +54,6 @@ export const INGEST_ERROR_STATUS: Record<IngestErrorCode, number> = {
   "reconnect-required": 401,
   "access-denied": 403,
   "auth-refreshing": 409,
+  "disconnect-incomplete": 409,
   upstream: 502,
 };

@@ -31,6 +31,6 @@ export interface PublicGitHubConnection {
   /** ISO timestamp of the install; null when unknown (pre-connectedAt sessions). */
   connectedAt: string | null;
   configured: boolean;
-  state?: "connected" | "disconnected" | "reconnect-required" | "unavailable";
+  state?: "connected" | "disconnected" | "reconnect-required" | "unavailable" | "disconnect-incomplete";
   accounts?: { login: string; accountType: "User" | "Organization"; connectedAt: string | null }[];
 }
