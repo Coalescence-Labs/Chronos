@@ -55,7 +55,7 @@ describe("GraphView accessibility", () => {
 
   test("zoom controls are labelled buttons", () => {
     const html = render(history);
-    for (const label of ["Zoom in", "Zoom out", "Reset zoom"]) {
+    for (const label of ["Zoom in", "Zoom out", "100% Reset zoom"]) {
       expect(html).toContain(`aria-label="${label}"`);
     }
   });

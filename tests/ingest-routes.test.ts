@@ -127,11 +127,12 @@ describe("GET /api/repo/commits", () => {
   const commitsUrl = (params: Record<string, string>) =>
     new Request(`http://localhost/api/repo/commits?${new URLSearchParams(params)}`);
 
-  test("pages through a large history one GitHub call at a time", async () => {
+  test("checks public visibility before each history page", async () => {
     const pages = [manyCommits(100, "p1-"), manyCommits(100, "p2-"), manyCommits(50, "p3-")];
     let calls = 0;
     restore = mockGitHub((url) => {
       calls++;
+      if (url.pathname === "/repos/acme/widgets") return githubJson({ ...SMALL_REPO.meta, private: false });
       const page = Number(url.searchParams.get("page"));
       expect(url.searchParams.get("per_page")).toBe("100");
       const items = pages[page - 1] ?? [];
@@ -142,13 +143,13 @@ describe("GET /api/repo/commits", () => {
     const firstBody = (await first.json()) as CommitsPageResponse;
     expect(firstBody.commits).toHaveLength(100);
     expect(firstBody.nextPage).toBe(2);
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
 
     const last = await getCommits(commitsUrl({ repo: "acme/widgets", sha: "main", page: "3" }));
     const lastBody = (await last.json()) as CommitsPageResponse;
     expect(lastBody.commits).toHaveLength(50);
     expect(lastBody.nextPage).toBeNull();
-    expect(calls).toBe(2);
+    expect(calls).toBe(4);
   });
 
   test("refuses pages beyond the hard cap with a friendly message", async () => {
@@ -167,6 +168,46 @@ describe("GET /api/repo/commits", () => {
     for (const sha of ["", "a b", "../../etc", "x".repeat(300)]) {
       const response = await getCommits(commitsUrl({ repo: "acme/widgets", sha, page: "1" }));
       expect(response.status).toBe(400);
+    }
+  });
+
+  test("rejects invalid page numbers before any authorization or upstream call", async () => {
+    let calls = 0;
+    restore = mockGitHub(() => { calls++; return githubJson({}); });
+    for (const page of ["0", "-1", "NaN", "Infinity", "1.5", "201"]) {
+      expect((await getCommits(commitsUrl({ repo: "acme/widgets", sha: "main", page }))).status).toBeGreaterThanOrEqual(400);
+    }
+    expect(calls).toBe(0);
+  });
+});
+
+describe("shared credential privacy boundary", () => {
+  test("missing visibility metadata fails closed", async () => {
+    restore = mockGitHub(() => githubJson({ default_branch: "main" }));
+    expect((await getRepo(repoUrl("acme/widgets"))).status).toBe(502);
+  });
+  test("a pool token with private access cannot expose initial or directly requested history", async () => {
+    const previous = process.env.GITHUB_TOKEN;
+    process.env.GITHUB_TOKEN = "ghp_test_private_pool";
+    const requested: string[] = [];
+    restore = mockGitHub((url) => {
+      requested.push(url.pathname);
+      if (url.pathname === "/repos/acme/widgets") return githubJson({ ...SMALL_REPO.meta, private: true });
+      return smallRepoHandler(url);
+    });
+    try {
+      for (const request of [
+        { get: getRepo, url: "http://localhost/api/repo?repo=acme/widgets" },
+        { get: getCommits, url: "http://localhost/api/repo/commits?repo=acme/widgets&sha=main&page=1" },
+      ]) {
+        const response = await request.get(new Request(request.url));
+        expect(response.status).toBe(404);
+        expect(await response.text()).not.toContain("Ada Lovelace");
+      }
+      expect(requested).toEqual(["/repos/acme/widgets", "/repos/acme/widgets"]);
+    } finally {
+      if (previous === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = previous;
     }
   });
 });

@@ -40,7 +40,7 @@ export function refItem(name: string, sha: string): GitHubRefItem & Record<strin
  *   └── c3 (feature) ── c2
  */
 export const SMALL_REPO = {
-  meta: { default_branch: "main", full_name: "acme/widgets", size: 123 },
+  meta: { default_branch: "main", private: false, full_name: "acme/widgets", size: 123 },
   commits: [
     commitItem("c5", ["c4", "c3"]),
     commitItem("c4", ["c2"]),

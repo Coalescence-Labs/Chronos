@@ -46,6 +46,9 @@ describe("github app install token exchange", () => {
       const original = globalThis.fetch;
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         method = init?.method ?? "GET";
+        expect(JSON.parse(String(init?.body))).toEqual({
+          permissions: { contents: "read", metadata: "read" }, repositories: ["private"],
+        });
         const headers = new Headers(init?.headers);
         auth = headers.get("Authorization") ?? "";
         path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
@@ -58,7 +61,7 @@ describe("github app install token exchange", () => {
         globalThis.fetch = original;
       };
 
-      const token = await createInstallationAccessToken(7788);
+      const token = await createInstallationAccessToken(7788, { owner: "acme", repo: "private" });
       expect(token).toBe("ghs_test_install_token");
       expect(method).toBe("POST");
       expect(path).toBe("/app/installations/7788/access_tokens");

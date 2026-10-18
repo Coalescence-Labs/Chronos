@@ -30,7 +30,7 @@ export {
   saveGitHubAppSession,
   toPublicGitHubConnection,
 } from "./session";
-export { resolveGitHubAccessToken } from "./token";
+export { resolveGitHubAccessToken, resolveGitHubRequestAuth } from "./token";
 export {
   GITHUB_INSTALL_METADATA_KEYS,
   clearGitHubInstallMetadata,

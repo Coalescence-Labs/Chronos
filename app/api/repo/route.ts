@@ -1,6 +1,6 @@
 import type { RepoResponse } from "@/lib/ingest/api";
-import { githubAuthForRequest } from "@/lib/ingest/github/auth";
-import { fetchCommitPage, fetchRefs, fetchRepoMeta } from "@/lib/ingest/github/fetch";
+import { githubAuthForRequest, verifiedRepoMeta } from "@/lib/ingest/github/auth";
+import { fetchCommitPage, fetchRefs } from "@/lib/ingest/github/fetch";
 import { parseRepoInput } from "@/lib/ingest/github/parse";
 import { errorResponse, jsonResponse } from "@/lib/ingest/respond";
 
@@ -22,7 +22,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const id = parseRepoInput(searchParams.get("repo") ?? "");
     const auth = await githubAuthForRequest(id);
-    const meta = await fetchRepoMeta(id, auth);
+    const meta = await verifiedRepoMeta(id, auth);
     const [refs, firstPage] = await Promise.all([
       fetchRefs(id, auth),
       fetchCommitPage(id, meta.defaultBranch, 1, auth),

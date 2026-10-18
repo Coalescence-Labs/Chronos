@@ -30,7 +30,7 @@ describe("ui primitives", () => {
     );
     expect(html).toContain("<button");
     expect(html).toContain('type="button"');
-    expect(html).toContain('aria-label="Copy full SHA"');
+    expect(html).toContain('aria-label="Copy full SHA: abc123def456 Copy"');
     expect(html).toContain("abc123def456");
     expect(html).toContain("Copy"); // hint (becomes "Copied ✓" after a copy)
     expect(html).toContain('aria-live="polite"');

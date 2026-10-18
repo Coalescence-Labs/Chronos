@@ -1,5 +1,6 @@
 import { githubAppSlug } from "./config";
 import { createGitHubAppJwt } from "./jwt";
+import type { RepoId } from "@/lib/ingest/github/parse";
 
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "chronos-branch-graph";
@@ -84,14 +85,20 @@ export async function fetchInstallationAccount(
  */
 export async function createInstallationAccessToken(
   installationId: number,
+  repo?: RepoId,
 ): Promise<string> {
   const jwt = createGitHubAppJwt();
   const response = await fetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
+      body: JSON.stringify({
+        permissions: { contents: "read", metadata: "read" },
+        ...(repo ? { repositories: [repo.repo] } : {}),
+      }),
       headers: {
         Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
         Authorization: `Bearer ${jwt}`,
         "X-GitHub-Api-Version": API_VERSION,
         "User-Agent": USER_AGENT,

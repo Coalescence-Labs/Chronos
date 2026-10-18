@@ -118,7 +118,7 @@ test("zoom controls scale the graph and meet the touch-target size", async ({ pa
 
   const rowBefore = (await page.getByRole("option").first().boundingBox())!;
   await zoomIn.click();
-  await expect(page.getByRole("button", { name: "Reset zoom" })).toHaveText("120%");
+  await expect(page.getByRole("button", { name: /Reset zoom/ })).toHaveText("120%");
   const rowAfter = (await page.getByRole("option").first().boundingBox())!;
   expect(rowAfter.height).toBeGreaterThan(rowBefore.height);
 });
@@ -246,7 +246,10 @@ test("a failed loadMore re-arms and succeeds on the next scroll (COA-92)", async
   await expect(page.getByRole("listbox", { name: /60 commits/ })).toBeVisible();
 
   // Scroll away and back to re-trigger → page 4 retried → succeeds → 80.
-  await graph.evaluate((el) => el.scrollTo({ top: 0 }));
+  await graph.evaluate(async (el) => {
+    el.scrollTo({ top: 0 });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
   await graph.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
   await expect(page.getByRole("listbox", { name: /80 commits/ })).toBeVisible();
   expect(pageRequests.filter((p) => p === 4).length).toBe(2); // failed once, then succeeded
