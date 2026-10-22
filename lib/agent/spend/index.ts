@@ -5,3 +5,4 @@ export {
   readAgentSpendUsd,
   recordAgentSpendUsd,
 } from "./ledger";
+export { notifyAgentSpendThreshold } from "./notify";
