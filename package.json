@@ -17,6 +17,8 @@
     "audit:security": "bun scripts/audit-security.ts"
   },
   "dependencies": {
+    "@upstash/ratelimit": "^2.2.0",
+    "@upstash/redis": "^1.39.0",
     "@vercel/analytics": "^2.0.1",
     "@workos-inc/authkit-nextjs": "^4.4.0",
     "@workos-inc/node": "^10.14.0",

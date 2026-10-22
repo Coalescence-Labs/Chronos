@@ -1,7 +1,7 @@
 import { resolveGitHubRequestAuth } from "@/lib/github-app";
 import { IngestError } from "../errors";
 import { fetchRepoMeta, type RepoMeta } from "./fetch";
-import { enforceRequestLimit } from "@/lib/security/request";
+import { enforceRequestLimitAsync } from "@/lib/security/request";
 import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 import type { RepoId } from "./parse";
 
@@ -24,7 +24,7 @@ export async function githubAuthForRequest(repo: RepoId, request?: Request): Pro
   } catch {
     // WorkOS unconfigured, outside Next runtime, or proxy skip — anonymous.
   }
-  if (request) enforceRequestLimit(request, workosUserId);
+  if (request) await enforceRequestLimitAsync(request, workosUserId);
   return resolveGitHubRequestAuth(workosUserId, repo, signal);
 }
 

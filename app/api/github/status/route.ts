@@ -9,7 +9,7 @@ import { assertGitHubUserInstallation } from "@/lib/github-app/user-auth";
 import { githubInstallBindings } from "@/lib/github-app/bindings";
 import type { GitHubAppSessionData } from "@/lib/github-app/types";
 import { IngestError } from "@/lib/ingest/errors";
-import { enforceRequestLimit } from "@/lib/security/request";
+import { enforceRequestLimitAsync } from "@/lib/security/request";
 
 /** Health-checked, allowlisted status; never seals a credential-free cookie over a live session. */
 export async function GET(request: Request): Promise<Response> {
@@ -17,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     if (isGitHubAppConfigured()) {
       const { user } = await withAuth({ ensureSignedIn: false });
-      enforceRequestLimit(request, user?.id, "connection");
+      await enforceRequestLimitAsync(request, user?.id, "connection");
       session = await resolveGitHubAppSessionForUser(user?.id);
       if (session?.userAccessToken) {
         const token = await activeGitHubUserToken(session);
