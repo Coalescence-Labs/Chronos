@@ -366,6 +366,19 @@ details[open] > .summary .chevron {
     gap: var(--space-1);
   }
 }
+.devEnvList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.devEnvList li + li {
+  margin-top: var(--space-1);
+}
+
 .actionError {
   margin: 0;
   max-width: 36ch;

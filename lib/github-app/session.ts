@@ -1,8 +1,10 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
+import { devOnlyMissingEnvVarNames, stripDevMissingEnvVarNames } from "@/lib/env/deployment";
 import {
   GITHUB_COOKIE_POSTURE,
   GITHUB_SESSION_MAX_AGE_SECONDS,
+  githubAppMissingEnvVarNames,
   githubSessionPassword,
   isGitHubAppConfigured,
 } from "./config";
@@ -113,17 +115,27 @@ export async function readGitHubAppSessionForUser(
   }
 }
 
+function githubConnectionDevHints(
+  configured: boolean,
+): Pick<PublicGitHubConnection, "missingEnvVars"> {
+  if (configured) return {};
+  const missingEnvVars = devOnlyMissingEnvVarNames(githubAppMissingEnvVarNames());
+  return missingEnvVars ? { missingEnvVars } : {};
+}
+
 export function toPublicGitHubConnection(
   session: GitHubAppSessionData | undefined,
 ): PublicGitHubConnection {
   if (!session) {
+    const configured = isGitHubAppConfigured();
     return {
       connected: false,
       login: null,
       permissions: null,
       connectedAt: null,
-      configured: isGitHubAppConfigured(),
+      configured,
       state: "disconnected",
+      ...githubConnectionDevHints(configured),
     };
   }
   // readGitHubAppSessionForUser backfills the epoch for legacy sessions — not a real date.
@@ -140,6 +152,13 @@ export function toPublicGitHubConnection(
       connectedAt: Date.parse(binding.connectedAt) > 0 ? binding.connectedAt : null,
     })),
   };
+}
+
+/** Strip dev-only fields before JSON leaves the server in non-development deployments. */
+export function publicGitHubConnectionForResponse(
+  connection: PublicGitHubConnection,
+): PublicGitHubConnection {
+  return stripDevMissingEnvVarNames(connection);
 }
 
 /** Reject payloads that would leak tokens / private keys into JSON/UI. */

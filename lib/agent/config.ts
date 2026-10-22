@@ -8,5 +8,12 @@ export function isAgentKillSwitchActive(): boolean {
 }
 
 export function isAgentFeatureConfigured(): boolean {
-  return Boolean(process.env.AI_GATEWAY_API_KEY?.trim());
+  return agentMissingEnvVarNames().length === 0;
+}
+
+/** Required Agent env var names that are unset (values never returned). */
+export function agentMissingEnvVarNames(): string[] {
+  const missing: string[] = [];
+  if (!process.env.AI_GATEWAY_API_KEY?.trim()) missing.push("AI_GATEWAY_API_KEY");
+  return missing;
 }

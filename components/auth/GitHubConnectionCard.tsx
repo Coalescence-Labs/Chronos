@@ -3,6 +3,7 @@ import { Fragment, type ReactNode } from "react";
 import buttonStyles from "@/components/ui/button.module.css";
 import { Surface } from "@/components/ui/Surface";
 import type { PublicGitHubConnection } from "@/lib/github-app/types";
+import { DevMissingEnvList } from "./DevMissingEnvList";
 import { DisconnectGitHubButton } from "./DisconnectGitHubButton";
 import styles from "./github-connection.module.css";
 import { Button } from "@/components/ui/Button";
@@ -175,6 +176,7 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
             <p className={styles.desc}>
               GitHub connections aren’t available in this deployment.
             </p>
+            <DevMissingEnvList names={connection.missingEnvVars} />
           </div>
         </div>
       </Surface>

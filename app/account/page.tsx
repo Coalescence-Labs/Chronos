@@ -5,7 +5,9 @@ import { withAuth } from "@workos-inc/authkit-nextjs";
 import { AccountSignOutButton } from "@/components/auth/AccountSignOutButton";
 import { AccountGitHubConnection } from "@/components/auth/AccountGitHubConnection";
 import { AgentOptInCard } from "@/components/auth/AgentOptInCard";
+import { agentMissingEnvVarNames, isAgentFeatureConfigured } from "@/lib/agent";
 import { readAgentOptIn } from "@/lib/agent/metadata";
+import { devOnlyMissingEnvVarNames } from "@/lib/env/deployment";
 import { AppShell } from "@/components/shell/AppShell";
 import buttonStyles from "@/components/ui/button.module.css";
 import { OverflowText } from "@/components/ui/OverflowText";
@@ -89,6 +91,10 @@ export default async function AccountPage({
 
   const publicUser = toPublicUser(user);
   const agentOptIn = await readAgentOptIn(user.id);
+  const agentConfigured = isAgentFeatureConfigured();
+  const agentMissingEnvVars = agentConfigured
+    ? undefined
+    : devOnlyMissingEnvVarNames(agentMissingEnvVarNames());
   const hasName = Boolean(publicUser.firstName?.trim() || publicUser.lastName?.trim());
   return (
     <AccountFrame>
@@ -124,7 +130,11 @@ export default async function AccountPage({
         <h2 id="agent-heading" className={styles.eyebrow}>
           Agent
         </h2>
-        <AgentOptInCard initialEnabled={agentOptIn} />
+        <AgentOptInCard
+          initialEnabled={agentOptIn}
+          configured={agentConfigured}
+          missingEnvVars={agentMissingEnvVars}
+        />
       </section>
 
       <section className={styles.connections} aria-labelledby="connections-heading">

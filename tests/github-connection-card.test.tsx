@@ -115,6 +115,21 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).not.toContain("/api/github/connect");
   });
 
+  test("development missing env names render as dev-only hints", () => {
+    const html = renderToStaticMarkup(
+      <GitHubConnectionCard
+        connection={{
+          ...NOT_CONNECTED,
+          configured: false,
+          missingEnvVars: ["GITHUB_APP_SLUG", "GITHUB_APP_ID"],
+        }}
+      />,
+    );
+    expect(html).toContain("GITHUB_APP_SLUG");
+    expect(html).toContain("still needs to be set");
+    expect(html).not.toContain("ghp_");
+  });
+
   test("pending state is distinct from disconnected (rehydrate in flight)", () => {
     const html = renderToStaticMarkup(<GitHubConnectionCardPending />);
     expect(html).toContain("checking");
