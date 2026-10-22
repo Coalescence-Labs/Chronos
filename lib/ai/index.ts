@@ -7,4 +7,5 @@
  */
 
 export { evaluateAgentGate, isAgentFeatureConfigured, isAgentKillSwitchActive } from "@/lib/agent";
-export const AI_FEATURES_ENABLED = false;
+/** Live Agent turns still require opt-in, Redis spend, gateway env, and budget. */
+export const AI_FEATURES_ENABLED = Boolean(process.env.AI_GATEWAY_API_KEY?.trim());
