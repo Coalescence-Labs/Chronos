@@ -29,5 +29,11 @@ describe("script policy", () => {
     expect(script).toContain("'nonce-random-nonce'"); expect(script).toContain("'strict-dynamic'");
     expect(script).not.toContain("'unsafe-inline'"); expect(script).not.toContain("'unsafe-eval'");
     expect(policy).toContain("frame-ancestors 'none'"); expect(policy).toContain("object-src 'none'");
+    expect(policy).toContain("upgrade-insecure-requests");
+  });
+
+  test("local HTTP prod omits upgrade-insecure-requests so assets stay on http", () => {
+    const policy = contentSecurityPolicy("random-nonce", false, false);
+    expect(policy).not.toContain("upgrade-insecure-requests");
   });
 });

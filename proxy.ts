@@ -11,9 +11,15 @@ import { contentSecurityPolicy } from "@/lib/security/headers";
  */
 const authProxy = createAuthProxyHandler();
 
+function isLocalHttpHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
 export default async function proxy(request: NextRequest, event: NextFetchEvent) {
   const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64");
-  const policy = contentSecurityPolicy(nonce, process.env.NODE_ENV !== "production");
+  const development = process.env.NODE_ENV !== "production";
+  const upgradeInsecureRequests = !development && !isLocalHttpHost(request.nextUrl.hostname);
+  const policy = contentSecurityPolicy(nonce, development, upgradeInsecureRequests);
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);
   headers.set("Content-Security-Policy", policy);
