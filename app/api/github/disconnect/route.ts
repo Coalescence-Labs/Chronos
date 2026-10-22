@@ -1,43 +1,21 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import {
-  clearGitHubInstallMetadata,
-  deleteInstallation,
-  destroyGitHubAppSession,
-  peekGitHubInstallBinding,
-} from "@/lib/github-app";
-import { githubInstallBindings } from "@/lib/github-app/bindings";
+import { disconnectGitHubForUser } from "@/lib/github-app/disconnect";
+import { isSameOriginMutation, enforceRequestLimit } from "@/lib/security/request";
+import { errorResponse } from "@/lib/ingest/respond";
 
-/**
- * POST /api/github/disconnect — clear connections; preserve shared org installs.
- * GET returns 405 (no CSRF / prefetch disconnect).
- */
-export async function POST(): Promise<Response> {
-  const { user } = await withAuth({ ensureSignedIn: false }).catch(() => ({
-    user: null,
-  }));
-  const binding = await peekGitHubInstallBinding(user?.id);
-  if (binding) {
-    for (const install of githubInstallBindings(binding)) {
-      if (install.accountType === "Organization") continue;
-      try {
-        await deleteInstallation(install.installationId);
-      } catch {
-        // Cookie clear still proceeds.
-      }
-    }
-  }
-  try {
-    if (user?.id) await clearGitHubInstallMetadata(user.id);
-  } finally {
-    await destroyGitHubAppSession();
-  }
-  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+/** POST-only, same-origin disconnect; installation removal stays in GitHub settings. */
+export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { user } = await withAuth({ ensureSignedIn: false }).catch(() => ({ user: null }));
+  try { enforceRequestLimit(request, user?.id, "connection"); }
+  catch (error) { return errorResponse(error); }
+  const result = await disconnectGitHubForUser(user?.id);
+  return NextResponse.json(result, { status: result.ok ? 200 : user ? 503 : 401, headers: { "Cache-Control": "no-store" } });
 }
 
 export async function GET(): Promise<Response> {
-  return NextResponse.json(
-    { error: "Method not allowed" },
-    { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } },
-  );
+  return NextResponse.json({ error: "Method not allowed" }, {
+    status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" },
+  });
 }

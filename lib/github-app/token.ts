@@ -6,6 +6,9 @@ import { saveGitHubAppSession } from "./session";
 import { refreshGitHubUserToken } from "./user-auth";
 import { fetchRepoMeta, type GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 import type { RepoId } from "@/lib/ingest/github/parse";
+import { coordinateGitHubRefresh, waitForSharedCredential } from "./coordination";
+import { IngestError } from "@/lib/ingest/errors";
+import type { GitHubAppSessionData } from "./types";
 
 /**
  * Resolve which GitHub credential the BFF should use for a request.
@@ -18,27 +21,34 @@ import type { RepoId } from "@/lib/ingest/github/parse";
 export async function resolveGitHubRequestAuth(
   workosUserId: string | null | undefined,
   repo: RepoId,
+  signal?: AbortSignal,
 ): Promise<GitHubRequestAuth> {
-  const userSession = await resolveGitHubAppSessionForUser(workosUserId, {
-    persistSession: true,
-  });
+  signal?.throwIfAborted();
+  const userSession = await resolveGitHubAppSessionForUser(workosUserId);
+  signal?.throwIfAborted();
   const binding = userSession && githubInstallBindings(userSession).find((install) =>
     install.accountLogin.toLowerCase() === repo.owner.toLowerCase(),
   );
   if (binding && userSession?.userAccessToken) {
-    let userToken = userSession.userAccessToken;
-    if (userSession.userTokenExpiresAt && userSession.userTokenExpiresAt < Date.now() + 60_000) {
-      if (!userSession.userRefreshToken) throw new Error("GitHub authorization requires reconnection");
-      const refreshed = await refreshGitHubUserToken(userSession.userRefreshToken);
-      await saveGitHubAppSession({ ...userSession, ...refreshed });
-      userToken = refreshed.userAccessToken!;
-    }
+    const userToken = await activeGitHubUserToken(userSession, signal);
     // Installation tokens cover the whole installation; user access may be narrower.
-    const repoMeta = await fetchRepoMeta(repo, { accessToken: userToken });
-    const accessToken = await createInstallationAccessToken(binding.installationId, repo);
-    return { accessToken, privateAccessVerified: true, repoMeta };
+    signal?.throwIfAborted();
+    const repoMeta = await fetchRepoMeta(repo, { accessToken: userToken, signal });
+    const accessToken = await waitForSharedCredential(createInstallationAccessToken(binding.installationId, repo), signal);
+    signal?.throwIfAborted();
+    return { accessToken, privateAccessVerified: true, repoMeta, signal };
   }
-  return { accessToken: githubAppPoolToken(), privateAccessVerified: false };
+  return { accessToken: githubAppPoolToken(), privateAccessVerified: false, signal };
+}
+
+export async function activeGitHubUserToken(session: GitHubAppSessionData, signal?: AbortSignal): Promise<string> {
+  if (!session.userAccessToken) throw new IngestError("reconnect-required", "Reconnect GitHub to verify your repository access.");
+  if (!session.userTokenExpiresAt || session.userTokenExpiresAt >= Date.now() + 60_000) return session.userAccessToken;
+  if (!session.userRefreshToken) throw new IngestError("reconnect-required", "GitHub authorization expired. Reconnect GitHub in your account.");
+  const refreshed = await waitForSharedCredential(coordinateGitHubRefresh(session.workosUserId, session.userRefreshToken,
+    () => refreshGitHubUserToken(session.userRefreshToken!)), signal);
+  await saveGitHubAppSession({ ...session, ...refreshed });
+  return refreshed.userAccessToken!;
 }
 
 export async function resolveGitHubAccessToken(

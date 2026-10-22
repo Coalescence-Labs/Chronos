@@ -13,13 +13,18 @@ import {
   createInstallState,
 } from "@/lib/github-app";
 import { mergeGitHubInstallation } from "@/lib/github-app/bindings";
+import { githubInstallBindings } from "@/lib/github-app/bindings";
 import {
   assertGitHubUserInstallation,
   buildGitHubUserAuthorizeUrl,
   exchangeGitHubUserCode,
   readGitHubConnectState,
   sealGitHubConnectState,
+  createGitHubCodeVerifier,
 } from "@/lib/github-app/user-auth";
+import { readGitHubAuthorizationVersion, INITIAL_GITHUB_AUTHORIZATION_VERSION } from "@/lib/github-app/workos-metadata";
+import { enforceRequestLimit } from "@/lib/security/request";
+import { IngestError } from "@/lib/ingest/errors";
 
 /**
  * GET /api/github/callback — GitHub App setup redirect after install.
@@ -45,13 +50,14 @@ export async function GET(request: Request): Promise<Response> {
   const state = url.searchParams.get("state");
   const jar = await cookies();
   const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName)?.value);
-  jar.delete(GITHUB_COOKIE_POSTURE.stateCookieName);
   if (
     !state || state !== pending.state || pending.workosUserId !== user.id || !pending.redirectUri
   ) {
     accountUrl.searchParams.set("github", "error");
     return NextResponse.redirect(accountUrl);
   }
+
+  jar.delete(GITHUB_COOKIE_POSTURE.stateCookieName);
 
   if (url.searchParams.has("error")) {
     accountUrl.searchParams.set("github", "denied");
@@ -64,12 +70,18 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
+    enforceRequestLimit(request, user.id, "connection");
+    const authorizationVersion = await readGitHubAuthorizationVersion(user.id);
+    if (authorizationVersion !== (pending.authorizationVersion ?? INITIAL_GITHUB_AUTHORIZATION_VERSION)) {
+      throw new Error("GitHub authorization changed while connecting");
+    }
     if (pending.stage === "install") {
       const installationId = Number(url.searchParams.get("installation_id"));
       if (!Number.isSafeInteger(installationId) || installationId <= 0) throw new Error("Invalid installation");
       const authorize = {
         state: createInstallState(), workosUserId: user.id, stage: "authorize" as const,
         installationId, redirectUri: pending.redirectUri,
+        codeVerifier: createGitHubCodeVerifier(), authorizationVersion,
       };
       jar.set(GITHUB_COOKIE_POSTURE.stateCookieName, await sealGitHubConnectState(authorize), {
         httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" ||
@@ -79,12 +91,13 @@ export async function GET(request: Request): Promise<Response> {
     }
     const installationId = pending.installationId;
     const code = url.searchParams.get("code");
-    if (pending.stage !== "authorize" || !installationId || !code) throw new Error("Invalid authorization");
-    const credentials = await exchangeGitHubUserCode(code, pending.redirectUri);
-    await assertGitHubUserInstallation(credentials.userAccessToken!, installationId);
+    if (pending.stage !== "authorize" || !installationId || !code || !pending.codeVerifier) throw new Error("Invalid authorization");
+    const credentials = await exchangeGitHubUserCode(code, pending.redirectUri, pending.codeVerifier);
+    const existing = await peekGitHubInstallBinding(user.id);
+    await assertGitHubUserInstallation(credentials.userAccessToken!, installationId,
+      existing ? githubInstallBindings(existing).map((binding) => binding.installationId) : []);
     const account = await fetchInstallationAccount(installationId);
     // Re-entering via "Change repos" updates the same installation — keep its original date.
-    const existing = await peekGitHubInstallBinding(user.id);
     const session = mergeGitHubInstallation(existing, {
       installationId: account.installationId,
       accountLogin: account.accountLogin,
@@ -93,14 +106,17 @@ export async function GET(request: Request): Promise<Response> {
       connectedAt: new Date().toISOString(),
       permissions: GITHUB_APP_PERMISSIONS.join(","),
       ...credentials,
+      authorizationVersion,
     });
-    // Durable binding first — if the cookie save fails, sign-in can still rehydrate.
-    await writeGitHubInstallMetadata(user.id, session);
+    // Save credentials only after the authoritative binding accepts this authorization.
+    await writeGitHubInstallMetadata(user.id, { ...session, additionalInstallations: undefined });
     await saveGitHubAppSession(session);
     accountUrl.searchParams.set("github", "connected");
     return NextResponse.redirect(accountUrl);
-  } catch {
-    accountUrl.searchParams.set("github", "error");
+  } catch (error) {
+    accountUrl.searchParams.set("github", error instanceof IngestError && error.code === "access-denied"
+      ? "access-denied" : error instanceof IngestError && error.code === "too-large" ? "connection-limit"
+      : error instanceof IngestError && error.code === "rate-limited" ? "unavailable" : "error");
     return NextResponse.redirect(accountUrl);
   }
 }

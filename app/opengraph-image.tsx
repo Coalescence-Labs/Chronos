@@ -2,13 +2,13 @@ import { ImageResponse } from "next/og";
 import { SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
 /**
- * Branded social card (COA-126), generated at build/edge. Intentionally
+ * Branded social card (COA-126). Intentionally
  * generic — no repo identity — so /repo/* can safely inherit it (the route is
  * noindex, but link previews must never reveal a viewed repo). On-brand dark
  * surface + aurora wash + the Chronos commit-graph mark.
  */
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const alt = `${SITE_NAME} — ${SITE_TAGLINE}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

@@ -17,7 +17,6 @@ export {
   buildGitHubAppInstallUrl,
   createInstallState,
   createInstallationAccessToken,
-  deleteInstallation,
   fetchInstallationAccount,
 } from "./install";
 export { createGitHubAppJwt } from "./jwt";

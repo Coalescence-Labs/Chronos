@@ -162,28 +162,36 @@ select the matching installation automatically; no connection switcher is needed
 Connect state is encrypted, expires after ten minutes, and binds both callback
 stages to the current WorkOS user. A returned installation id is checked against
 the GitHub user's paginated `GET /user/installations` response before saving.
+The authorization stage uses S256 PKCE and requests `offline_access` to ensure
+expiring user credentials without adding repository permissions. Saved installation
+access is also checked before replacing the credential shared by those connections.
 See [GitHub's setup URL guidance](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url).
 
-Disconnect removes all of the user's Chronos bindings and sealed credentials.
-Personal installations are best-effort uninstalled. Organization installations
-are left in place because other members may use them; an organization owner
-can remove them through GitHub settings.
+Disconnect removes the user's Chronos bindings, rotates a durable authorization
+version and clears the local cookie even on failure. It also revokes the GitHub
+user grant when credentials are available. No installation is uninstalled:
+installation access does not prove ownership, and other people may rely on it.
+Installation removal stays in GitHub's owner-authorized settings. Provider failures
+are reported honestly; a local cookie clear alone is never reported as full success.
 
 ### Durable install binding (WorkOS metadata — owner-ratified)
 
 GitHub App connect stores a **non-token** binding in WorkOS user metadata so
-users stay connected across sign-out / sign-in without reinstalling:
+users can reconnect after sign-out without reinstalling:
 
 | Key | Value |
 |-----|--------|
-| `chronosGhInstall_<installationId>` | JSON tuple `[accountLogin, accountType, connectedAt, permissions]` |
+| `chronosGhInstall_<installationId>` | JSON tuple `[accountLogin, accountType, connectedAt, permissions, authorizationVersion]` |
+| `chronosGhVersion` | Non-secret revocation version; rotated on disconnect |
 
 The original five keys (`chronosGhInstallationId`, `chronosGhAccountLogin`,
 `chronosGhAccountType`, `chronosGhConnectedAt`, `chronosGhPermissions`) remain
-readable and migrate on the next write. Writes verify every saved binding and
-preserve unrelated metadata. Each installation uses one key; WorkOS's ten-key
-limit bounds the number of connections, with any unrelated metadata counting
-toward the same limit. Exceeding capacity fails without dropping existing binds.
+readable and migrate on the next write. Four-field tuples use the initial version.
+Writes patch only supplied installations and legacy keys, preserving simultaneous
+additions and unrelated metadata. Read errors propagate; an outage is never treated
+as an empty account. Each installation uses one key, with one slot reserved for
+revocation, so at most nine installations fit (fewer with unrelated metadata).
+Exceeding capacity fails without dropping existing bindings.
 This per-installation metadata encoding is a reversible implementation choice.
 
 WorkOS limits: ≤10 metadata keys, key ≤40 chars, value ≤600 chars. No tokens,
@@ -193,20 +201,15 @@ no repo content.
 |--------|---------------|--------------|-----------------|-------------------|
 | **Connect / callback** | (signed in) | write | write | user installs |
 | **Sign-out** | clear | clear | **keep** | **keep** |
-| **Disconnect** | (signed in) | clear | clear | personal: best-effort uninstall; org: keep |
-| **Sign-in (return)** | write | rehydrate from metadata if missing | read | unchanged |
+| **Disconnect** | (signed in) | clear | clear bindings; rotate revocation version | keep; revoke user grant |
+| **Sign-in (return)** | write | requires GitHub authorization again | read | unchanged |
 
-Rehydrate **must** run in a Route Handler (e.g. `GET /api/github/status` or
-BFF `/api/repo*`) — Next.js does not apply `Set-Cookie` from RSC render.
-`/account` reads a warm `gh-session` synchronously; if only metadata exists it
-calls `/api/github/status` once to seal the cookie, then later loads skip that
-step.
-
-If metadata references a revoked installation, Chronos removes that binding
-while retaining other connections. Transient GitHub errors do not erase bindings.
-Metadata restores installation identities, not GitHub user credentials. After
-sign-out, users **Reconnect GitHub** to verify access again; the existing App
-installations remain. Legacy cookies also require reconnect before private access.
+Metadata restores installation identities, not credentials. Credential-free
+rehydration never overwrites a live cookie. Every private request reads authoritative
+bindings and checks their authorization version before user/repo access verification.
+`/account` checks live GitHub installation access before showing "connected";
+expired, revoked and unavailable states stay distinct. Transient errors never erase
+bindings. After sign-out, use **Reconnect GitHub** to authorize access again.
 
 ### Shared browser / cross-account safety
 
@@ -214,12 +217,27 @@ installations remain. Legacy cookies also require reconnect before private acces
 **never** trusts it without checking the sealed `workosUserId` against the active
 AuthKit user (`readGitHubAppSessionForUser`). A leftover cookie from user A after
 sign-out is ignored when user B signs in — resolve returns no session, the BFF
-does not mint installation tokens from the stale binding, and Route Handlers only
-re-seal `gh-session` after metadata rehydrate for **B** (`persistSession: true`).
+does not mint installation tokens from the stale binding. It also checks the
+durable revocation version, so a cookie issued before disconnect cannot regain
+access after a later reconnect.
 
 WorkOS `chronosGh*` metadata is stored **on the WorkOS user record** (keyed by
 user id). It is not readable across accounts and is not a cross-user leak; it
 exists so the **same** user can sign back in without reinstalling the GitHub App.
+
+### Bounded credential coordination
+
+User refreshes share one promise per user/token within an instance, including a
+60-second grace window for delayed requests. The cache is capped at 256 entries,
+never logged or persisted. Across instances, the browser retries only explicit
+refresh conflicts with bounded backoff; it does not automatically retry rate limits
+or general provider failures. A distributed credential broker remains a future
+infrastructure decision, not an implied guarantee of this cookie-based model.
+
+Installation tokens are restricted to one repo and read permissions. Up to 256
+entries are reused in process memory, expiring before GitHub's expiry and within
+55 minutes. Every reuse still requires fresh durable-binding and user/repo access
+checks. No repo contents or authorization decisions are cached.
 Sign-out clears cookies only; disconnect clears metadata and credentials.
 
 No multi-repo switcher (COA-201).

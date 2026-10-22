@@ -2,7 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import {
   createInstallationAccessToken,
-  deleteInstallation,
   fetchInstallationAccount,
 } from "@/lib/github-app/install";
 import { createGitHubAppJwt } from "@/lib/github-app/jwt";
@@ -38,6 +37,22 @@ function withAppEnv(run: () => Promise<void>): Promise<void> {
 }
 
 describe("github app install token exchange", () => {
+  test("concurrent reads reuse a repo-scoped token while other repos remain isolated", async () => {
+    await withAppEnv(async () => {
+      let calls = 0;
+      const original = globalThis.fetch;
+      globalThis.fetch = (async (_input, init) => {
+        calls++;
+        const scope = JSON.parse(String(init?.body)).repositories[0];
+        return Response.json({ token: `ghs_fake_${scope}`, expires_at: new Date(Date.now() + 3600_000).toISOString() }, { status: 201 });
+      }) as typeof fetch;
+      restore = () => { globalThis.fetch = original; };
+      const tokens = await Promise.all(Array.from({ length: 10 }, () => createInstallationAccessToken(99881, { owner: "acme", repo: "one" })));
+      expect(calls).toBe(1); expect(new Set(tokens)).toEqual(new Set(["ghs_fake_one"]));
+      expect(await createInstallationAccessToken(99881, { owner: "acme", repo: "two" })).toBe("ghs_fake_two");
+      expect(calls).toBe(2);
+    });
+  });
   test("createInstallationAccessToken POSTs with App JWT Bearer", async () => {
     await withAppEnv(async () => {
       let auth = "";
@@ -76,14 +91,14 @@ describe("github app install token exchange", () => {
   test("fetchInstallationAccount reads account login via App JWT", async () => {
     await withAppEnv(async () => {
       const original = globalThis.fetch;
-      globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      globalThis.fetch = (async () =>
         new Response(
           JSON.stringify({
             id: 42,
             account: { login: "ada", type: "User" },
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
-        )) as typeof fetch;
+        )) as unknown as typeof fetch;
       restore = () => {
         globalThis.fetch = original;
       };
@@ -97,20 +112,22 @@ describe("github app install token exchange", () => {
     });
   });
 
-  test("deleteInstallation treats 204 and 404 as success", async () => {
+  test("malformed token responses fail and do not poison the shared token cache", async () => {
     await withAppEnv(async () => {
       const original = globalThis.fetch;
       let calls = 0;
-      globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      globalThis.fetch = (async () => {
         calls++;
-        return new Response(null, { status: calls === 1 ? 204 : 404 });
-      }) as typeof fetch;
+        return Response.json({ token: calls === 1 ? { unexpected: "object" } : "ghs_fake_recovered" });
+      }) as unknown as typeof fetch;
       restore = () => {
         globalThis.fetch = original;
       };
 
-      expect(await deleteInstallation(1)).toBe(true);
-      expect(await deleteInstallation(1)).toBe(true);
+      const repo = { owner: "acme", repo: "malformed" };
+      await expect(createInstallationAccessToken(90091, repo)).rejects.toThrow("missing token");
+      expect(await createInstallationAccessToken(90091, repo)).toBe("ghs_fake_recovered");
+      expect(calls).toBe(2);
     });
   });
 

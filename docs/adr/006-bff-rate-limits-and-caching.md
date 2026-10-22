@@ -5,6 +5,13 @@
 **Binding constraints:** [PRIVACY.md](../PRIVACY.md) — zero durable storage of repo
 data, no content/token logging, short-TTL bounded caches only.
 
+**Implementation note (2026-10-18):** This proposal is still unratified. No
+server-side repo-content cache exists. The connection hardening adds ephemeral,
+bounded credential reuse and refresh coordination, per-instance request and
+concurrency limits, upstream deadlines/body bounds, and explicit rate-limit
+backoff; [SECURITY.md](../SECURITY.md) specifies those current safeguards. The
+request counts below are the original proposal's baseline, not current behavior.
+
 ## Context
 
 All v1 ingestion flows through the server-side BFF proxy (decisions #3 + #7)

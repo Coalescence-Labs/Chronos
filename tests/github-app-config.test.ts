@@ -116,6 +116,7 @@ describe("github app config", () => {
     });
     expect(connected).toEqual({
       connected: true,
+      state: "connected",
       login: "ada",
       permissions: "contents:read,metadata:read",
       connectedAt: "2026-10-01T00:00:00.000Z",

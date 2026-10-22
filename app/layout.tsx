@@ -6,6 +6,7 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site"
 import { CHROME_BG, THEME_INIT_SCRIPT } from "@/lib/theme";
 import { satoshi } from "./fonts";
 import "./globals.css";
+import { headers } from "next/headers";
 
 const TITLE_DEFAULT = `${SITE_NAME} — ${SITE_TAGLINE.replace(/\.$/, "").toLowerCase()}`;
 
@@ -45,16 +46,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // suppressHydrationWarning: the boot script sets data-theme on <html>
     // before React hydrates, which is an intentional server/client mismatch.
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* Applies the persisted theme before first paint — see lib/theme.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className={satoshi.variable}>
         <AuthProvider>

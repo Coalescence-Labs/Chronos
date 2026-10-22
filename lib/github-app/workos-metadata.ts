@@ -1,8 +1,13 @@
 import { isAuthConfigured } from "@/lib/auth/config";
 import type { GitHubAppSessionData } from "./types";
 import { githubInstallBindings } from "./bindings";
+import { githubMetadataClient } from "./metadata-client";
+import { randomUUID } from "node:crypto";
+import { IngestError } from "@/lib/ingest/errors";
 
 const INSTALL_PREFIX = "chronosGhInstall_";
+const VERSION_KEY = "chronosGhVersion";
+export const INITIAL_GITHUB_AUTHORIZATION_VERSION = "initial";
 
 /** Legacy keys, retained for migration. New bindings use one key per install. */
 export const GITHUB_INSTALL_METADATA_KEYS = {
@@ -16,7 +21,7 @@ export const GITHUB_INSTALL_METADATA_KEYS = {
 export type GitHubInstallMetadataBinding = Pick<
   GitHubAppSessionData,
   "installationId" | "accountLogin" | "accountType" | "connectedAt" | "permissions"
-> & { additionalInstallations?: GitHubInstallMetadataBinding[] };
+> & { additionalInstallations?: GitHubInstallMetadataBinding[]; authorizationVersion?: string };
 
 export function githubInstallMetadataFromSession(
   data: GitHubAppSessionData,
@@ -25,6 +30,7 @@ export function githubInstallMetadataFromSession(
     `${INSTALL_PREFIX}${binding.installationId}`,
     JSON.stringify([
       binding.accountLogin, binding.accountType, binding.connectedAt, binding.permissions,
+      data.authorizationVersion ?? INITIAL_GITHUB_AUTHORIZATION_VERSION,
     ]),
   ]));
 }
@@ -40,8 +46,9 @@ export function parseGitHubInstallMetadata(
     try {
       const fields: unknown = JSON.parse(value);
       if (!Number.isSafeInteger(installationId) || installationId <= 0 ||
-        !Array.isArray(fields) || fields.length !== 4) continue;
-      const [accountLogin, accountType, connectedAt, permissions] = fields;
+        !Array.isArray(fields) || (fields.length !== 4 && fields.length !== 5)) continue;
+      const [accountLogin, accountType, connectedAt, permissions, version = INITIAL_GITHUB_AUTHORIZATION_VERSION] = fields;
+      if (version !== authorizationVersion(metadata)) continue;
       if (typeof accountLogin !== "string" || !accountLogin ||
         (accountType !== "User" && accountType !== "Organization") ||
         typeof connectedAt !== "string" || !Number.isFinite(Date.parse(connectedAt)) ||
@@ -53,11 +60,12 @@ export function parseGitHubInstallMetadata(
   }
   if (bindings.length) {
     const [first, ...additionalInstallations] = bindings;
-    return { ...first!, ...(additionalInstallations.length ? { additionalInstallations } : {}) };
+    return { ...first!, authorizationVersion: authorizationVersion(metadata), ...(additionalInstallations.length ? { additionalInstallations } : {}) };
   }
+  if (authorizationVersion(metadata) !== INITIAL_GITHUB_AUTHORIZATION_VERSION) return undefined;
   const installationRaw = metadata[GITHUB_INSTALL_METADATA_KEYS.installationId];
   const installationId = installationRaw
-    ? Number.parseInt(installationRaw, 10)
+    ? Number(installationRaw)
     : NaN;
   const accountLogin = metadata[GITHUB_INSTALL_METADATA_KEYS.accountLogin]?.trim();
   const accountTypeRaw = metadata[GITHUB_INSTALL_METADATA_KEYS.accountType];
@@ -67,11 +75,11 @@ export function parseGitHubInstallMetadata(
     "contents:read,metadata:read";
 
   if (
-    !Number.isFinite(installationId) ||
+    !Number.isSafeInteger(installationId) ||
     installationId <= 0 ||
     !accountLogin ||
     (accountTypeRaw !== "User" && accountTypeRaw !== "Organization") ||
-    !connectedAt
+    !connectedAt || !Number.isFinite(Date.parse(connectedAt))
   ) {
     return undefined;
   }
@@ -98,9 +106,15 @@ function clearGitHubInstallMetadataPatch(metadata?: Record<string, string>): Rec
   return Object.fromEntries(Object.entries(patch).filter(([key]) => metadata && key in metadata));
 }
 
-async function workosClient() {
-  const { getWorkOS } = await import("@workos-inc/authkit-nextjs");
-  return getWorkOS();
+function authorizationVersion(metadata?: Record<string, string>): string {
+  return metadata?.[VERSION_KEY] ?? INITIAL_GITHUB_AUTHORIZATION_VERSION;
+}
+
+export async function readGitHubAuthorizationVersion(workosUserId: string): Promise<string> {
+  const user = await githubMetadataClient().userManagement.getUser(workosUserId);
+  const version = authorizationVersion(user.metadata);
+  if (version.startsWith("revoking:")) throw new IngestError("disconnect-incomplete", "GitHub disconnect is incomplete. Retry disconnect from your account.");
+  return version;
 }
 
 function metadataWritePersisted(
@@ -110,8 +124,7 @@ function metadataWritePersisted(
   const parsed = parseGitHubInstallMetadata(metadata);
   if (!parsed) return false;
   const actual = githubInstallBindings(parsed);
-  return actual.length === githubInstallBindings(data).length &&
-    githubInstallBindings(data).every((binding) => actual.some((saved) =>
+  return githubInstallBindings(data).every((binding) => actual.some((saved) =>
       saved.installationId === binding.installationId &&
       saved.accountLogin === binding.accountLogin && saved.accountType === binding.accountType &&
       saved.connectedAt === binding.connectedAt && saved.permissions === binding.permissions,
@@ -125,30 +138,49 @@ export async function writeGitHubInstallMetadata(
   if (!isAuthConfigured()) {
     throw new Error("WorkOS is not configured — cannot persist GitHub install metadata");
   }
-  const workos = await workosClient();
+  const workos = githubMetadataClient();
   const current = await workos.userManagement.getUser(workosUserId);
-  const patch = { ...clearGitHubInstallMetadataPatch(current.metadata),
+  const expectedVersion = data.authorizationVersion ?? INITIAL_GITHUB_AUTHORIZATION_VERSION;
+  if (authorizationVersion(current.metadata) !== expectedVersion) {
+    throw new IngestError("reconnect-required", "Your GitHub connections changed. Please reconnect GitHub.");
+  }
+  const legacyPatch = Object.fromEntries(Object.values(GITHUB_INSTALL_METADATA_KEYS)
+    .filter((key) => key in (current.metadata ?? {})).map((key) => [key, null]));
+  const legacy = expectedVersion === INITIAL_GITHUB_AUTHORIZATION_VERSION
+    ? parseGitHubInstallMetadata(Object.fromEntries(Object.keys(legacyPatch).map((key) => [key, current.metadata![key]!])))
+    : undefined;
+  const migrated = legacy ? githubInstallMetadataFromSession({ ...legacy, workosUserId }) : {};
+  const patch = { ...legacyPatch,
+    ...Object.fromEntries(Object.entries(migrated).filter(([key]) => !(key in (current.metadata ?? {})))),
     ...githubInstallMetadataFromSession(data) };
   const retainedKeys = Object.keys(current.metadata ?? {}).filter((key) => !(key in patch));
-  if (retainedKeys.length + Object.values(patch).filter((value) => value !== null).length > 10) {
-    throw new Error("GitHub connections exceed WorkOS metadata capacity");
+  const reserve = current.metadata?.[VERSION_KEY] ? 0 : 1;
+  if (retainedKeys.length + Object.values(patch).filter((value) => value !== null).length + reserve > 10) {
+    throw new IngestError("too-large", "This account has reached its GitHub connection limit. Existing connections are unchanged.");
   }
   const updated = await workos.userManagement.updateUser({
     userId: workosUserId,
     metadata: patch,
   });
-  if (!metadataWritePersisted(updated.metadata, data)) {
+  if (authorizationVersion(updated.metadata) !== expectedVersion || !metadataWritePersisted(updated.metadata, data)) {
     throw new Error("GitHub install metadata did not persist on WorkOS user");
   }
 }
 
 export async function clearGitHubInstallMetadata(workosUserId: string): Promise<void> {
-  if (!isAuthConfigured()) return;
-  const workos = await workosClient();
+  if (!isAuthConfigured()) throw new Error("WorkOS is not configured — cannot revoke GitHub bindings");
+  const workos = githubMetadataClient();
   const current = await workos.userManagement.getUser(workosUserId);
+  const clearPatch = clearGitHubInstallMetadataPatch(current.metadata);
+  const version = randomUUID();
+  if (Object.keys(clearPatch).length >= 10) {
+    const [first, ...remaining] = Object.keys(clearPatch);
+    await workos.userManagement.updateUser({ userId: workosUserId, metadata: { [first!]: null, [VERSION_KEY]: `revoking:${version}` } });
+    await workos.userManagement.updateUser({ userId: workosUserId, metadata: Object.fromEntries(remaining.map((key) => [key, null])) });
+  }
   const updated = await workos.userManagement.updateUser({
     userId: workosUserId,
-    metadata: clearGitHubInstallMetadataPatch(current.metadata),
+    metadata: { ...(Object.keys(clearPatch).length < 10 ? clearPatch : {}), [VERSION_KEY]: version },
   });
   if (parseGitHubInstallMetadata(updated.metadata)) {
     throw new Error("GitHub install metadata was not cleared on WorkOS user");
@@ -159,11 +191,9 @@ export async function readGitHubInstallMetadata(
   workosUserId: string,
 ): Promise<GitHubInstallMetadataBinding | undefined> {
   if (!isAuthConfigured()) return undefined;
-  try {
-    const workos = await workosClient();
-    const user = await workos.userManagement.getUser(workosUserId);
-    return parseGitHubInstallMetadata(user.metadata);
-  } catch {
-    return undefined;
+  const user = await githubMetadataClient().userManagement.getUser(workosUserId);
+  if (authorizationVersion(user.metadata).startsWith("revoking:")) {
+    throw new IngestError("disconnect-incomplete", "GitHub disconnect is incomplete. Retry disconnect from your account.");
   }
+  return parseGitHubInstallMetadata(user.metadata);
 }

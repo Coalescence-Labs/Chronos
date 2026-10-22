@@ -77,6 +77,7 @@ Chronos/
     PRIVACY.md              # security + ZDR model
     AUTH.md                 # WorkOS AuthKit accounts (COA-200)
     PERFORMANCE.md          # navigation baseline, <250ms goal, proposed improvements
+    SECURITY.md             # dependency gate, credential lifecycle, limits, deployment verification
     adr/                    # decision records (006 = rate limits & caching, proposed)
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
@@ -85,7 +86,8 @@ Chronos/
     graph/                  # pure layout engine (layout.ts, hybrid lanes) + normalized model (types.ts) — no DOM/network
     ingest/                 # source adapters -> normalized model (GitHub via BFF)
     auth/                   # WorkOS AuthKit session helpers (public /me shape; no tokens to client)
-    github-app/             # GitHub App connect: multiple installs, verified user access, sealed credentials, BFF token mint
+    github-app/             # verified installs, revocation versions, sealed credentials, bounded token coordination/transport
+    security/               # mutation origin checks, CSP, ephemeral request fairness limits
     demo/                   # deterministic synthetic history backing /demo
     ai/                     # empty until decisions #4/#5 resolve
   components/
@@ -101,6 +103,7 @@ Chronos/
   public/                   # fonts (Satoshi), PWA icons, sw.js
   scripts/                  # generate-icons.ts (PWA icons), capture-home-graph.ts (offline origin/main geometry)
                             # benchmark-performance.ts (synthetic production navigation + graph compute)
+                            # audit-security.ts (production advisory gate + expiring development exception)
   tests/                    # bun test suites (boundaries, ingest, design tokens, pwa, graph layout/view/pipeline)
     e2e/                    # Playwright (*.e2e.ts; bun run test:e2e) — phone + laptop projects, BFF mocked
 ```
@@ -117,3 +120,13 @@ Keep this map current as directories are added.
 ## 7. zero-native (phase 2) — keep it thin
 
 `zero-native` is pre-release (Zig native shell + web UI; experimental mobile). Treat it as additive: it reuses the v1 web UI to give a **local desktop mode** that reads `.git` directly with zero upload. **Do not write integration/build specifics against its API yet** — they'd be guesses against an unstable surface. Build the web app so its UI layer is portable (no hard dependency on hosted-only APIs in the rendering path).
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

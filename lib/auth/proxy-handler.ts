@@ -14,7 +14,7 @@ export function createAuthProxyHandler() {
 
   return function chronosAuthProxy(request: NextRequest, event: NextFetchEvent) {
     if (!isAuthConfigured()) {
-      return NextResponse.next();
+      return NextResponse.next({ request: { headers: new Headers(request.headers) } });
     }
 
     if (!authkit) {

@@ -34,6 +34,16 @@ The phone experience is **first-class**, not a shrunk desktop.
 - Dark theme is the default and is genuinely dimensional, not flat gray.
 - Accessibility: real focus states, keyboard navigation, sufficient contrast, `prefers-reduced-motion` honored, meaningful color paired with non-color cues (don't rely on color alone to convey branch relationships).
 
+## Account panels
+
+Follow Ergon's UI foundations for composition: a four-pixel rhythm, named spacing
+tokens, and separate stack and inline groups. In Chronos, use `--space-4` between
+card sections, `--space-2` between actions, and `--space-5` for desktop card insets.
+Keep the provider heading and status together, account identities in full-width
+rows with aligned dates, and actions in their own group. At narrow phone widths, stack
+account metadata and let control groups wrap without shrinking touch targets.
+Disclosure content and secondary actions must remain in normal document flow.
+
 ## Accessibility & color
 
 Color is a primary signal in a graph, so it carries extra responsibility: pair it with shape/position/labels, ensure contrast, and verify the graph is still readable for color-vision deficiencies. This intersects with render-tech choice (see [ARCHITECTURE.md](ARCHITECTURE.md) open decision #2) — keep accessibility in the decision.

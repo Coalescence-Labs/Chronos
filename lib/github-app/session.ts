@@ -61,6 +61,7 @@ export async function saveGitHubAppSession(
   session.userAccessToken = data.userAccessToken;
   session.userRefreshToken = data.userRefreshToken;
   session.userTokenExpiresAt = data.userTokenExpiresAt;
+  session.authorizationVersion = data.authorizationVersion;
   await session.save();
 }
 
@@ -105,6 +106,7 @@ export async function readGitHubAppSessionForUser(
       ...(session.userAccessToken ? { userAccessToken: session.userAccessToken } : {}),
       ...(session.userRefreshToken ? { userRefreshToken: session.userRefreshToken } : {}),
       ...(session.userTokenExpiresAt ? { userTokenExpiresAt: session.userTokenExpiresAt } : {}),
+      ...(session.authorizationVersion ? { authorizationVersion: session.authorizationVersion } : {}),
     };
   } catch {
     return undefined;
@@ -121,12 +123,14 @@ export function toPublicGitHubConnection(
       permissions: null,
       connectedAt: null,
       configured: isGitHubAppConfigured(),
+      state: "disconnected",
     };
   }
   // readGitHubAppSessionForUser backfills the epoch for legacy sessions — not a real date.
   const connectedAtMs = Date.parse(session.connectedAt);
   return {
-    connected: Boolean(session.userAccessToken),
+    connected: Boolean(session.userAccessToken && (!session.userTokenExpiresAt || session.userTokenExpiresAt > Date.now())),
+    state: session.userAccessToken && (!session.userTokenExpiresAt || session.userTokenExpiresAt > Date.now()) ? "connected" : "reconnect-required",
     login: session.accountLogin,
     permissions: session.permissions,
     connectedAt: connectedAtMs > 0 ? session.connectedAt : null,

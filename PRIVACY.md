@@ -48,8 +48,10 @@ days, unreadable to browser JavaScript. WorkOS stores only the installation IDs,
 account names/types, connection dates and permission summaries needed to remember
 your connections — never GitHub tokens or repo content. Signing out clears the
 cookies; reconnecting verifies your GitHub access again. Disconnect clears your
-saved connections. Shared organization installations stay on GitHub so other
-members can keep using them; an organization owner can remove them there.
+saved connections across devices and revokes your GitHub authorization when
+available. Installations stay on GitHub so other people can keep using them;
+their owners can remove them there. A non-secret revocation marker remains in
+WorkOS to prevent older sessions from restoring access.
 
 ---
 

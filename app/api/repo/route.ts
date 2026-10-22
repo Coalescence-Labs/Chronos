@@ -21,9 +21,9 @@ export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   try {
     const id = parseRepoInput(searchParams.get("repo") ?? "");
-    const auth = await githubAuthForRequest(id);
+    const auth = await githubAuthForRequest(id, request);
     const meta = await verifiedRepoMeta(id, auth);
-    const [refs, firstPage] = await Promise.all([
+    const [referencePage, firstPage] = await Promise.all([
       fetchRefs(id, auth),
       fetchCommitPage(id, meta.defaultBranch, 1, auth),
     ]);
@@ -33,9 +33,10 @@ export async function GET(request: Request): Promise<Response> {
       repo: { ...id, defaultBranch: meta.defaultBranch },
       history: {
         commits: firstPage.commits,
-        refs: tip ? [{ name: "HEAD", type: "head", sha: tip.sha }, ...refs] : refs,
+        refs: tip ? [{ name: "HEAD", type: "head", sha: tip.sha }, ...referencePage.refs] : referencePage.refs,
       },
       nextPage: firstPage.hasMore ? 2 : null,
+      ...(referencePage.truncated ? { referencesTruncated: true } : {}),
     };
     return jsonResponse(body);
   } catch (error) {

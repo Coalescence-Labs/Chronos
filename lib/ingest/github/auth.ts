@@ -1,6 +1,7 @@
 import { resolveGitHubRequestAuth } from "@/lib/github-app";
 import { IngestError } from "../errors";
 import { fetchRepoMeta, type RepoMeta } from "./fetch";
+import { enforceRequestLimit } from "@/lib/security/request";
 import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 import type { RepoId } from "./parse";
 
@@ -12,7 +13,9 @@ import type { RepoId } from "./parse";
  * AuthKit is loaded dynamically so bun unit tests that import `/api/repo`
  * do not pull `server-only` into the static module graph.
  */
-export async function githubAuthForRequest(repo: RepoId): Promise<GitHubRequestAuth> {
+export async function githubAuthForRequest(repo: RepoId, request?: Request): Promise<GitHubRequestAuth> {
+  const deadline = AbortSignal.timeout(20_000);
+  const signal = request ? AbortSignal.any([request.signal, deadline]) : deadline;
   let workosUserId: string | null = null;
   try {
     const { withAuth } = await import("@workos-inc/authkit-nextjs");
@@ -21,7 +24,8 @@ export async function githubAuthForRequest(repo: RepoId): Promise<GitHubRequestA
   } catch {
     // WorkOS unconfigured, outside Next runtime, or proxy skip — anonymous.
   }
-  return resolveGitHubRequestAuth(workosUserId, repo);
+  if (request) enforceRequestLimit(request, workosUserId);
+  return resolveGitHubRequestAuth(workosUserId, repo, signal);
 }
 
 export async function verifiedRepoMeta(repo: RepoId, auth: GitHubRequestAuth): Promise<RepoMeta> {

@@ -43,7 +43,7 @@ describe("GitHub user verification", () => {
     }));
     expect(url.origin).toBe("https://github.com");
     expect(url.searchParams.get("client_id")).toBe("Iv1.test");
-    expect(url.searchParams.has("scope")).toBe(false);
+    expect(url.searchParams.get("scope")).toBe("offline_access");
     expect(url.searchParams.has("client_secret")).toBe(false);
   });
 

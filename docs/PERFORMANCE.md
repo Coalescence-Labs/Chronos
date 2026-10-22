@@ -15,6 +15,26 @@ ratify ADR 006. The simplest reversible measurement choice is local Chromium
 with synthetic data and explicit network/CPU throttling. Real devices and
 deployment measurements remain necessary.
 
+## GitHub connection hardening check — 2026-10-18
+
+The hardened BFF regression fixture measures **five GitHub calls for a cold
+private-repo load** (user visibility, scoped token mint, branches, tags, commits)
+and **two for each subsequent commit page** (fresh user visibility plus commits).
+A warm scoped token removes the mint call. Each BFF request still reads
+authoritative WorkOS metadata; token reuse never skips user authorization. These
+counts exclude expired-user-token refresh and connection-status checks.
+
+The strict nonce CSP requires dynamic HTML. A local production build on Next.js
+16.4.2, Bun 1.4.2 and Chromium 156 was checked with the same synthetic gateway and
+device profiles below, three samples per case. Median destination paint was
+47ms for laptop home → repo, 546ms for the throttled phone, and 42ms for the
+phone after explicit repo intent prefetch. Phone first graph was 841ms without
+intent prefetch and 332ms with it; phone home → idle-prefetched demo was 99ms.
+These are diagnostic samples, not field percentiles or a 250ms guarantee. They
+remain close to the earlier baseline; slow-network navigation and source-page
+startup still need the separate performance work described below. No GitHub,
+WorkOS or analytics traffic was used by this benchmark.
+
 ## What the target measures
 
 Measure these independently, starting at the user's input:

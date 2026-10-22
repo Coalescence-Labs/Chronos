@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAuthConfigured } from "@/lib/auth";
 import { chronosSignOut } from "@/lib/auth/sign-out";
+import { isSameOriginMutation } from "@/lib/security/request";
 
 /**
  * POST /api/auth/sign-out — clears the sealed session cookie server-side.
@@ -8,7 +9,8 @@ import { chronosSignOut } from "@/lib/auth/sign-out";
  *
  * Local clear + redirect (no WorkOS hosted logout / error.workos.com).
  */
-export async function POST(): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!isAuthConfigured()) {
     return Response.json(
       { error: { code: "auth_not_configured", message: "WorkOS env vars are not set." } },

@@ -39,13 +39,13 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).not.toContain("<details");
     for (const claim of CONSENT_CLAIMS) expect(html).toContain(claim);
     expect(html).toContain("Contents and metadata");
-    expect(html).toContain("https://github.com/settings/installations");
+    expect(html).toContain("https://github.com/settings/apps/authorizations");
   });
 
   test("connected collapses the facts and offers disconnect + repo selection", () => {
     const html = renderToStaticMarkup(<GitHubConnectionCard connection={CONNECTED} />);
     expect(html).toContain("@ada");
-    expect(html).toContain("since 2026-10-01");
+    expect(html.replace(/<[^>]+>/g, "")).toContain("since 2026-10-01");
     expect(html).toContain("Disconnect");
     expect(html).toContain("Change repos");
     expect(html).not.toContain("Install GitHub App");
@@ -74,14 +74,30 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).toContain("@acme");
     expect(html).toContain("Add organization");
     expect(html).toContain("Disconnect all");
-    expect(html).toContain("organization installations stay on GitHub");
+    expect(html).toContain("installations stay on GitHub");
   });
 
   test("saved installations without user authorization offer reconnect", () => {
     const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...CONNECTED, connected: false }} />);
     expect(html).toContain("Reconnect GitHub");
-    expect(html).toContain("Your installations are saved");
+    expect(html).toContain("Check organization approval and SSO");
     expect(html).not.toContain("Install GitHub App");
+    expect(html).toContain("Disconnect");
+  });
+
+  test("a provider outage offers a check without suggesting a new connection", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...NOT_CONNECTED, state: "unavailable" }} onRetry={() => {}} />);
+    expect(html).toContain("Retry check");
+    expect(html).not.toContain("Install GitHub App");
+    expect(html).not.toContain("Disconnect");
+  });
+
+  test("an interrupted disconnect offers recovery while private access stays blocked", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...NOT_CONNECTED, state: "disconnect-incomplete" }} />);
+    expect(html).toContain("Disconnect all");
+    expect(html).toContain("Private access is blocked");
+    expect(html).not.toContain("Retry check");
+    expect(html).not.toContain("/api/github/connect");
   });
 
   test("an organization approval request is distinct from a successful connection", () => {
@@ -95,7 +111,7 @@ describe("GitHub connection card (COA-202)", () => {
       <GitHubConnectionCard connection={{ ...NOT_CONNECTED, configured: false }} />,
     );
     expect(html).toContain("unavailable");
-    expect(html).toContain("GITHUB_SESSION_PASSWORD");
+    expect(html).toContain("aren’t available in this deployment");
     expect(html).not.toContain("/api/github/connect");
   });
 

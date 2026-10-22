@@ -1,6 +1,8 @@
-import { githubAppSlug } from "./config";
+import { githubAppId, githubAppSlug } from "./config";
 import { createGitHubAppJwt } from "./jwt";
 import type { RepoId } from "@/lib/ingest/github/parse";
+import { githubFetch, githubResponseError } from "./http";
+import { createHmac, randomBytes } from "node:crypto";
 
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "chronos-branch-graph";
@@ -45,7 +47,7 @@ export async function fetchInstallationAccount(
   installationId: number,
 ): Promise<InstallationAccount> {
   const jwt = createGitHubAppJwt();
-  const response = await fetch(
+  const response = await githubFetch(
     `https://api.github.com/app/installations/${installationId}`,
     {
       headers: {
@@ -83,18 +85,37 @@ export async function fetchInstallationAccount(
 /**
  * Mint a short-lived installation access token (≈1h). Server-only.
  */
-export async function createInstallationAccessToken(
+const installationTokens = new Map<string, { expires: number; promise: Promise<string> }>();
+const cacheKeySecret = randomBytes(32);
+
+export function createInstallationAccessToken(installationId: number, repo: RepoId): Promise<string> {
+  const now = Date.now();
+  for (const [key, entry] of installationTokens) if (entry.expires <= now) installationTokens.delete(key);
+  const key = createHmac("sha256", cacheKeySecret)
+    .update(`${githubAppId()}:${installationId}:${repo.repo.toLowerCase()}`).digest("hex");
+  const existing = installationTokens.get(key);
+  if (existing) return existing.promise;
+  if (installationTokens.size >= 256) installationTokens.delete(installationTokens.keys().next().value!);
+  const entry = { expires: now + 12_000, promise: Promise.resolve("") };
+  entry.promise = mintInstallationAccessToken(installationId, repo, (expires) => { entry.expires = expires; })
+    .catch((error: unknown) => { installationTokens.delete(key); throw error; });
+  installationTokens.set(key, entry);
+  return entry.promise;
+}
+
+async function mintInstallationAccessToken(
   installationId: number,
-  repo?: RepoId,
+  repo: RepoId,
+  setExpiry?: (expires: number) => void,
 ): Promise<string> {
   const jwt = createGitHubAppJwt();
-  const response = await fetch(
+  const response = await githubFetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
       body: JSON.stringify({
         permissions: { contents: "read", metadata: "read" },
-        ...(repo ? { repositories: [repo.repo] } : {}),
+        repositories: [repo.repo],
       }),
       headers: {
         Accept: "application/vnd.github+json",
@@ -108,37 +129,15 @@ export async function createInstallationAccessToken(
   );
 
   if (!response.ok) {
-    throw new Error("Failed to mint GitHub installation token");
+    if (response.status === 401) throw new Error("GitHub App credentials could not be verified");
+    throw await githubResponseError(response);
   }
 
-  const body = (await response.json()) as { token?: string };
-  if (!body.token) {
+  const body = (await response.json()) as { token?: string; expires_at?: string };
+  if (typeof body.token !== "string" || !body.token) {
     throw new Error("GitHub installation token response missing token");
   }
+  const expires = Date.parse(typeof body.expires_at === "string" ? body.expires_at : "");
+  setExpiry?.(Number.isFinite(expires) ? Math.min(Date.now() + 55 * 60_000, expires - 60_000) : 0);
   return body.token;
-}
-
-/**
- * Uninstall the App for this installation (best-effort on Disconnect).
- * GitHub may also require the user to revoke from github.com settings.
- */
-export async function deleteInstallation(
-  installationId: number,
-): Promise<boolean> {
-  const jwt = createGitHubAppJwt();
-  const response = await fetch(
-    `https://api.github.com/app/installations/${installationId}`,
-    {
-      method: "DELETE",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${jwt}`,
-        "X-GitHub-Api-Version": API_VERSION,
-        "User-Agent": USER_AGENT,
-      },
-      cache: "no-store",
-    },
-  );
-  // 204 success; 404 already gone — both fine for disconnect.
-  return response.ok || response.status === 404;
 }

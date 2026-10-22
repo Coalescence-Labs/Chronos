@@ -6,7 +6,7 @@ import { parseRepoInput } from "@/lib/ingest/github/parse";
 import { errorResponse, jsonResponse } from "@/lib/ingest/respond";
 
 /**
- * Commit-page backfill for the BFF proxy: one GitHub call per request,
+ * Commit-page backfill with a fresh user/visibility check before each page,
  * client-driven, so 10k+ commit histories stream in pages instead of
  * blocking a single request. Same privacy posture as /api/repo.
  *
@@ -26,7 +26,7 @@ export async function GET(request: Request): Promise<Response> {
     }
     const page = Number(searchParams.get("page") ?? "1");
     validateCommitPage(page);
-    const auth = await githubAuthForRequest(id);
+    const auth = await githubAuthForRequest(id, request);
     await verifiedRepoMeta(id, auth);
 
     const result = await fetchCommitPage(id, sha, page, auth);

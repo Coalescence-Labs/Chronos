@@ -1,7 +1,7 @@
 import { pruneUnreachable } from "@/lib/graph/reachability";
 import type { CommitNode, RepoHistory } from "@/lib/graph/types";
 import type { CommitsPageResponse, IngestErrorBody, RepoResponse } from "./api";
-import { IngestError } from "./errors";
+import { IngestError, INGEST_ERROR_STATUS } from "./errors";
 
 /**
  * Browser-side ingestion adapter: talks to the BFF routes and assembles the
@@ -15,6 +15,7 @@ export interface IngestResult {
   defaultBranch: string;
   /** True while older history exists upstream that isn't loaded yet. */
   truncated: boolean;
+  referencesTruncated?: boolean;
   /**
    * Lazy paging: fetches one more trunk page (100 commits) into the same
    * history and resolves with the updated result. Absent once everything is
@@ -35,23 +36,39 @@ export interface IngestOptions {
    */
   maxBranchTips?: number;
   /** Called after each page so the UI can render incrementally. */
-  onProgress?: (history: RepoHistory, meta: { defaultBranch: string }) => void;
+  onProgress?: (history: RepoHistory, meta: { defaultBranch: string; referencesTruncated?: boolean }) => void;
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }
 
 export const DEFAULT_MAX_PAGES = 10;
 export const DEFAULT_INITIAL_PAGES = 3;
 export const DEFAULT_MAX_BRANCH_TIPS = 10;
 
-async function getJson<T>(fetchImpl: typeof fetch, url: string): Promise<T> {
-  const response = await fetchImpl(url);
-  if (!response.ok) {
+async function getJson<T>(fetchImpl: typeof fetch, url: string, signal?: AbortSignal): Promise<T> {
+  const deadline = AbortSignal.timeout(25_000);
+  const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  for (let attempt = 0; ; attempt++) {
+    combined.throwIfAborted();
+    const response = await fetchImpl(url, { signal: combined, cache: "no-store" });
+    if (response.ok) return response.json() as Promise<T>;
     const body = (await response.json().catch(() => null)) as IngestErrorBody | null;
-    throw body
-      ? new IngestError(body.error.code, body.error.message, body.error.retryAfterSeconds)
-      : new IngestError("upstream", "Something went wrong fetching the repository.");
+    if (body?.error?.code === "auth-refreshing" && attempt < 4) {
+      combined.throwIfAborted();
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => { clearTimeout(timer); reject(combined.reason); };
+        const timer = setTimeout(() => { combined.removeEventListener("abort", abort); resolve(); }, 1000 * 2 ** attempt);
+        combined.addEventListener("abort", abort, { once: true });
+      });
+      continue;
+    }
+    if (body?.error && Object.hasOwn(INGEST_ERROR_STATUS, body.error.code) && typeof body.error.message === "string") {
+      const { code, message, retryAfterSeconds } = body.error;
+      throw new IngestError(code === "auth-refreshing" ? "reconnect-required" : code, message,
+        Number.isFinite(retryAfterSeconds) && retryAfterSeconds! > 0 ? retryAfterSeconds : undefined);
+    }
+    throw new IngestError("upstream", "Something went wrong fetching the repository.");
   }
-  return response.json() as Promise<T>;
 }
 
 export async function fetchPublicRepoHistory(
@@ -59,16 +76,18 @@ export async function fetchPublicRepoHistory(
   options: IngestOptions = {},
 ): Promise<IngestResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const requestJson = <T>(url: string) => getJson<T>(fetchImpl, url, options.signal);
   const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
   const repoParam = encodeURIComponent(input);
 
-  const initial = await getJson<RepoResponse>(fetchImpl, `/api/repo?repo=${repoParam}`);
+  const initial = await requestJson<RepoResponse>(`/api/repo?repo=${repoParam}`);
   const defaultBranch = initial.repo.defaultBranch;
   const history: RepoHistory = {
     commits: [...initial.history.commits],
     refs: initial.history.refs,
   };
-  options.onProgress?.(history, { defaultBranch });
+  const meta = { defaultBranch, ...(initial.referencesTruncated ? { referencesTruncated: true } : {}) };
+  options.onProgress?.(history, meta);
 
   const merge = (commits: RepoHistory["commits"]): number => {
     // The dedupe set is rebuilt per call: a refresh (COA-127) may prune or
@@ -90,12 +109,11 @@ export async function fetchPublicRepoHistory(
   const branch = encodeURIComponent(defaultBranch);
 
   const fetchTrunkPage = async (page: number): Promise<number | null> => {
-    const data = await getJson<CommitsPageResponse>(
-      fetchImpl,
+    const data = await requestJson<CommitsPageResponse>(
       `/api/repo/commits?repo=${repoParam}&sha=${branch}&page=${page}`,
     );
     merge(data.commits);
-    options.onProgress?.(history, { defaultBranch });
+    options.onProgress?.(history, meta);
     return data.nextPage;
   };
 
@@ -113,11 +131,10 @@ export async function fetchPublicRepoHistory(
     .filter((ref) => ref.type === "branch" && !loadedShas.has(ref.sha))
     .slice(0, options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS);
   for (const ref of missingTips) {
-    const page = await getJson<CommitsPageResponse>(
-      fetchImpl,
+    const page = await requestJson<CommitsPageResponse>(
       `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
     );
-    if (merge(page.commits) > 0) options.onProgress?.(history, { defaultBranch });
+    if (merge(page.commits) > 0) options.onProgress?.(history, meta);
   }
 
   async function loadMore(): Promise<IngestResult> {
@@ -138,6 +155,7 @@ export async function fetchPublicRepoHistory(
       history,
       defaultBranch,
       truncated: nextPage !== null,
+      ...(initial.referencesTruncated ? { referencesTruncated: true } : {}),
       loadMore: nextPage !== null && nextPage <= maxPages ? loadMore : undefined,
     };
   }
@@ -163,6 +181,7 @@ export interface RefreshOptions {
   /** Called once the reconciled history is ready, for in-place re-render. */
   onProgress?: (history: RepoHistory) => void;
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }
 
 /**
@@ -193,9 +212,10 @@ export async function refreshRepoHistory(
   options: RefreshOptions = {},
 ): Promise<RefreshResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const requestJson = <T>(url: string) => getJson<T>(fetchImpl, url, options.signal);
   const repoParam = encodeURIComponent(input);
 
-  const initial = await getJson<RepoResponse>(fetchImpl, `/api/repo?repo=${repoParam}`);
+  const initial = await requestJson<RepoResponse>(`/api/repo?repo=${repoParam}`);
   const freshRefs = initial.history.refs;
 
   // Happy path: identical refs mean the upstream reachable state is
@@ -232,8 +252,7 @@ export async function refreshRepoHistory(
   const branch = encodeURIComponent(initial.repo.defaultBranch);
   let nextPage = initial.nextPage;
   while (nextPage !== null && nextPage <= maxPages && dangling()) {
-    const page = await getJson<CommitsPageResponse>(
-      fetchImpl,
+    const page = await requestJson<CommitsPageResponse>(
       `/api/repo/commits?repo=${repoParam}&sha=${branch}&page=${nextPage}`,
     );
     record(page.commits);
@@ -249,8 +268,7 @@ export async function refreshRepoHistory(
     )
     .slice(0, options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS);
   for (const ref of missingTips) {
-    const page = await getJson<CommitsPageResponse>(
-      fetchImpl,
+    const page = await requestJson<CommitsPageResponse>(
       `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
     );
     record(page.commits);
