@@ -1,3 +1,4 @@
+import { resolveAgentAnchorSha } from "@/lib/agent/chat-context";
 import { attributeBranches, layoutGraph } from "@/lib/graph";
 import type { FactToolContext } from "./types";
 import { buildGraphFactBundle, factBundleForSelectedCommit } from "./extract";
@@ -27,6 +28,8 @@ export function runAgentFactTool(
           loadedCommits: bundle.loadedCommits,
           loadedRefs: bundle.loadedRefs,
           refNames: bundle.refs.map((ref) => ref.name).slice(0, 40),
+          focusedBranch: context.focusedBranch ?? null,
+          contextRefs: (context.contextRefs ?? []).slice(0, 8),
         },
       };
     case "branch_tips": {
@@ -47,7 +50,12 @@ export function runAgentFactTool(
         data: bundle.commits.filter((commit) => commit.merge).slice(0, 40),
       };
     case "anchored_commit": {
-      const sha = context.selectedSha ?? bundle.commits[0]?.sha;
+      const sha =
+        resolveAgentAnchorSha({
+          selectedSha: context.selectedSha,
+          contextRefs: context.contextRefs,
+          focusedBranch: context.focusedBranch,
+        }) ?? bundle.commits[0]?.sha;
       if (!sha) return { tool, data: { anchor: null, loadHandle: bundle.loadHandle } };
       return { tool, data: factBundleForSelectedCommit(bundle, sha) };
     }

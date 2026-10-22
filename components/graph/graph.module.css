@@ -215,9 +215,21 @@
 
 /* Branch/merged badges are <button>s (click to trace) — reset button chrome. */
 button.badge {
-  cursor: pointer;
+  cursor: grab;
   -webkit-appearance: none;
   appearance: none;
+}
+
+button.badge:active {
+  cursor: grabbing;
+}
+
+.agentDrag {
+  cursor: grab;
+}
+
+.agentDrag:active {
+  cursor: grabbing;
 }
 
 /* The traced branch's badge is emphasized; a ring reads even when its lane

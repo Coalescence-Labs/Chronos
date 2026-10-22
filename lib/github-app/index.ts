@@ -6,6 +6,7 @@ export {
   githubAppPoolToken,
   githubAppSetupUrl,
   githubAppSlug,
+  githubAppMissingEnvVarNames,
   isGitHubAppConfigured,
 } from "./config";
 export { disconnectGitHubAction } from "./actions";
@@ -27,6 +28,7 @@ export {
   githubSessionCookieLooksHardened,
   readGitHubAppSessionForUser,
   saveGitHubAppSession,
+  publicGitHubConnectionForResponse,
   toPublicGitHubConnection,
 } from "./session";
 export { resolveGitHubAccessToken, resolveGitHubRequestAuth } from "./token";

@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import {
-  assertNoSecretsInPublicGitHubConnection, isGitHubAppConfigured,
-  resolveGitHubAppSessionForUser, toPublicGitHubConnection,
+  assertNoSecretsInPublicGitHubConnection,
+  isGitHubAppConfigured,
+  publicGitHubConnectionForResponse,
+  resolveGitHubAppSessionForUser,
+  toPublicGitHubConnection,
 } from "@/lib/github-app";
 import { activeGitHubUserToken } from "@/lib/github-app/token";
 import { assertGitHubUserInstallation } from "@/lib/github-app/user-auth";
@@ -23,19 +26,26 @@ export async function GET(request: Request): Promise<Response> {
         const token = await activeGitHubUserToken(session);
         await assertGitHubUserInstallation(token, session.installationId,
           githubInstallBindings(session).slice(1).map((binding) => binding.installationId));
-        const body = { ...toPublicGitHubConnection(session), connected: true, state: "connected" as const };
+        const body = publicGitHubConnectionForResponse({
+          ...toPublicGitHubConnection(session),
+          connected: true,
+          state: "connected" as const,
+        });
         assertNoSecretsInPublicGitHubConnection(body);
         return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
       }
     }
-    const body = toPublicGitHubConnection(session);
+    const body = publicGitHubConnectionForResponse(toPublicGitHubConnection(session));
     assertNoSecretsInPublicGitHubConnection(body);
     return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const reconnect = error instanceof IngestError && ["reconnect-required", "access-denied"].includes(error.code);
     const incomplete = error instanceof IngestError && error.code === "disconnect-incomplete";
-    const body = { ...toPublicGitHubConnection(session), connected: false,
-      state: incomplete ? "disconnect-incomplete" as const : reconnect ? "reconnect-required" as const : "unavailable" as const };
+    const body = publicGitHubConnectionForResponse({
+      ...toPublicGitHubConnection(session),
+      connected: false,
+      state: incomplete ? "disconnect-incomplete" as const : reconnect ? "reconnect-required" as const : "unavailable" as const,
+    });
     assertNoSecretsInPublicGitHubConnection(body);
     return NextResponse.json(body, {
       status: reconnect ? 200 : error instanceof IngestError && error.code === "rate-limited" ? 429 : 503,

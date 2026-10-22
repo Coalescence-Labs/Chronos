@@ -7,7 +7,8 @@ import { CopyButton } from "@/components/ui/CopyButton";
 import { InspectionSurface } from "@/components/ui/InspectionSurface";
 import { layoutMsBucket, sizeBucket, track } from "@/lib/analytics";
 import type { SizeBucket } from "@/lib/analytics";
-import { canApplyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
+import { attributeBranches, canApplyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
+import type { AgentBranchFocus } from "@/lib/agent/chat-context";
 import type { Capsule, GlanceResult, RepoHistory } from "@/lib/graph";
 import type { GlanceWorkerClient } from "./glance-worker-client";
 import { RepoAgentChrome } from "@/components/agent/RepoAgentChrome";
@@ -62,6 +63,7 @@ export function GraphExplorer({
   refreshing = false,
 }: GraphExplorerProps) {
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
+  const [tracedTip, setTracedTip] = useState<string | null>(null);
   const [glance, setGlance] = useState(false);
   const [glanceRequest, setGlanceRequest] = useState(0);
   const [reflowing, setReflowing] = useState(false);
@@ -145,6 +147,17 @@ export function GraphExplorer({
 
   const layout = useMemo(() => layoutGraph(view, { maxLanes }), [view, maxLanes]);
 
+  useEffect(() => {
+    setTracedTip(null);
+  }, [repoKey]);
+
+  const focusedBranch = useMemo((): AgentBranchFocus | null => {
+    if (!tracedTip) return null;
+    const { lineBySha } = attributeBranches(view, layout);
+    const line = lineBySha.get(tracedTip);
+    return line ? { name: line.name, tipSha: line.tipSha } : null;
+  }, [tracedTip, view, layout]);
+
   // Layout cost (COA-98): report once per size bucket reached this mount — as a
   // live repo streams in (100 → 2k → …) we capture cost at each scale, and for
   // a static history (demo / fully-loaded) exactly once. The measurement runs
@@ -176,7 +189,13 @@ export function GraphExplorer({
   );
 
   return (
-    <RepoAgentChrome owner={owner} repo={repo} history={view} selectedSha={selectedSha}>
+    <RepoAgentChrome
+      owner={owner}
+      repo={repo}
+      history={view}
+      selectedSha={selectedSha}
+      focusedBranch={focusedBranch}
+    >
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.repoName}>
@@ -234,6 +253,8 @@ export function GraphExplorer({
         reflowing={reflowing}
         selectedSha={selectedSha}
         onSelect={setSelectedSha}
+        tracedTip={tracedTip}
+        onTracedTipChange={setTracedTip}
         onNearEnd={onNearEnd}
       />
       <InspectionSurface
