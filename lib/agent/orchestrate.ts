@@ -1,4 +1,6 @@
 import { generateText, gateway } from "ai";
+import type { AgentBranchFocus, AgentChatContextRef } from "@/lib/agent/chat-context";
+import { agentTurnContextPayload } from "@/lib/agent/chat-context";
 import type { RepoHistory } from "@/lib/graph";
 import { agentGateMessage, evaluateAgentGate } from "./gate";
 import { classifyQuestionWithJev } from "./jev";
@@ -25,6 +27,8 @@ export interface AgentTurnInput {
   question: string;
   history: RepoHistory;
   selectedSha?: string | null;
+  focusedBranch?: AgentBranchFocus | null;
+  contextRefs?: AgentChatContextRef[];
   githubAuth?: GitHubRequestAuth | null;
 }
 
@@ -52,18 +56,20 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
     return { ok: false, error: "That question cannot be answered here.", flags: jev.flags };
   }
 
-  const summary = runAgentFactTool("graph_summary", {
+  const turnContext = agentTurnContextPayload({
+    focusedBranch: input.focusedBranch,
+    contextRefs: input.contextRefs,
+  });
+  const factContext = {
     owner: input.owner,
     repo: input.repo,
     history: input.history,
     selectedSha: input.selectedSha,
-  });
-  const anchor = runAgentFactTool("anchored_commit", {
-    owner: input.owner,
-    repo: input.repo,
-    history: input.history,
-    selectedSha: input.selectedSha,
-  });
+    focusedBranch: turnContext.focusedBranch,
+    contextRefs: turnContext.contextRefs,
+  };
+  const summary = runAgentFactTool("graph_summary", factContext);
+  const anchor = runAgentFactTool("anchored_commit", factContext);
   const pullRequests =
     input.githubAuth && questionRequestsPullRequestFacts(input.question)
       ? await fetchPullRequestFacts(input.owner, input.repo, input.githubAuth)

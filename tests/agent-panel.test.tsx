@@ -29,4 +29,17 @@ describe("Agent panel UI", () => {
     expect(html).toContain("Send question");
     expect(html).toContain("octocat/Hello-World");
   });
+
+  test("shows focused branch stamp when graph trace is active", () => {
+    const html = renderToStaticMarkup(
+      <AgentPanel
+        owner="octocat"
+        repo="Hello-World"
+        history={FIXTURE_HISTORY}
+        focusedBranch={{ name: "main", tipSha: "abc1234" }}
+      />,
+    );
+    expect(html).toContain("focused:");
+    expect(html).toContain("main");
+  });
 });

@@ -1,4 +1,5 @@
 import type { RepoHistory } from "@/lib/graph";
+import type { AgentBranchFocus, AgentChatContextRef } from "@/lib/agent/chat-context";
 
 /** Graph-anchored facts — authors omitted per Agent privacy posture. */
 export interface CommitFact {
@@ -31,4 +32,6 @@ export interface FactToolContext {
   repo: string;
   history: RepoHistory;
   selectedSha?: string | null;
+  focusedBranch?: AgentBranchFocus | null;
+  contextRefs?: AgentChatContextRef[];
 }

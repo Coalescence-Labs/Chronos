@@ -1,4 +1,6 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
+import type { AgentBranchFocus, AgentChatContextRef } from "@/lib/agent/chat-context";
+import { agentTurnContextPayload } from "@/lib/agent/chat-context";
 import type { RepoHistory } from "@/lib/graph";
 import { runAgentTurn } from "@/lib/agent/orchestrate";
 import { enforceDistributedRateLimit } from "@/lib/redis/rate-limit";
@@ -10,6 +12,32 @@ import { githubAuthForRequest } from "@/lib/ingest/github/auth";
 import { parseRepoInput } from "@/lib/ingest/github/parse";
 
 const MAX_COMMITS = 2_500;
+
+function parseFocusedBranch(raw: unknown): AgentBranchFocus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.name !== "string" || typeof record.tipSha !== "string") return null;
+  return { name: record.name, tipSha: record.tipSha };
+}
+
+function parseContextRefs(raw: unknown): AgentChatContextRef[] {
+  if (!Array.isArray(raw)) return [];
+  const refs: AgentChatContextRef[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const kind = record.kind;
+    if (kind !== "commit" && kind !== "branch") continue;
+    if (typeof record.sha !== "string" || typeof record.label !== "string") continue;
+    refs.push({
+      kind,
+      sha: record.sha,
+      label: record.label.slice(0, 200),
+      ...(typeof record.message === "string" ? { message: record.message.slice(0, 500) } : {}),
+    });
+  }
+  return refs.slice(0, 8);
+}
 
 function parseHistory(raw: unknown): RepoHistory | null {
   if (!raw || typeof raw !== "object") return null;
@@ -40,6 +68,8 @@ export async function POST(request: Request): Promise<Response> {
     repo?: string;
     history?: unknown;
     selectedSha?: string | null;
+    focusedBranch?: unknown;
+    contextRefs?: unknown;
   };
   try {
     body = await request.json();
@@ -63,6 +93,11 @@ export async function POST(request: Request): Promise<Response> {
     githubAuth = null;
   }
 
+  const { focusedBranch, contextRefs } = agentTurnContextPayload({
+    focusedBranch: parseFocusedBranch(body.focusedBranch),
+    contextRefs: parseContextRefs(body.contextRefs),
+  });
+
   const result = await runAgentTurn({
     workosUserId: user.id,
     userEmail: user.email,
@@ -71,6 +106,8 @@ export async function POST(request: Request): Promise<Response> {
     question,
     history,
     selectedSha: body.selectedSha,
+    focusedBranch,
+    contextRefs,
     githubAuth,
   });
 

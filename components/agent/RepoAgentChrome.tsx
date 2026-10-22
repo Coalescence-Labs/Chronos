@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { AgentPanel } from "./AgentPanel";
+import type { AgentBranchFocus } from "@/lib/agent/chat-context";
 import type { RepoHistory } from "@/lib/graph";
 import styles from "./agent.module.css";
 
@@ -10,6 +11,7 @@ interface RepoAgentChromeProps {
   repo: string;
   history: RepoHistory;
   selectedSha?: string | null;
+  focusedBranch?: AgentBranchFocus | null;
   children: ReactNode;
 }
 
@@ -18,6 +20,7 @@ export function RepoAgentChrome({
   repo,
   history,
   selectedSha,
+  focusedBranch,
   children,
 }: RepoAgentChromeProps) {
   const [mobileTab, setMobileTab] = useState<"graph" | "agent">("graph");
@@ -34,6 +37,7 @@ export function RepoAgentChrome({
           repo={repo}
           history={history}
           selectedSha={selectedSha}
+          focusedBranch={focusedBranch}
         />
       </div>
 
@@ -45,6 +49,7 @@ export function RepoAgentChrome({
             repo={repo}
             history={history}
             selectedSha={selectedSha}
+            focusedBranch={focusedBranch}
             onMinimize={() => setDesktopOpen(false)}
           />
         ) : (
