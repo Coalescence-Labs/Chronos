@@ -5,14 +5,14 @@ import styles from "./shell.module.css";
 import { ThemeToggle } from "./ThemeToggle";
 
 /**
- * Footer theme strip for guests and signed-out users. Signed-in users set
- * theme from the profile menu so the shell footer stays out of the way.
+ * Guest appearance strip. Signed-in users set theme from the profile menu;
+ * hide the footer while AuthKit is resolving so the strip does not flash.
  */
 export function ShellAppearanceFooter() {
   const configured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
   const { user, loading } = useAuth();
 
-  if (configured && !loading && user) {
+  if (configured && (loading || user)) {
     return null;
   }
 

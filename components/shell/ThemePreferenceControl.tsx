@@ -20,10 +20,16 @@ const OPTIONS: Array<{ value: ThemePreference; label: string; icon: React.ReactN
 type ThemePreferenceControlProps = {
   /** Footer uses the collapsible mobile trigger; profile stays always expanded. */
   variant?: "footer" | "profile";
+  /** Optional id of a visible "Theme" label (profile menu). */
+  labelledBy?: string;
   className?: string;
 };
 
-export function ThemePreferenceControl({ variant = "footer", className }: ThemePreferenceControlProps) {
+export function ThemePreferenceControl({
+  variant = "footer",
+  labelledBy,
+  className,
+}: ThemePreferenceControlProps) {
   const preference = useSyncExternalStore(
     subscribeThemePreference,
     readThemePreference,
@@ -54,8 +60,15 @@ export function ThemePreferenceControl({ variant = "footer", className }: ThemeP
   const active = OPTIONS.find((option) => option.value === preference) ?? OPTIONS[0]!;
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const delta =
-      event.key === "ArrowRight" || event.key === "ArrowDown"
+    // Profile: Left/Right only so Up/Down can leave the group into Account.
+    // Footer: full arrow roving (collapsed mobile + always-expanded desktop).
+    const delta = compact
+      ? event.key === "ArrowRight"
+        ? 1
+        : event.key === "ArrowLeft"
+          ? -1
+          : 0
+      : event.key === "ArrowRight" || event.key === "ArrowDown"
         ? 1
         : event.key === "ArrowLeft" || event.key === "ArrowUp"
           ? -1
@@ -70,11 +83,7 @@ export function ThemePreferenceControl({ variant = "footer", className }: ThemeP
     radios[THEME_PREFERENCES.indexOf(next)]?.focus();
   };
 
-  const rootClass = [
-    themeStyles.toggle,
-    compact ? themeStyles.compact : null,
-    className,
-  ]
+  const rootClass = [themeStyles.toggle, compact ? themeStyles.compact : null, className]
     .filter(Boolean)
     .join(" ");
 
@@ -99,7 +108,8 @@ export function ThemePreferenceControl({ variant = "footer", className }: ThemeP
       <div
         className={themeStyles.options}
         role="radiogroup"
-        aria-label="Theme"
+        aria-label={labelledBy ? undefined : "Theme"}
+        aria-labelledby={labelledBy}
         onKeyDown={onKeyDown}
       >
         {OPTIONS.map(({ value, label, icon }) => (
