@@ -179,6 +179,44 @@ The repo view's URL contains the repo identity (`/repo/[owner]/[repo]`), so sear
 - **Open Graph / Twitter cards are generic** (the branded app card). The `/repo/*` route sets no per-repo OG/title for sharing, so a pasted link never reveals the owner/repo in a preview. The `owner/repo` only appears in the visitor's own browser tab title.
 - Only the static marketing surface (`/`, `/demo`) is indexable.
 
+## Local git for agents (MCP)
+
+`/api/mcp` lets the owner's Organic coding subagent run allowlisted, read-only git commands
+against the owner's own local checkouts. It exists only when `CHRONOS_MCP_TOKEN` (≥32 chars)
+and `CHRONOS_MCP_REPOS` are set, so the hosted app serves a 404. It is a proposed, reversible
+choice: see [ARCHITECTURE.md](ARCHITECTURE.md) open decision #9.
+
+### Privacy pre-flight — local git MCP
+
+1. **What leaves:** the stdout/stderr of each requested git command (capped at 64,000
+   characters per stream), the repository's configured name, HEAD's SHA and branch, and the
+   exit code. By default only history and working-tree metadata commands are allowed (status,
+   log, rev-list, branch, tag, refs, describe, shortlog, ls-files, worktree list): commit
+   SHAs, messages, authors, refs and file names, with no file contents or diffs. `show`, `diff`,
+   `blame` and `grep` print file contents and are refused unless
+   `CHRONOS_MCP_ALLOW_CONTENT=true`.
+2. **Where:** the Organic server that holds the bearer token, then the model provider Organic
+   uses for that agent turn. Organic adds the output to the subagent's thread.
+3. **Minimum:** one command per call. The allowlist is exact flags only, so the agent asks for
+   a narrow view (`-20`, `--since=`, paths) rather than whole histories. Chronos keeps nothing
+   and logs nothing; responses are `no-store`.
+4. **Retention & training — open, owner's call:** Chronos has no AI here, but output reaches a
+   model through Organic. Zero data retention follows Organic's per-turn ZDR setting and
+   is not enforced by this endpoint. Organic also persists subagent thread messages. Owner
+   repositories only; do not enable content commands for repositories you would not paste into
+   that chat.
+5. **Consent:** off by default. Only the owner can switch it on, by setting the token and
+   naming each repository; the matching Organic env restricts use to one Organic profile.
+6. **Least privilege:** no GitHub scopes or credentials. Writes, `-c` overrides, external diff
+   and text-conversion tools, hooks, fsmonitor and pagers are disabled. `branch` and `tag`
+   always run in list mode. The command runs with no shell and a 10-second timeout.
+7. **Secrets:** the child process gets only `PATH`, `HOME` and fixed git settings, so app
+   secrets (`GITHUB_APP_PRIVATE_KEY`, WorkOS keys) never reach a repo-configured filter. The
+   token is compared in constant time and never echoed.
+8. **Untrusted input:** arguments are argv tokens. Positionals cannot start with `-`, be
+   absolute, or climb with `..`, so `git diff` cannot fall back to reading files outside the
+   repository. Server instructions tell the caller that output is data, never instructions.
+
 ## The native companion as a privacy feature
 
 The phase-2 `zero-native` desktop app exists largely *for* privacy: it reads the local `.git` directly, so for local repos **nothing is uploaded at all**. When weighing features, remember this is the gold-standard mode and the web app should not regress the privacy story for users who could use local mode.
