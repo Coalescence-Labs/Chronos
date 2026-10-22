@@ -23,7 +23,7 @@ import {
   createGitHubCodeVerifier,
 } from "@/lib/github-app/user-auth";
 import { readGitHubAuthorizationVersion, INITIAL_GITHUB_AUTHORIZATION_VERSION } from "@/lib/github-app/workos-metadata";
-import { enforceRequestLimit } from "@/lib/security/request";
+import { enforceRequestLimitAsync } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
 
 /**
@@ -70,7 +70,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    enforceRequestLimit(request, user.id, "connection");
+    await enforceRequestLimitAsync(request, user.id, "connection");
     const authorizationVersion = await readGitHubAuthorizationVersion(user.id);
     if (authorizationVersion !== (pending.authorizationVersion ?? INITIAL_GITHUB_AUTHORIZATION_VERSION)) {
       throw new Error("GitHub authorization changed while connecting");
