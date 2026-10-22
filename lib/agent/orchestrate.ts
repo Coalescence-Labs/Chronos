@@ -30,6 +30,8 @@ export interface AgentTurnInput {
 
 export interface AgentTurnResult {
   ok: boolean;
+  /** Raw model markdown — for client-side streaming reveal before HTML is shown. */
+  text?: string;
   html?: string;
   error?: string;
   flags?: string[];
@@ -100,6 +102,7 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
     );
     return {
       ok: true,
+      text,
       html: renderSafeAgentMarkdown(text),
       flags: jev.flags,
       loadHandle,

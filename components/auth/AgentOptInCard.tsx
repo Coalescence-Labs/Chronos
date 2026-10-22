@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { Surface } from "@/components/ui/Surface";
 import buttonStyles from "@/components/ui/button.module.css";
 import { Button } from "@/components/ui/Button";
+import { AgentMark } from "@/components/agent/AgentMark";
 import { DevMissingEnvList } from "./DevMissingEnvList";
 import styles from "./github-connection.module.css";
 
@@ -12,17 +13,6 @@ const AGENT_FACTS: { claim: string; detail: string }[] = [
   { claim: "Public repos for now", detail: "Private-repo Agent waits until zero-retention AI is enabled." },
   { claim: "Opt-in", detail: "Off until you turn it on here." },
 ];
-
-function AgentMark() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="6" cy="17" r="2.5" stroke="currentColor" strokeWidth="1.75" />
-      <circle cx="18" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.75" />
-      <circle cx="18" cy="17" r="2.5" stroke="currentColor" strokeWidth="1.75" />
-      <path d="M8.2 15.4 15.8 8.6M8.2 15.4l8.5 1.1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function AgentFacts({ className }: { className?: string }) {
   return (
