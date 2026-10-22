@@ -71,7 +71,7 @@ function isStagingBranchName(name: string): boolean {
  * API name wins when that branch ref is present; else main/master/trunk;
  * else HEAD's sha (name unknown — open-tip filtering still uses the heuristic).
  */
-function resolveDefault(
+export function resolveDefaultBranch(
   history: RepoHistory,
   defaultBranch?: string,
 ): { tipSha: string; name?: string } | undefined {
@@ -90,7 +90,7 @@ function resolveDefault(
 }
 
 export function canApplyGlance(history: RepoHistory, defaultBranch?: string): boolean {
-  const resolved = resolveDefault(history, defaultBranch);
+  const resolved = resolveDefaultBranch(history, defaultBranch);
   return resolved !== undefined && history.commits.some((commit) => commit.sha === resolved.tipSha);
 }
 
@@ -126,7 +126,7 @@ export function applyGlance(
     if (!bySha.has(commit.sha)) bySha.set(commit.sha, commit);
   }
 
-  const resolved = resolveDefault(history, defaultBranch);
+  const resolved = resolveDefaultBranch(history, defaultBranch);
   if (resolved === undefined || !bySha.has(resolved.tipSha)) {
     // Can't determine the default branch → feature is a no-op.
     return { history, capsules, applied: false };

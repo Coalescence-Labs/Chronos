@@ -28,6 +28,8 @@
 }
 
 .header {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -63,72 +65,9 @@
   margin-inline-start: auto;
   flex-shrink: 0;
   min-height: var(--touch-target);
-}
-
-/* Theme control: segmented pill, one 44px target per choice. */
-.themeToggle {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  background: var(--bg-elevated);
-  background-image: var(--glass-bg);
-  box-shadow: var(--glass-highlight);
-}
-
-.themeOptions {
-  display: inline-flex;
-}
-
-.themeOption,
-.themeTrigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  border: none;
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--fg-subtle);
-  cursor: pointer;
-  transition:
-    color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-base) var(--ease-out);
-}
-
-.themeOption:hover,
-.themeTrigger:hover {
-  color: var(--fg);
-}
-
-.themeOption[aria-checked="true"],
-.themeTrigger {
-  color: var(--accent);
-}
-
-.themeOption[aria-checked="true"] {
-  background: var(--accent-soft);
-}
-
-.themeOption:focus-visible,
-.themeTrigger:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: -2px;
-}
-
-/* The collapsed trigger only exists on phones; wider screens always show the
-   full set of options (and never the trigger). */
-.themeTrigger {
-  display: none;
-}
-
-@media (max-width: 699px) {
-  .themeToggle:not([data-expanded]) .themeOptions {
-    display: none;
-  }
-  .themeToggle:not([data-expanded]) .themeTrigger {
-    display: inline-flex;
-  }
+  /* Keep Sign in / profile above home frosted graph + scrolling main. */
+  position: relative;
+  z-index: 1;
 }
 
 .main {
@@ -141,7 +80,8 @@
   padding: 0 var(--space-5) var(--space-5);
 }
 
-/* Slim chrome strip: theme only (auth stays in the header). Always centered. */
+/* Guest appearance strip (signed-in users use the profile menu). Desktop keeps
+   a light glass bar; phones drop the strip (media below). */
 .shellFooter {
   display: flex;
   flex-shrink: 0;
@@ -163,4 +103,16 @@
   display: inline-flex;
   justify-content: center;
   margin-inline: auto;
+}
+
+@media (max-width: 699px) {
+  /* Compact guest chrome: floating pill, no full-bleed glass strip. Must follow
+     .shellFooter base so these overrides win the cascade. */
+  .shellFooter {
+    padding: var(--space-1) var(--space-4);
+    padding-bottom: max(var(--space-1), env(safe-area-inset-bottom));
+    border-top: none;
+    background-color: transparent;
+    background-image: none;
+  }
 }

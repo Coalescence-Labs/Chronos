@@ -53,6 +53,8 @@ describe("github app config", () => {
       process.env.GITHUB_APP_CLIENT_ID = "Iv1.test";
       process.env.GITHUB_APP_CLIENT_SECRET = "test-client-secret";
       expect(isGitHubAppConfigured()).toBe(true);
+      process.env.GITHUB_APP_CLIENT_SECRET = testPrivateKeyPem();
+      expect(isGitHubAppConfigured()).toBe(false);
     } finally {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key];
