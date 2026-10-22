@@ -6,6 +6,8 @@ import { isRedisConfigured } from "@/lib/redis/config";
 import { requestRateLimitIdentity } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
 import { errorResponse } from "@/lib/ingest/respond";
+import { githubAuthForRequest } from "@/lib/ingest/github/auth";
+import { parseRepoInput } from "@/lib/ingest/github/parse";
 
 const MAX_COMMITS = 2_500;
 
@@ -53,13 +55,23 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: false, error: "Missing question, repo, or history." }, { status: 400 });
   }
 
+  let githubAuth = null;
+  try {
+    const repoId = parseRepoInput(`${owner}/${repo}`);
+    githubAuth = await githubAuthForRequest(repoId, request);
+  } catch {
+    githubAuth = null;
+  }
+
   const result = await runAgentTurn({
     workosUserId: user.id,
+    userEmail: user.email,
     owner,
     repo,
     question,
     history,
     selectedSha: body.selectedSha,
+    githubAuth,
   });
 
   const status = result.ok ? 200 : result.error?.includes("cap") ? 402 : 403;

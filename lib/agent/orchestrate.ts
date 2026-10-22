@@ -4,18 +4,27 @@ import { agentGateMessage, evaluateAgentGate } from "./gate";
 import { classifyQuestionWithJev } from "./jev";
 import { agentSonnetModelId } from "./models";
 import { runAgentFactTool } from "./facts/tools";
+import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 import { renderSafeAgentMarkdown } from "./safe-markdown";
-import { isAgentSpendWithinBudget, recordAgentSpendUsd } from "./spend";
+import {
+  agentMonthlyCapUsd,
+  isAgentSpendWithinBudget,
+  notifyAgentSpendThreshold,
+  readAgentSpendUsd,
+  recordAgentSpendUsd,
+} from "./spend";
 
 const ESTIMATED_TURN_USD = 0.02;
 
 export interface AgentTurnInput {
   workosUserId: string;
+  userEmail?: string | null;
   owner: string;
   repo: string;
   question: string;
   history: RepoHistory;
   selectedSha?: string | null;
+  githubAuth?: GitHubRequestAuth | null;
 }
 
 export interface AgentTurnResult {
@@ -77,6 +86,13 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
         `Facts: ${JSON.stringify({ summary: summary.data, anchor: anchor.data })}`,
       ].join("\n"),
     });
+    const spent = await readAgentSpendUsd();
+    void notifyAgentSpendThreshold(
+      input.workosUserId,
+      spent,
+      agentMonthlyCapUsd(),
+      input.userEmail,
+    );
     return {
       ok: true,
       html: renderSafeAgentMarkdown(text),
