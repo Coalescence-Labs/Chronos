@@ -24,6 +24,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Dependency security
+        run: bun run audit:security
+
       - name: Test
         run: bun run test
 

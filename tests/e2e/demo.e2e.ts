@@ -164,7 +164,7 @@ test("tapping the SHA in the commit view copies it", async ({ page, context, bro
   await page.goto("/demo");
 
   await page.getByText("Release v0.4.0", { exact: true }).click(); // open the commit view
-  const copy = page.getByRole("button", { name: "Copy full SHA" });
+  const copy = page.getByRole("button", { name: /Copy full SHA/ });
   await expect(copy).toBeVisible();
   await copy.click();
 

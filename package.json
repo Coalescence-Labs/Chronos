@@ -13,26 +13,26 @@
     "typecheck": "tsc --noEmit",
     "bench:performance": "bun scripts/benchmark-performance.ts",
     "shot": "bun scripts/screenshot.mjs",
-    "capture:home-graph": "bun scripts/capture-home-graph.ts"
+    "capture:home-graph": "bun scripts/capture-home-graph.ts",
+    "audit:security": "bun scripts/audit-security.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
-    "@vercel/speed-insights": "^2.0.0",
     "@workos-inc/authkit-nextjs": "^4.4.0",
-    "@workos-inc/node": "^10",
+    "@workos-inc/node": "^10.14.0",
     "iron-session": "^9.0.1",
-    "next": "^16.2.7",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "next": "^16.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.11.3",
-    "@playwright/test": "^1.60.0",
-    "@types/bun": "^1.3.14",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "eslint": "^9",
-    "eslint-config-next": "^16.2.7",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
+    "@types/bun": "^1.4.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.2",
     "typescript": "^6.0.3"
   }
 }

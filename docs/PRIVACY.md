@@ -157,6 +157,11 @@ and `/demo` remain usable with **no account**. Engineering notes:
 
 ## Analytics (Vercel Web Analytics + Speed Insights)
 
+**Security update (2026-10-17): Speed Insights is disabled.** Its independent URL
+and DOM-attribution fields can disclose repo names and commit SHAs. Route templating
+does not redact those fields. Web Analytics continues with allowlisted URL scrubbing
+and bucketed performance events. No new telemetry destination or field is added.
+
 Cookieless, anonymous, first-party product analytics (no third party, no cross-day/cross-site identifier). The full design + event catalog is in [ANALYTICS.md](ANALYTICS.md). The binding rules:
 
 - **No repo identity, ever.** Page-view URLs are scrubbed to their **route template** before anything is sent — `/repo/[owner]/[repo]`, never the filled-in owner/name — by a `beforeSend` hook over a fixed route **allowlist** (`lib/analytics.ts` `scrubUrl`). Unrecognized paths are **dropped** (fail closed). Query strings and hashes are always discarded.

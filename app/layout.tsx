@@ -60,7 +60,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <ServiceWorkerRegistrar />
-          {/* Analytics + Speed Insights with URL scrubbing & kill switch (COA-96). */}
+          {/* Allowlisted analytics with URL scrubbing & kill switch (COA-96). */}
           <ChronosAnalytics />
         </AuthProvider>
       </body>

@@ -29,6 +29,8 @@ const REFS_PER_PAGE = 100;
 export interface GitHubRequestAuth {
   /** Server-held token — never forwarded to the browser. */
   accessToken?: string;
+  privateAccessVerified?: boolean;
+  repoMeta?: RepoMeta;
 }
 
 function githubHeaders(auth?: GitHubRequestAuth): HeadersInit {
@@ -102,6 +104,9 @@ export async function fetchRepoMeta(
     default_branch?: string;
     private?: boolean;
   };
+  if (typeof body.private !== "boolean" || typeof body.default_branch !== "string" || !body.default_branch) {
+    throw new IngestError("upstream", "GitHub returned invalid repository metadata. Please try again.");
+  }
   return {
     defaultBranch: body.default_branch ?? "main",
     private: body.private === true,
@@ -136,17 +141,7 @@ export async function fetchCommitPage(
   page: number,
   auth?: GitHubRequestAuth,
 ): Promise<CommitPage> {
-  if (!Number.isInteger(page) || page < 1) {
-    throw new IngestError("invalid-input", "Page must be a positive integer.");
-  }
-  if (page > MAX_COMMIT_PAGE) {
-    throw new IngestError(
-      "too-large",
-      `This history is very large; Chronos currently shows the most recent ${
-        MAX_COMMIT_PAGE * COMMITS_PER_PAGE
-      } commits per branch.`,
-    );
-  }
+  validateCommitPage(page);
 
   const { owner, repo } = id;
   const url = new URL(`${API_BASE}/repos/${owner}/${repo}/commits`);
@@ -164,8 +159,20 @@ export async function fetchCommitPage(
 
   const items = (await response.json()) as GitHubCommitItem[];
   const link = response.headers.get("link") ?? "";
-  return {
-    commits: items.map(toCommitNode),
-    hasMore: /rel="next"/.test(link),
-  };
+  return { commits: items.map(toCommitNode), hasMore: /rel="next"/.test(link) };
+}
+
+export function validateCommitPage(page: number): void {
+  if (!Number.isInteger(page) || page < 1) {
+    throw new IngestError("invalid-input", "Page must be a positive integer.");
+  }
+  if (page > MAX_COMMIT_PAGE) {
+    throw new IngestError(
+      "too-large",
+      `This history is very large; Chronos currently shows the most recent ${
+        MAX_COMMIT_PAGE * COMMITS_PER_PAGE
+      } commits per branch.`,
+    );
+  }
+
 }

@@ -46,7 +46,7 @@ describe("fetchRepoMeta auth header", () => {
       if (headers.has("Authorization")) sawAuth = true;
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/repos/acme/widgets") {
-        return githubJson({ default_branch: "main" });
+        return githubJson({ default_branch: "main", private: false });
       }
       return githubJson({ message: "Not Found" }, { status: 404 });
     }) as typeof fetch;

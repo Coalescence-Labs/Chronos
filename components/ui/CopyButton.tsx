@@ -40,7 +40,7 @@ export function CopyButton({ value, label, children, className }: CopyButtonProp
     <button
       type="button"
       className={[styles.copy, className].filter(Boolean).join(" ")}
-      aria-label={label}
+      aria-label={`${label}: ${value} ${copied ? "Copied ✓" : "Copy"}`}
       data-copied={copied || undefined}
       onClick={copy}
     >

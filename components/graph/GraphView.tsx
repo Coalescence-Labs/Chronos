@@ -706,10 +706,10 @@ export function GraphView({
         <button
           type="button"
           className={`${styles.zoomButton} ${styles.zoomReadout}`}
-          aria-label="Reset zoom"
+          aria-label={`${Math.round(zoom * 100)}% Reset zoom`}
           onClick={() => setZoomAnchored(1)}
         >
-          {Math.round(zoom * 100)}%
+          {`${Math.round(zoom * 100)}%`}
         </button>
         <button
           type="button"

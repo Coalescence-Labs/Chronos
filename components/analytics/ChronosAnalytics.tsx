@@ -1,11 +1,10 @@
 "use client";
 
 import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ANALYTICS_ENABLED, scrubUrl } from "@/lib/analytics";
 
 /**
- * Mounts Vercel Web Analytics + Speed Insights with the privacy controls from
+ * Mounts Vercel Web Analytics with the privacy controls from
  * COA-96 (docs/ANALYTICS.md):
  * - `beforeSend` scrubs every page-view URL to its route template so repo
  *   owner/name in `/repo/[owner]/[repo]` never leaves the browser (and an
@@ -14,19 +13,17 @@ import { ANALYTICS_ENABLED, scrubUrl } from "@/lib/analytics";
  *
  * It's a client component because `beforeSend` is a function (can't cross the
  * server/client boundary) — so it lives here, not in the server layout.
- * Speed Insights reports the App Router route template, not the filled path.
+ * Speed Insights is disabled: its separate URL and DOM attribution fields
+ * can identify private repos and commits despite route templating.
  */
 export function ChronosAnalytics() {
   if (!ANALYTICS_ENABLED) return null;
   return (
-    <>
-      <Analytics
-        beforeSend={(event) => {
-          const url = scrubUrl(event.url);
-          return url === null ? null : { ...event, url };
-        }}
-      />
-      <SpeedInsights />
-    </>
+    <Analytics
+      beforeSend={(event) => {
+        const url = scrubUrl(event.url);
+        return url === null ? null : { ...event, url };
+      }}
+    />
   );
 }
