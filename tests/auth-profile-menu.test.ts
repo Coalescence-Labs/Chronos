@@ -32,7 +32,7 @@ describe("profile menu shell wiring", () => {
     expect(source).not.toMatch(/<Button[\s\S]*Sign out/);
   });
 
-  test("ProfileMenu is an accessible disclosure menu without theme controls", async () => {
+  test("ProfileMenu is an accessible disclosure menu with compact theme controls", async () => {
     const source = await Bun.file("components/auth/ProfileMenu.tsx").text();
     expect(source).toContain('aria-expanded={open}');
     expect(source).toContain('aria-haspopup="menu"');
@@ -41,28 +41,33 @@ describe("profile menu shell wiring", () => {
     expect(source).toContain("Escape");
     expect(source).toContain("Sign out");
     expect(source).toContain('href="/account"');
-    expect(source).not.toContain("ThemeToggle");
+    expect(source).toContain("ProfileThemeControl");
     expect(source).not.toMatch(/console\.(log|info|debug|warn|error)/);
+
+    const themeSource = await Bun.file("components/auth/ProfileThemeControl.tsx").text();
+    expect(themeSource).toContain('variant="profile"');
+    expect(themeSource).toContain("ThemePreferenceControl");
   });
 
-  test("AppShell keeps ThemeToggle in the footer, not the header", async () => {
+  test("AppShell keeps guest theme in the footer, not the header", async () => {
     const source = await Bun.file("components/shell/AppShell.tsx").text();
-    expect(source).toContain("shellFooter");
-    expect(source).toContain("ThemeToggle");
+    expect(source).toContain("ShellAppearanceFooter");
     expect(source).not.toContain("AccountControlsGate />\n          <ThemeToggle");
     const headerBlock = source.slice(source.indexOf("<header"), source.indexOf("</header>"));
     expect(headerBlock).not.toContain("ThemeToggle");
+    expect(headerBlock).not.toContain("ShellAppearanceFooter");
     expect(headerBlock).toContain("AccountControlsGate");
-    const footerBlock = source.slice(source.indexOf("<footer"), source.indexOf("</footer>"));
-    expect(footerBlock).toContain("ThemeToggle");
-    expect(footerBlock).not.toContain("AccountControls");
-    expect(footerBlock).not.toContain("Sign in");
+
+    const footerSource = await Bun.file("components/shell/ShellAppearanceFooter.tsx").text();
+    expect(footerSource).toContain("ThemeToggle");
+    expect(footerSource).toContain("useAuth");
+    expect(footerSource).toMatch(/user\)\s*\{\s*return null/s);
 
     const css = await Bun.file("components/shell/shell.module.css").text();
     expect(css).toMatch(/\.shellFooter\s*\{[^}]*justify-content:\s*center/s);
   });
 
-  test("AccountControls never mounts ThemeToggle (auth stays out of footer)", async () => {
+  test("AccountControls delegates theme to ProfileMenu, not the footer", async () => {
     const source = await Bun.file("components/auth/AccountControls.tsx").text();
     expect(source).not.toContain("ThemeToggle");
     expect(source).toContain("Sign in");
@@ -75,5 +80,11 @@ describe("profile menu shell wiring", () => {
     expect(css).toMatch(/\.headerActions\s*\{[^}]*margin-inline-start:\s*auto/s);
     expect(css).toMatch(/\.headerActions\s*\{[^}]*justify-content:\s*flex-end/s);
     expect(css).toMatch(/\.shellFooter\s*\{[^}]*justify-content:\s*center/s);
+  });
+
+  test("profile menu styles separate theme from account actions", async () => {
+    const css = await Bun.file("components/auth/profile-menu.module.css").text();
+    expect(css).toMatch(/\.identity\s*\{[^}]*border-bottom/s);
+    expect(css).toMatch(/\.themeRow\s*\{[^}]*border-top/s);
   });
 });

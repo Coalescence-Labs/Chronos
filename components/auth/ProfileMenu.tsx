@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { profileDisplayName, profileInitial } from "@/lib/auth/profile-label";
+import { ProfileThemeControl } from "./ProfileThemeControl";
 import styles from "./profile-menu.module.css";
 
 export type ProfileMenuUser = {
@@ -19,7 +20,7 @@ type ProfileMenuProps = {
 
 /**
  * Top-bar profile control: compact avatar opens a menu with Account + Sign out.
- * Outside-click / Escape collapse — no menu library. Theme lives in AppShell footer.
+ * Outside-click / Escape collapse — no menu library. Theme sits under identity.
  */
 export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
@@ -137,6 +138,7 @@ export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
           <div className={styles.identity} role="presentation">
             <p className={styles.name}>{displayName}</p>
             {showEmailUnderName ? <p className={styles.email}>{user.email}</p> : null}
+            <ProfileThemeControl />
           </div>
           <Link
             role="menuitem"
