@@ -11,6 +11,13 @@ import {
   toPublicGitHubConnection,
 } from "@/lib/github-app/session";
 
+const mutableEnv = process.env as Record<string, string | undefined>;
+
+function setNodeEnv(value: string | undefined) {
+  if (value === undefined) delete mutableEnv.NODE_ENV;
+  else mutableEnv.NODE_ENV = value;
+}
+
 describe("Chronos development env hints", () => {
   test("isChronosDevelopment honors ENV=development and NODE_ENV=development", () => {
     const previous = {
@@ -18,19 +25,19 @@ describe("Chronos development env hints", () => {
       NODE_ENV: process.env.NODE_ENV,
     };
     delete process.env.ENV;
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
     try {
       expect(isChronosDevelopment()).toBe(true);
       process.env.ENV = "development";
-      process.env.NODE_ENV = "production";
+      setNodeEnv("production");
       expect(isChronosDevelopment()).toBe(true);
       delete process.env.ENV;
-      process.env.NODE_ENV = "production";
+      setNodeEnv("production");
       expect(isChronosDevelopment()).toBe(false);
     } finally {
       if (previous.ENV === undefined) delete process.env.ENV;
       else process.env.ENV = previous.ENV;
-      process.env.NODE_ENV = previous.NODE_ENV;
+      setNodeEnv(previous.NODE_ENV);
     }
   });
 
@@ -46,7 +53,7 @@ describe("Chronos development env hints", () => {
       GITHUB_APP_CLIENT_SECRET: process.env.GITHUB_APP_CLIENT_SECRET,
     };
     delete process.env.ENV;
-    process.env.NODE_ENV = "production";
+    setNodeEnv("production");
     delete process.env.GITHUB_APP_ID;
     delete process.env.GITHUB_APP_SLUG;
     delete process.env.GITHUB_APP_PRIVATE_KEY;
@@ -81,7 +88,7 @@ describe("Chronos development env hints", () => {
       AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
     };
     process.env.ENV = "development";
-    process.env.NODE_ENV = "production";
+    setNodeEnv("production");
     delete process.env.GITHUB_APP_ID;
     process.env.GITHUB_APP_SLUG = "chronos";
     delete process.env.GITHUB_APP_PRIVATE_KEY;
