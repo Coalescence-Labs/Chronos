@@ -6,14 +6,16 @@ import { withHead } from "@/tests/fixtures/history";
 const FIXTURE_HISTORY = withHead([]);
 
 describe("Agent panel UI", () => {
-  test("empty state offers starters and public-beta copy without legacy Ask form", () => {
+  test("empty state offers compact starters and beta scope tooltip without legacy Ask form", () => {
     const html = renderToStaticMarkup(
       <AgentPanel owner="octocat" repo="Hello-World" history={FIXTURE_HISTORY} />,
     );
-    expect(html).toContain("Ask about this graph");
+    expect(html).toContain("Graph Q&amp;A");
     expect(html).toContain("Public beta");
-    expect(html).toContain("public repos only for now");
-    expect(html).toContain("What merged into the default branch recently?");
+    expect(html).toContain('role="tooltip"');
+    expect(html).toContain("Public repos only for now");
+    expect(html).toContain("Recent merges into default?");
+    expect(html).not.toContain("Start here");
     expect(html).not.toContain("ZDR");
     expect(html).not.toContain(">Question<");
     expect(html).not.toContain(">Ask<");

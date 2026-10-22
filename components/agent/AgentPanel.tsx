@@ -8,10 +8,12 @@ import { revealAgentText } from "./reveal-stream";
 import styles from "./agent.module.css";
 
 const STARTERS = [
-  "What merged into the default branch recently?",
-  "Which branches diverged from the same parent?",
-  "What does the selected commit connect to?",
+  "Recent merges into default?",
+  "Branches that share a parent?",
 ] as const;
+
+const BETA_SCOPE_TOOLTIP =
+  "Answers use commits already loaded in this view. Public repos only for now.";
 
 type TurnStatus = "complete" | "streaming" | "thinking" | "error";
 
@@ -44,6 +46,25 @@ function SendIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="m5 12 14-7-7 14-2-5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+function PublicBetaBadge() {
+  const tipId = useId();
+  return (
+    <span className={styles.betaBadgeWrap}>
+      <button
+        type="button"
+        className={styles.betaPill}
+        aria-describedby={tipId}
+        aria-label="Public beta — scope and limits"
+      >
+        Public beta
+      </button>
+      <span id={tipId} role="tooltip" className={styles.betaTooltip}>
+        {BETA_SCOPE_TOOLTIP}
+      </span>
+    </span>
   );
 }
 
@@ -179,12 +200,9 @@ export function AgentPanel({
       <header className={headerClass}>
         <div className={layout === "mobile" ? undefined : styles.desktopHeaderText}>
           <p className={styles.chromeEyebrow}>Chronos Agent</p>
-          <h2 className={styles.emptyTitle}>
-            Graph Q&amp;A <span className={styles.betaPill}>Public beta</span>
+          <h2 className={styles.panelTitle}>
+            Graph Q&amp;A <PublicBetaBadge />
           </h2>
-          <p className={styles.emptyLead}>
-            Answers from commits already loaded in this view — public repos only for now.
-          </p>
         </div>
         {onMinimize && (
           <button type="button" className={styles.desktopMinimize} onClick={onMinimize} aria-label="Minimize Agent">
@@ -196,12 +214,7 @@ export function AgentPanel({
       <div className={styles.thread} ref={threadRef} aria-live="polite">
         {turns.length === 0 ? (
           <div className={styles.emptyState}>
-            <p className={styles.emptyEyebrow}>Start here</p>
-            <p className={styles.emptyTitle}>Ask about this graph</p>
-            <p className={styles.emptyLead}>
-              Merges, divergences, and commit links — grounded in what you see, not your whole repo.
-            </p>
-            <ul className={styles.promptGrid}>
+            <ul className={styles.promptRow} aria-label="Example questions">
               {STARTERS.map((prompt) => (
                 <li key={prompt}>
                   <button
@@ -262,6 +275,40 @@ export function AgentPanel({
       </div>
 
       <footer className={styles.footer}>
+        <form
+          className={styles.composerForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void ask(draft);
+          }}
+        >
+          <label className={styles.visuallyHidden} htmlFor={inputId}>
+            Ask Chronos Agent
+          </label>
+          <textarea
+            id={inputId}
+            className={styles.composerInput}
+            rows={3}
+            value={draft}
+            disabled={busy}
+            placeholder="Ask about this graph…"
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void ask(draft);
+              }
+            }}
+          />
+          <button
+            type="submit"
+            className={`${buttonStyles.button} ${buttonStyles.primary} ${styles.sendButton}`}
+            disabled={busy || !draft.trim()}
+            aria-label="Send question"
+          >
+            <SendIcon />
+          </button>
+        </form>
         <p className={styles.snapshotStamp}>
           <span className={styles.snapshotRepo}>
             {owner}/{repo}
@@ -280,40 +327,6 @@ export function AgentPanel({
             </>
           ) : null}
         </p>
-        <form
-          className={styles.composerForm}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void ask(draft);
-          }}
-        >
-          <label className={styles.visuallyHidden} htmlFor={inputId}>
-            Ask Chronos Agent
-          </label>
-          <textarea
-            id={inputId}
-            className={styles.composerInput}
-            rows={2}
-            value={draft}
-            disabled={busy}
-            placeholder="Ask about merges, branches, or the selected commit…"
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void ask(draft);
-              }
-            }}
-          />
-          <button
-            type="submit"
-            className={`${buttonStyles.button} ${buttonStyles.primary} ${styles.sendButton}`}
-            disabled={busy || !draft.trim()}
-            aria-label="Send question"
-          >
-            <SendIcon />
-          </button>
-        </form>
       </footer>
     </Surface>
   );

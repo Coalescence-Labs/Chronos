@@ -65,9 +65,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-5) var(--space-3);
+  padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--accent-soft), transparent 70%);
+  background: var(--bg-raised);
 }
 
 .mobileHeader {
@@ -148,20 +148,89 @@
   color: var(--fg-subtle);
 }
 
+.betaBadgeWrap {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: var(--space-2);
+}
+
 .betaPill {
   display: inline-flex;
   align-items: center;
-  vertical-align: middle;
-  margin-left: var(--space-2);
+  margin: 0;
   padding: 0 var(--space-2);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-full);
+  background: transparent;
   color: var(--fg-muted);
+  font: inherit;
   font-size: var(--text-xs);
   font-weight: 500;
   font-style: italic;
   line-height: 1.6;
   white-space: nowrap;
+  cursor: help;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+
+.betaPill:hover,
+.betaPill:focus-visible {
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong));
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.betaTooltip {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + var(--space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(16rem, calc(100vw - var(--space-8)));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-2);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.45;
+  color: var(--fg-muted);
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    visibility var(--duration-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .betaBadgeWrap:hover .betaTooltip {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.betaBadgeWrap:focus-within .betaTooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.panelTitle {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
 }
 
 .thread {
@@ -169,7 +238,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5) var(--space-2);
 }
 
 .messageList {
@@ -334,69 +403,44 @@
 
 .emptyState {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-2) 0 var(--space-4);
+  justify-content: flex-end;
+  min-height: 2.5rem;
+  padding: 0 0 var(--space-1);
   animation: agentEmptyIn var(--duration-slow) var(--ease-out) both;
 }
 
-.emptyEyebrow {
-  margin: 0;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent-strong);
-}
-
-.emptyTitle {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: 700;
-  letter-spacing: var(--tracking-tight);
-  line-height: var(--leading-tight);
-}
-
-.emptyLead {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
-  line-height: 1.55;
-  max-width: 34ch;
-}
-
-.promptGrid {
+.promptRow {
   list-style: none;
-  margin: var(--space-2) 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
 .promptChip {
-  width: 100%;
   text-align: left;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-3);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  background-image: var(--glass-bg);
-  color: var(--fg);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--fg-muted);
   font: inherit;
-  font-size: var(--text-sm);
-  line-height: 1.45;
+  font-size: var(--text-xs);
+  line-height: 1.4;
   cursor: pointer;
   transition:
     border-color var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out),
-    box-shadow var(--duration-fast) var(--ease-out);
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .promptChip:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  transform: translateX(3px);
-  box-shadow: var(--shadow-1);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--fg);
+  background: var(--accent-soft);
 }
 
 .promptChip:disabled {
@@ -407,12 +451,12 @@
 .footer {
   flex: none;
   border-top: 1px solid var(--border);
-  padding: var(--space-3) var(--space-5) var(--space-4);
-  background: linear-gradient(0deg, var(--accent-soft), transparent 55%);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  background: var(--bg);
 }
 
 .snapshotStamp {
-  margin: 0 0 var(--space-3);
+  margin: var(--space-3) 0 0;
   font-size: var(--text-xs);
   line-height: 1.5;
   color: var(--fg-subtle);
@@ -441,18 +485,21 @@
 .composerInput {
   flex: 1;
   min-width: 0;
-  min-height: var(--touch-target);
-  max-height: 128px;
+  min-height: 5.25rem;
+  max-height: 10rem;
   resize: none;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--bg);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
   color: var(--fg);
   font: inherit;
-  font-size: var(--text-sm);
-  line-height: 1.45;
-  transition: border-color var(--duration-fast) var(--ease-out);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .composerInput::placeholder {
@@ -462,6 +509,9 @@
 .composerInput:focus-visible {
   outline: none;
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border-strong));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .sendButton {
@@ -640,7 +690,6 @@
     opacity: 0.5;
   }
 
-  .promptChip:hover:not(:disabled),
   .desktopFab:hover {
     transform: none;
   }
