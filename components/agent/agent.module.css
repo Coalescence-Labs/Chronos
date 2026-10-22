@@ -1,11 +1,22 @@
 /* Chronos Agent — graph-adjacent Q&A (Organic-inspired thread, Chronos tokens). */
 
+/* Mobile/desktop chrome root: one flex column so Graph | Agent panes share height. */
+.chrome {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Agent shell is app chrome: controls stay unselectable; answers and copyable
+   graph identifiers opt back in (same pattern as app/account/account.module.css). */
 .panelShell {
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex: 1;
   overflow: hidden;
+  user-select: none;
 }
 
 .panelShellMobile {
@@ -27,6 +38,13 @@
   animation: agentDockIn var(--duration-slow) var(--ease-out) both;
 }
 
+.graphPane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .graphPaneHidden {
   display: none;
 }
@@ -42,16 +60,29 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: var(--space-3) var(--space-4) var(--space-2);
+  /* Tab bar sits below; keep Agent content clear of the segmented control. */
+  padding: var(--space-2) var(--space-3) var(--space-2);
 }
 
 .desktopDock {
+  /* Viewport-fixed dock; sit above AppShell footer (theme strip + safe-area). */
+  --agent-dock-inset-x: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+  --agent-dock-clear-footer: calc(
+    var(--touch-target) + var(--space-2) + max(var(--space-2), env(safe-area-inset-bottom, 0px))
+  );
   position: fixed;
   z-index: 40;
-  right: var(--space-4);
-  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  right: var(--agent-dock-inset-x);
+  bottom: calc(var(--space-4) + var(--agent-dock-clear-footer));
   width: min(400px, calc(100vw - var(--space-8)));
   pointer-events: none;
+}
+
+.desktopDock[data-open="false"] {
+  display: flex;
+  justify-content: flex-end;
+  width: auto;
+  max-width: calc(100vw - var(--space-8) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
 }
 
 .desktopDock[data-open="true"] .desktopPanel,
@@ -67,14 +98,31 @@
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border);
-  background: var(--bg-raised);
 }
 
 .mobileHeader {
-  padding-bottom: var(--space-2);
+  padding-bottom: var(--space-3);
 }
 
-.desktopHeaderText {
+.headerText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -104,12 +152,15 @@
 }
 
 .desktopFab {
+  user-select: none;
+}
+
+.desktopFab {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--touch-target);
   padding: 0 var(--space-4);
-  margin-left: auto;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-full);
   background: var(--bg-raised);
@@ -148,8 +199,7 @@
 .betaBadgeWrap {
   position: relative;
   display: inline-flex;
-  vertical-align: middle;
-  margin-left: var(--space-2);
+  flex: none;
 }
 
 .betaPill {
@@ -223,11 +273,24 @@
 }
 
 .panelTitle {
-  margin: var(--space-1) 0 0;
+  margin: 0;
   font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);
+  color: var(--fg);
+}
+
+/* Supporting scope copy — must never inherit title weight/size. */
+.panelLead {
+  margin: 0;
+  max-width: 42ch;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: normal;
+  line-height: 1.45;
+  color: var(--fg-muted);
 }
 
 .thread {
@@ -235,7 +298,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-3) var(--space-5) var(--space-2);
+  padding: var(--space-4) var(--space-5);
 }
 
 .messageList {
@@ -257,15 +320,8 @@
   justify-content: flex-end;
 }
 
-.messageMeta {
-  margin: 0 0 var(--space-1);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--fg-subtle);
-  font-variant-numeric: tabular-nums;
-}
-
 .userBubble {
+  user-select: text;
   max-width: 92%;
   margin: 0;
   padding: var(--space-3) var(--space-4);
@@ -276,6 +332,11 @@
   font-size: var(--text-sm);
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.userBubble.md pre {
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .assistantShell {
@@ -298,34 +359,149 @@
 .assistantBody {
   flex: 1;
   min-width: 0;
+  user-select: text;
   font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--fg);
 }
 
-.assistantBody p {
-  margin: 0 0 var(--space-3);
+/* Shared markdown surface (assistant + user) — scaled for the narrow glass panel. */
+.md {
+  user-select: text;
+  overflow-wrap: anywhere;
 }
 
-.assistantBody p:last-child {
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
   margin-bottom: 0;
 }
 
-.assistantBody code {
-  font-family: var(--font-mono);
-  font-size: 0.92em;
-  padding: 0.1em 0.35em;
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
+.md p {
+  margin: 0 0 var(--space-2);
 }
 
-.assistantBody a {
+.md h1,
+.md h2,
+.md h3 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.md h1 {
+  font-size: 1.05rem;
+}
+
+.md h2 {
+  font-size: 1rem;
+}
+
+.md h3 {
+  font-size: 0.95rem;
+}
+
+.md ul,
+.md ol {
+  margin: 0 0 var(--space-2);
+  padding-left: 1.05rem;
+}
+
+.md li {
+  margin: 0 0 0.2rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.md li > ul,
+.md li > ol {
+  margin: var(--space-1) 0 0;
+}
+
+.md blockquote {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--fg-muted);
+}
+
+.md hr {
+  margin: var(--space-3) 0;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--fg-subtle) 35%, transparent);
+}
+
+.md pre {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-soft) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.md pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+/* Inline identifiers — mono weight without chip bubbles that dominate ~360px. */
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  font-weight: 500;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.md a {
   color: var(--accent-strong);
   text-underline-offset: 2px;
 }
 
+.md table {
+  width: 100%;
+  margin: 0 0 var(--space-3);
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  display: block;
+  overflow-x: auto;
+}
+
+.md th,
+.md td {
+  padding: 0.25rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--fg-subtle) 28%, transparent);
+  text-align: left;
+}
+
+.md th {
+  font-weight: 600;
+  background: var(--accent-soft);
+}
+
+.md strong {
+  font-weight: 600;
+}
+
+.md em {
+  font-style: italic;
+}
+
 .assistantStreaming {
   margin: 0;
+  user-select: text;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -342,8 +518,33 @@
   animation: agentCaret 0.9s step-end infinite;
 }
 
+/* Nebulae / Organic RippleText — color wave on newly streamed characters. */
+.rippleRoot {
+  color: var(--fg);
+}
+
+.rippleChar {
+  color: inherit;
+}
+
+.rippleCharHighlighted {
+  color: var(--agent-stream-highlight);
+  animation: agentRippleHighlight var(--ripple-transition-duration, 140ms) ease-out
+    var(--ripple-transition-delay, 0ms) forwards;
+}
+
+@keyframes agentRippleHighlight {
+  0% {
+    color: var(--agent-stream-highlight);
+  }
+  100% {
+    color: var(--fg);
+  }
+}
+
 .errorBubble {
   margin: 0;
+  user-select: text;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
   background: var(--danger-soft);
@@ -357,6 +558,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) 0;
+  user-select: none;
 }
 
 .thinkingLabel {
@@ -402,59 +604,65 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  align-items: stretch;
   gap: var(--space-3);
-  min-height: 2.5rem;
-  padding: 0 0 var(--space-1);
+  min-height: 0;
+  padding: 0;
   animation: agentEmptyIn var(--duration-slow) var(--ease-out) both;
 }
 
-.emptyTitle {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 700;
-  letter-spacing: var(--tracking-tight);
-  line-height: var(--leading-tight);
-}
-
-.emptyLead {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
-  line-height: 1.55;
-  max-width: 36ch;
-}
-
-.promptRow {
-  list-style: none;
+.promptStack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  width: 100%;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  /* 4 fixed chips + 3 gaps — schema max; skeletons and ready share this box. */
+  min-height: calc(4 * var(--touch-target) + 3 * var(--space-2));
 }
 
 .promptChip {
-  text-align: left;
-  padding: var(--space-1) var(--space-3);
+  user-select: none;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: var(--touch-target);
+  min-height: var(--touch-target);
+  max-height: var(--touch-target);
+  margin: 0;
+  padding: 0 var(--space-4);
   border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  background: transparent;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+  box-shadow: var(--glass-highlight);
   color: var(--fg-muted);
   font: inherit;
-  font-size: var(--text-xs);
-  line-height: 1.4;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  /* Border-box: line-height fills the inner height so one-line labels center. */
+  line-height: calc(var(--touch-target) - 2px);
+  letter-spacing: normal;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition:
     border-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .promptChip:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
   color: var(--fg);
   background: var(--accent-soft);
+  box-shadow: none;
 }
 
 .promptChip:disabled {
@@ -462,32 +670,139 @@
   cursor: default;
 }
 
+/* Same footprint as .promptChip — loading only; avoids default→generated layout shift. */
+.promptChipSkeleton {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: var(--touch-target);
+  min-height: var(--touch-target);
+  max-height: var(--touch-target);
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--fg-muted) 10%, transparent) 0%,
+    color-mix(in srgb, var(--fg-muted) 18%, transparent) 45%,
+    color-mix(in srgb, var(--fg-muted) 10%, transparent) 90%
+  );
+  background-size: 200% 100%;
+  animation: agentShimmer 1.2s var(--ease-out) infinite;
+  pointer-events: none;
+}
+
+/* Invisible filler when fewer than STARTER_SLOT_COUNT chips are painted. */
+.promptChipSlot {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--touch-target);
+  min-height: var(--touch-target);
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .footer {
   flex: none;
   border-top: 1px solid var(--border);
-  padding: var(--space-4) var(--space-5) var(--space-5);
-  background: var(--bg);
+  padding: var(--space-4) var(--space-5);
 }
 
-.snapshotStamp {
-  margin: var(--space-3) 0 0;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--fg-subtle);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.snapshotBar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: var(--space-1) 0 0;
+  min-width: 0;
 }
 
 .snapshotRepo {
-  font-weight: 600;
-  color: var(--fg-muted);
+  margin: 0;
+  user-select: text;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.625rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  color: color-mix(in srgb, var(--fg-subtle) 86%, transparent);
 }
 
-.snapshotTip,
+/* Empty thread: soften chrome without changing footer box height (padding stays). */
+.thread:has(.emptyState) + .footer {
+  border-top-color: color-mix(in srgb, var(--fg-subtle) 22%, transparent);
+}
+
+.thread:has(.emptyState) + .footer .snapshotBar {
+  margin-top: 0;
+}
+
+.thread:has(.emptyState) + .footer .snapshotRepo {
+  font-size: 0.5625rem;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--fg-subtle) 68%, transparent);
+}
+
+.snapshotFacts {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  overflow: hidden;
+  /* One fact-chip row reserved so focus/inspect arrival does not grow the footer. */
+  min-height: calc(var(--text-xs) * 1.35 + 0.2em + 2px);
+}
+
+.snapshotFacts[data-empty="true"] {
+  /* Keep the reserved band; no visible chips yet. */
+  visibility: hidden;
+}
+
+.snapshotFact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.1em var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--fg) 3%, var(--bg-raised));
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--fg-subtle);
+}
+
+.snapshotLabel {
+  flex: none;
+  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--fg-subtle);
+}
+
 .snapshotHandle {
+  min-width: 0;
+  user-select: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 0.95em;
+  color: var(--fg-muted);
 }
 
 .composerShell {
@@ -517,6 +832,7 @@
 }
 
 .contextChip {
+  user-select: none;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -575,10 +891,6 @@
   background: color-mix(in srgb, var(--fg) 8%, transparent);
 }
 
-.snapshotFocus {
-  color: var(--fg-muted);
-}
-
 .composerForm {
   display: flex;
   align-items: flex-end;
@@ -588,17 +900,21 @@
 .composerInput {
   flex: 1;
   min-width: 0;
-  min-height: 5.25rem;
+  user-select: text;
+  min-height: 2.75rem;
   max-height: 10rem;
+  height: 2.75rem;
   resize: none;
-  padding: var(--space-3) var(--space-4);
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
   color: var(--fg);
   font: inherit;
-  font-size: var(--text-base);
-  line-height: 1.5;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  /* No field-sizing: content — it fights idle height + JS grow and shifts on hydrate. */
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent);
   transition:
     border-color var(--duration-fast) var(--ease-out),
@@ -619,9 +935,13 @@
 
 .sendButton {
   flex: none;
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  padding: 0;
+  min-width: auto;
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .visuallyHidden {
@@ -636,38 +956,64 @@
   border: 0;
 }
 
+/* Phone-only segmented control: one glass pill, two ≥44px tabs (DESIGN.md).
+   AppShell footer owns the home-indicator inset — no double safe-area here. */
 .tabBar {
   display: none;
-  position: sticky;
-  bottom: 0;
+  flex-shrink: 0;
+  justify-content: center;
+  align-items: center;
   z-index: 5;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  border-top: 1px solid var(--border);
-  backdrop-filter: blur(12px);
+  padding: var(--space-2) var(--space-4) var(--space-1);
+  background: transparent;
+  border-top: none;
+}
+
+.tabSegment {
+  display: flex;
+  width: min(100%, 18rem);
+  padding: var(--space-1);
+  gap: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight), var(--shadow-1);
 }
 
 .tabButton {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   min-height: var(--touch-target);
-  border: 1px solid var(--border);
+  padding: 0 var(--space-3);
+  border: none;
   border-radius: var(--radius-full);
   background: transparent;
   color: var(--fg-muted);
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition:
     color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.tabButton:hover {
+  color: var(--fg);
+}
+
+.tabButton:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .tabButtonActive {
-  color: var(--fg);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--accent);
   background: var(--accent-soft);
 }
 
@@ -758,7 +1104,11 @@
 
   .thread,
   .footer {
-    padding-inline: var(--space-4);
+    padding-inline: var(--space-3);
+  }
+
+  .mobileHeader {
+    padding: var(--space-3) var(--space-4) var(--space-2);
   }
 }
 
@@ -791,6 +1141,11 @@
   .assistantStreaming::after {
     animation: none;
     opacity: 0.5;
+  }
+
+  .rippleCharHighlighted {
+    animation: none;
+    color: inherit;
   }
 
   .desktopFab:hover {

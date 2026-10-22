@@ -3,6 +3,52 @@
   display: inline-flex;
 }
 
+/* Signed-out header CTA — glass chip so Sign in stays legible on the home
+   frosted graph (ghost outline alone was easy to miss on phones). */
+.signIn {
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight);
+  padding-inline: var(--space-4);
+}
+
+/* Same footprint as .trigger — auth unresolved only; no Sign-in flash. */
+.skeleton {
+  display: inline-flex;
+  box-sizing: border-box;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--fg-muted) 10%, transparent) 0%,
+    color-mix(in srgb, var(--fg-muted) 18%, transparent) 45%,
+    color-mix(in srgb, var(--fg-muted) 10%, transparent) 90%
+  );
+  background-size: 200% 100%;
+  animation: accountChromeShimmer 1.2s var(--ease-out) infinite;
+  pointer-events: none;
+  vertical-align: middle;
+}
+
+@keyframes accountChromeShimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: color-mix(in srgb, var(--fg-muted) 12%, transparent);
+  }
+}
+
 .trigger {
   display: inline-flex;
   align-items: center;

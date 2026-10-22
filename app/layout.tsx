@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   title: { default: TITLE_DEFAULT, template: `%s — ${SITE_NAME}` },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
+  // Tab / apple-touch icons come from Chronos brand files only
+  // (app/favicon.ico, app/icon.svg, app/apple-icon.png) — never GitHub/octocat.
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: SITE_NAME },
   alternates: { canonical: "/" },

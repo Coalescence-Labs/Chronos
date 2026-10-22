@@ -59,9 +59,13 @@ describe("auth returnTo helpers", () => {
     expect(route).not.toMatch(/from\s+"@workos-inc\/authkit-nextjs"/);
   });
 
-  test("AccountControls preserves returnTo and uses local signOutAction", async () => {
+  test("SignInLink preserves returnTo; AccountControls uses local signOutAction", async () => {
+    const signIn = await Bun.file("components/auth/SignInLink.tsx").text();
+    expect(signIn).toContain("signInHrefForReturn");
+    expect(signIn).toContain("Sign in");
+
     const source = await Bun.file("components/auth/AccountControls.tsx").text();
-    expect(source).toContain("signInHrefForReturn");
+    expect(source).toContain("SignInLink");
     expect(source).toContain("signOutAction");
     expect(source).not.toMatch(/signOut\(\s*\{/);
     expect(source).not.toMatch(/void signOut\b/);
