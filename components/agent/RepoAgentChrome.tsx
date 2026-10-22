@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { AgentPanel } from "./AgentPanel";
+import { AgentMark } from "./AgentMark";
 import type { AgentBranchFocus } from "@/lib/agent/chat-context";
 import type { RepoHistory } from "@/lib/graph";
 import styles from "./agent.module.css";
@@ -53,8 +54,15 @@ export function RepoAgentChrome({
             onMinimize={() => setDesktopOpen(false)}
           />
         ) : (
-          <button type="button" className={styles.desktopFab} onClick={() => setDesktopOpen(true)}>
-            <span className={styles.desktopFabMark} aria-hidden="true" />
+          <button
+            type="button"
+            className={styles.desktopFab}
+            onClick={() => setDesktopOpen(true)}
+            aria-label="Open Chronos Agent"
+          >
+            <span className={styles.desktopFabMark} aria-hidden="true">
+              <AgentMark size={18} />
+            </span>
             Agent
           </button>
         )}

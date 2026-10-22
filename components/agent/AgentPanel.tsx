@@ -246,6 +246,10 @@ export function AgentPanel({
       <div className={styles.thread} ref={threadRef} aria-live="polite">
         {turns.length === 0 ? (
           <div className={styles.emptyState}>
+            <h3 className={styles.emptyTitle}>Ask about this graph</h3>
+            <p className={styles.emptyLead}>
+              Answers use commits already loaded in this view — no invented history.
+            </p>
             <ul className={styles.promptRow} aria-label="Example questions">
               {STARTERS.map((prompt) => (
                 <li key={prompt}>

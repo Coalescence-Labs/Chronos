@@ -132,11 +132,8 @@
 }
 
 .desktopFabMark {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+  display: inline-flex;
+  color: var(--accent-strong);
 }
 
 .chromeEyebrow {
@@ -406,9 +403,26 @@
   flex: 1;
   flex-direction: column;
   justify-content: flex-end;
+  gap: var(--space-3);
   min-height: 2.5rem;
   padding: 0 0 var(--space-1);
   animation: agentEmptyIn var(--duration-slow) var(--ease-out) both;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+.emptyLead {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  line-height: 1.55;
+  max-width: 36ch;
 }
 
 .promptRow {
