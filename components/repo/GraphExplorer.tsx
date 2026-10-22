@@ -10,6 +10,7 @@ import type { SizeBucket } from "@/lib/analytics";
 import { canApplyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
 import type { Capsule, GlanceResult, RepoHistory } from "@/lib/graph";
 import type { GlanceWorkerClient } from "./glance-worker-client";
+import { RepoAgentChrome } from "@/components/agent/RepoAgentChrome";
 import styles from "./repo.module.css";
 
 /**
@@ -175,6 +176,7 @@ export function GraphExplorer({
   );
 
   return (
+    <RepoAgentChrome owner={owner} repo={repo} history={view} selectedSha={selectedSha}>
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.repoName}>
@@ -269,6 +271,7 @@ export function GraphExplorer({
         )}
       </InspectionSurface>
     </div>
+    </RepoAgentChrome>
   );
 }
 
