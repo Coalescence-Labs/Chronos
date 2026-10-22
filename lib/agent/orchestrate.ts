@@ -4,7 +4,6 @@ import { agentGateMessage, evaluateAgentGate } from "./gate";
 import { classifyQuestionWithJev } from "./jev";
 import { agentSonnetModelId } from "./models";
 import { runAgentFactTool } from "./facts/tools";
-import { fetchPullRequestFacts, questionRequestsPullRequestFacts } from "./pr-tools";
 import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 import { renderSafeAgentMarkdown } from "./safe-markdown";
 import {
@@ -62,10 +61,6 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
     history: input.history,
     selectedSha: input.selectedSha,
   });
-  const pullRequests =
-    input.githubAuth && questionRequestsPullRequestFacts(input.question)
-      ? await fetchPullRequestFacts(input.owner, input.repo, input.githubAuth)
-      : [];
   const loadHandle = (summary.data as { loadHandle?: string }).loadHandle;
 
   const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();
@@ -88,7 +83,7 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
         "",
         `Question: ${input.question.trim().slice(0, 2_000)}`,
         "",
-        `Facts: ${JSON.stringify({ summary: summary.data, anchor: anchor.data, pullRequests })}`,
+        `Facts: ${JSON.stringify({ summary: summary.data, anchor: anchor.data })}`,
       ].join("\n"),
     });
     const spent = await readAgentSpendUsd();
