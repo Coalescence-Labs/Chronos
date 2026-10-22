@@ -3,3 +3,5 @@ export { evaluateAgentGate, agentGateMessage, type AgentGateReason, type AgentGa
 export { readAgentOptIn, writeAgentOptIn } from "./metadata";
 export { renderSafeAgentMarkdown } from "./safe-markdown";
 export * from "./facts";
+export { runAgentTurn, type AgentTurnInput, type AgentTurnResult } from "./orchestrate";
+export * from "./spend";
