@@ -1,9 +1,9 @@
 /**
  * AI integration point — Chronos Agent orchestration lives under lib/agent.
  *
- * Feature surface (#4) and provider (#5) remain open in docs/ARCHITECTURE.md
- * until owner ratifies graph Q&A. Gate + safe markdown ship in M1; live calls
- * require opt-in, Redis spend controls, and Vercel AI Gateway + written ZDR.
+ * Canonical decided vs open map: docs/AI.md
+ * Beta: Graph Q&A (public repos) via Gateway + Sonnet/Haiku; spend Redis; gates.
+ * Still open: written ZDR (#5), Agent UX directions, feature surface beyond beta.
  */
 
 export { evaluateAgentGate, isAgentFeatureConfigured, isAgentKillSwitchActive } from "@/lib/agent";

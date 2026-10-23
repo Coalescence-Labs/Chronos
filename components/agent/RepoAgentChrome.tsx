@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { AgentPanel } from "./AgentPanel";
 import { AgentMark } from "./AgentMark";
 import type { AgentBranchFocus } from "@/lib/agent/chat-context";
+import type { AgentLensTargets } from "@/lib/agent/gen-ui";
 import type { RepoHistory } from "@/lib/graph";
 import styles from "./agent.module.css";
 
@@ -11,46 +12,94 @@ interface RepoAgentChromeProps {
   owner: string;
   repo: string;
   history: RepoHistory;
+  defaultBranch?: string;
   selectedSha?: string | null;
   focusedBranch?: AgentBranchFocus | null;
+  onLensChange?: (lens: AgentLensTargets | null) => void;
+  onCommitActivate?: (sha: string) => void;
+  onBranchActivate?: (name: string, tipSha?: string) => void;
   children: ReactNode;
+}
+
+type MobileTab = "graph" | "agent";
+
+function GraphMark({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="6" cy="18" r="2.25" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="6" cy="6" r="2.25" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="18" cy="12" r="2.25" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M6 8.2v7.6M8.2 6.8 15.8 11M8.2 17.2 15.8 13"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 export function RepoAgentChrome({
   owner,
   repo,
   history,
+  defaultBranch,
   selectedSha,
   focusedBranch,
+  onLensChange,
+  onCommitActivate,
+  onBranchActivate,
   children,
 }: RepoAgentChromeProps) {
-  const [mobileTab, setMobileTab] = useState<"graph" | "agent">("graph");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("graph");
   const [desktopOpen, setDesktopOpen] = useState(true);
 
-  return (
-    <>
-      <div className={mobileTab === "agent" ? styles.graphPaneHidden : undefined}>{children}</div>
+  const panelProps = {
+    owner,
+    repo,
+    history,
+    defaultBranch,
+    selectedSha,
+    focusedBranch,
+    onLensChange,
+    onCommitActivate,
+    onBranchActivate,
+  } as const;
 
-      <div className={mobileTab === "agent" ? styles.mobilePaneActive : styles.mobilePane}>
-        <AgentPanel
-          layout="mobile"
-          owner={owner}
-          repo={repo}
-          history={history}
-          selectedSha={selectedSha}
-          focusedBranch={focusedBranch}
-        />
+  const onTabListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const next: MobileTab = mobileTab === "graph" ? "agent" : "graph";
+    setMobileTab(next);
+    const id = next === "graph" ? "repo-tab-graph" : "repo-tab-agent";
+    requestAnimationFrame(() => document.getElementById(id)?.focus());
+  };
+
+  return (
+    <div className={styles.chrome}>
+      <div
+        id="repo-panel-graph"
+        role="tabpanel"
+        aria-labelledby="repo-tab-graph"
+        className={mobileTab === "agent" ? styles.graphPaneHidden : styles.graphPane}
+      >
+        {children}
+      </div>
+
+      <div
+        id="repo-panel-agent"
+        role="tabpanel"
+        aria-labelledby="repo-tab-agent"
+        className={mobileTab === "agent" ? styles.mobilePaneActive : styles.mobilePane}
+      >
+        <AgentPanel layout="mobile" {...panelProps} />
       </div>
 
       <div className={styles.desktopDock} data-open={desktopOpen}>
         {desktopOpen ? (
           <AgentPanel
             layout="desktop"
-            owner={owner}
-            repo={repo}
-            history={history}
-            selectedSha={selectedSha}
-            focusedBranch={focusedBranch}
+            {...panelProps}
             onMinimize={() => setDesktopOpen(false)}
           />
         ) : (
@@ -69,23 +118,44 @@ export function RepoAgentChrome({
       </div>
 
       <nav className={styles.tabBar} aria-label="Repo view">
-        <button
-          type="button"
-          className={`${styles.tabButton} ${mobileTab === "graph" ? styles.tabButtonActive : ""}`}
-          aria-pressed={mobileTab === "graph"}
-          onClick={() => setMobileTab("graph")}
+        <div
+          className={styles.tabSegment}
+          role="tablist"
+          aria-label="Graph or Agent"
+          onKeyDown={onTabListKeyDown}
         >
-          Graph
-        </button>
-        <button
-          type="button"
-          className={`${styles.tabButton} ${mobileTab === "agent" ? styles.tabButtonActive : ""}`}
-          aria-pressed={mobileTab === "agent"}
-          onClick={() => setMobileTab("agent")}
-        >
-          Agent
-        </button>
+          <button
+            type="button"
+            role="tab"
+            id="repo-tab-graph"
+            aria-selected={mobileTab === "graph"}
+            aria-controls="repo-panel-graph"
+            tabIndex={mobileTab === "graph" ? 0 : -1}
+            className={
+              mobileTab === "graph" ? `${styles.tabButton} ${styles.tabButtonActive}` : styles.tabButton
+            }
+            onClick={() => setMobileTab("graph")}
+          >
+            <GraphMark />
+            Graph
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="repo-tab-agent"
+            aria-selected={mobileTab === "agent"}
+            aria-controls="repo-panel-agent"
+            tabIndex={mobileTab === "agent" ? 0 : -1}
+            className={
+              mobileTab === "agent" ? `${styles.tabButton} ${styles.tabButtonActive}` : styles.tabButton
+            }
+            onClick={() => setMobileTab("agent")}
+          >
+            <AgentMark size={16} />
+            Agent
+          </button>
+        </div>
       </nav>
-    </>
+    </div>
   );
 }

@@ -1,0 +1,91 @@
+/* Segmented theme control — footer (full touch targets) and profile (compact). */
+.toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight);
+}
+
+.options {
+  display: inline-flex;
+}
+
+.option,
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.option:hover,
+.trigger:hover {
+  color: var(--fg);
+}
+
+.option[aria-checked="true"],
+.trigger {
+  color: var(--accent);
+}
+
+.option[aria-checked="true"] {
+  background: var(--accent-soft);
+}
+
+.option:focus-visible,
+.trigger:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.trigger {
+  display: none;
+}
+
+.compact .option {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+}
+
+.compact .option svg {
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 699px) {
+  /* Footer guest control: collapsed icon with a light lift so it reads as a
+     chip, not a full chrome strip. Profile compact stays always-expanded. */
+  .toggle:not(.compact) {
+    box-shadow: var(--glass-highlight), var(--shadow-1);
+  }
+
+  .toggle:not([data-expanded]) .options {
+    display: none;
+  }
+  .toggle:not([data-expanded]) .trigger {
+    display: inline-flex;
+  }
+
+  .option,
+  .trigger {
+    padding: 0;
+  }
+
+  .compact:not([data-expanded]) .options {
+    display: inline-flex;
+  }
+  .compact:not([data-expanded]) .trigger {
+    display: none;
+  }
+}

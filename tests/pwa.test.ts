@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readdir } from "node:fs/promises";
 import manifest from "@/app/manifest";
 
 /**
@@ -37,6 +38,40 @@ describe("pwa manifest", () => {
       const bytes = new Uint8Array(await Bun.file(`public${icon.src}`).arrayBuffer());
       const [w, h] = (icon.sizes ?? "0x0").split("x").map(Number);
       expect(pngSize(bytes)).toEqual({ width: w!, height: h! });
+    }
+  });
+
+  test("manifest icons are Chronos brand paths under /icons, never GitHub/octocat", () => {
+    for (const icon of m.icons ?? []) {
+      expect(icon.src).toMatch(/^\/icons\/icon-/);
+      expect(icon.src.toLowerCase()).not.toMatch(/octocat|github|gh[-_]?logo/);
+    }
+  });
+});
+
+describe("site brand icons", () => {
+  test("favicon.ico + apple-touch + svg mark exist as Chronos assets", async () => {
+    const favicon = new Uint8Array(await Bun.file("app/favicon.ico").arrayBuffer());
+    expect(favicon.byteLength).toBeGreaterThan(100);
+    // ICO: reserved=0, type=1 (icon)
+    expect(favicon[0]).toBe(0);
+    expect(favicon[1]).toBe(0);
+    expect(favicon[2]).toBe(1);
+    expect(favicon[3]).toBe(0);
+
+    const apple = new Uint8Array(await Bun.file("app/apple-icon.png").arrayBuffer());
+    expect(pngSize(apple)).toEqual({ width: 180, height: 180 });
+
+    const mark = await Bun.file("app/icon.svg").text();
+    expect(mark).toContain("#7c9cff"); // Chronos accent
+    expect(mark).toContain("#0a0c10"); // Chronos bg
+    expect(mark.toLowerCase()).not.toMatch(/octocat|github/);
+  });
+
+  test("no public icon asset filename suggests GitHub brand", async () => {
+    const names = await readdir("public/icons");
+    for (const name of names) {
+      expect(name.toLowerCase()).not.toMatch(/octocat|github|gh[-_]?logo/);
     }
   });
 });

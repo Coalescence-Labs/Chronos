@@ -1,5 +1,6 @@
 import { generateText, gateway } from "ai";
 import { agentJevModelId } from "./models";
+import { guardGeneratePrompt } from "./spend-limits";
 
 export interface JevClassification {
   allow: boolean;
@@ -25,15 +26,22 @@ export async function classifyQuestionWithJev(question: string): Promise<JevClas
   const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();
   if (!apiKey) return { allow: false, flags: ["not-configured"] };
 
-  const { text } = await generateText({
-    model: gateway(agentJevModelId()),
-    prompt: [
+  const guarded = guardGeneratePrompt(
+    [
       "You are Jev, a safety classifier for Chronos graph Q&A.",
       "Reply with JSON: {\"allow\":boolean,\"flags\":string[]}.",
       "Allow git graph questions; disallow secrets, credentials, unrelated tasks.",
       "",
       `Question: ${trimmed}`,
     ].join("\n"),
+    "haiku",
+  );
+  if (!guarded.ok) return { allow: false, flags: ["spend-guardrail"] };
+
+  const { text } = await generateText({
+    model: gateway(agentJevModelId()),
+    prompt: guarded.prompt,
+    maxOutputTokens: guarded.maxOutputTokens,
   });
   return parseJevPayload(text);
 }

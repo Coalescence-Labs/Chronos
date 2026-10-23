@@ -78,6 +78,11 @@ export interface GraphViewProps {
   tracedTip?: string | null;
   onTracedTipChange?: (tipSha: string | null) => void;
   /**
+   * Soft Agent lens (concept A): SHAs referenced by the latest Graph Q&A answer.
+   * Drawn as a quieter selection band than aria-selected — not a cosmic overlay.
+   */
+  lensShas?: ReadonlySet<string> | readonly string[] | null;
+  /**
    * Fired when the rendered window reaches the oldest loaded rows — the
    * hook for lazy paging. Re-fires after new rows arrive if still near the
    * end, so short histories backfill until they outgrow the viewport.
@@ -94,6 +99,7 @@ export function GraphView({
   reflowing = false,
   tracedTip: tracedTipProp,
   onTracedTipChange,
+  lensShas = null,
   onNearEnd,
 }: GraphViewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -140,6 +146,13 @@ export function GraphView({
     () => (selectedSha ? layout.placements.findIndex((p) => p.sha === selectedSha) : -1),
     [layout.placements, selectedSha],
   );
+
+  const lensSet = useMemo(() => {
+    if (!lensShas) return null;
+    if (lensShas instanceof Set) return lensShas.size > 0 ? lensShas : null;
+    const list = lensShas as readonly string[];
+    return list.length > 0 ? new Set(list) : null;
+  }, [lensShas]);
 
   // Branch trace (COA-84): the selected commit's line is highlighted while
   // everything else dims, so one branch can be followed through a busy graph.
@@ -622,6 +635,7 @@ export function GraphView({
                 className={`${styles.row}${placed.sha === expandedSha ? ` ${styles.expanded}` : ""}`}
                 data-dimmed={isDimmed(placed.sha) || undefined}
                 data-expanded={placed.sha === expandedSha || undefined}
+                data-lens={lensSet?.has(placed.sha) || undefined}
                 style={{
                   top: rowTop(placed.row),
                   height: placed.sha === expandedSha ? undefined : rowHeight,

@@ -34,6 +34,10 @@
   --accent-soft: rgba(124, 156, 255, 0.08);
   --danger-soft: rgba(251, 113, 133, 0.08);
   --selection: rgba(124, 156, 255, 0.3);
+  /* Warm stream highlight (Nebulae accent-ember family; Chronos lane-7 peach). */
+  --ember: #fdba74;
+  /* Agent ripple: ember in dark; light theme overrides to brand accent. */
+  --agent-stream-highlight: var(--ember);
 
   /* ---- color: graph lanes (cycle of 8; pair with shape cues, never color alone) ---- */
   --lane-0: #7c9cff;
@@ -148,6 +152,9 @@
   --accent-soft: rgba(46, 74, 107, 0.1);
   --danger-soft: rgba(179, 74, 44, 0.1);
   --selection: rgba(46, 74, 107, 0.18);
+  --ember: #c75b39;
+  /* Light stream highlight: brand indigo already in the design language. */
+  --agent-stream-highlight: var(--accent);
 
   /* ---- color: graph lanes (cycle of 8; pair with shape cues, never color alone) ---- */
   --lane-0: #2e4a6b;

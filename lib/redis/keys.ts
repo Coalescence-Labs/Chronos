@@ -1,4 +1,4 @@
-/** Prefix every Chronos Redis key so this database stays Chronos-only. */
+/** Prefix every Chronos Redis key (`chronos:`). Shared Redis OK if nothing escapes this prefix. */
 
 export const CHRONOS_REDIS_PREFIX = "chronos:";
 

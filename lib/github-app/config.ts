@@ -38,7 +38,11 @@ export function githubAppClientId(): string | undefined {
 }
 
 export function githubAppClientSecret(): string | undefined {
-  return process.env.GITHUB_APP_CLIENT_SECRET?.trim() || undefined;
+  const value = process.env.GITHUB_APP_CLIENT_SECRET?.trim();
+  if (!value) return undefined;
+  // OAuth client secrets are short opaque strings — PEM belongs in GITHUB_APP_PRIVATE_KEY.
+  if (value.includes("BEGIN") || value.length > 256) return undefined;
+  return value;
 }
 
 /**
