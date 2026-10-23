@@ -7,7 +7,9 @@ import { AccountGitHubConnection } from "@/components/auth/AccountGitHubConnecti
 import { AgentOptInCard } from "@/components/auth/AgentOptInCard";
 import { agentMissingEnvVarNames, isAgentFeatureConfigured } from "@/lib/agent";
 import { readAgentOptIn } from "@/lib/agent/metadata";
+import { readAgentSpendUsage } from "@/lib/agent/spend";
 import { devOnlyMissingEnvVarNames } from "@/lib/env/deployment";
+
 import { AppShell } from "@/components/shell/AppShell";
 import buttonStyles from "@/components/ui/button.module.css";
 import { OverflowText } from "@/components/ui/OverflowText";
@@ -95,6 +97,7 @@ export default async function AccountPage({
   const agentMissingEnvVars = agentConfigured
     ? undefined
     : devOnlyMissingEnvVarNames(agentMissingEnvVarNames());
+  const agentUsage = agentConfigured ? await readAgentSpendUsage() : { available: false as const };
   const hasName = Boolean(publicUser.firstName?.trim() || publicUser.lastName?.trim());
   return (
     <AccountFrame>
@@ -134,6 +137,7 @@ export default async function AccountPage({
           initialEnabled={agentOptIn}
           configured={agentConfigured}
           missingEnvVars={agentMissingEnvVars}
+          usage={agentUsage}
         />
       </section>
 

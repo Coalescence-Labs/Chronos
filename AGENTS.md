@@ -22,14 +22,15 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - **Graph layout is a hybrid lane algorithm in our own pure `lib/graph`** (decision #1) — stable columns for active branches, compact reuse for stale, hard column cap for mobile. No render-coupled libs.
 - **Render is SVG with viewport virtualization** (decision #2) — render only on-screen rows; renderer stays behind the `components/graph` interface so it's swappable without touching `lib/graph`.
 - **Responsive**: must feel native on phone *and* laptop.
-- **Privacy-first**; AI features are **opt-in** and **ZDR-only**.
+- **Privacy-first**; AI features are **opt-in**; long-term **ZDR-only**. Beta Graph Q&A (public repos only until written ZDR): [docs/AI.md](docs/AI.md).
+- **Chronos Agent beta infra** — Vercel AI Gateway; Claude Sonnet 5.5 + Haiku 5.5; Upstash spend ledger ($5/user/mo, `chronos:` prefix); Jev + fact tools; Account opt-in + kill switch. Detail in [docs/AI.md](docs/AI.md).
 - **Free hosted + open source** under **Apache 2.0** (see `LICENSE`).
 - **Runtime: Bun** (package manager + test runner). Never npm/yarn/node/ts-node.
 - Design language: **organic-futuristic-modernism** — calm, powerful, intentional (see [docs/DESIGN.md](docs/DESIGN.md)).
 
-### Open (do NOT invent answers — see docs/ARCHITECTURE.md "Open Decisions")
-- **AI feature surface**: what AI actually does (branch summaries? history explanations? Q&A?) — never specified.
-- **AI provider** that satisfies ZDR.
+### Open (do NOT invent answers — see docs/ARCHITECTURE.md "Open Decisions" and docs/AI.md)
+- **AI feature surface beyond Graph Q&A beta** (other products; Agent UX directions A–E; generative-UI ambition).
+- **Written ZDR** for the AI provider (required before private-repo Agent / ending the public-only beta carve-out).
 
 ## 3. Linear is the project backbone
 
@@ -74,7 +75,8 @@ Chronos/
     PRODUCT.md              # vision + philosophy
     ARCHITECTURE.md         # how it's built + OPEN DECISIONS
     DESIGN.md               # visual language + polish bar
-    PRIVACY.md              # security + ZDR model
+    PRIVACY.md              # security + ZDR model (+ Agent beta carve-out)
+    AI.md                   # Chronos Agent infra: decided vs open
     AUTH.md                 # WorkOS AuthKit accounts (COA-200)
     PERFORMANCE.md          # navigation baseline, <250ms goal, proposed improvements
     SECURITY.md             # dependency gate, credential lifecycle, limits, deployment verification
@@ -89,7 +91,8 @@ Chronos/
     github-app/             # verified installs, revocation versions, sealed credentials, bounded token coordination/transport
     security/               # mutation origin checks, CSP, ephemeral request fairness limits
     demo/                   # deterministic synthetic history backing /demo
-    ai/                     # empty until decisions #4/#5 resolve
+    ai/                     # thin re-exports; Agent lives in lib/agent (see docs/AI.md)
+    agent/                  # Graph Q&A: gate, Jev, facts, orchestrate, spend
   components/
     background/             # HomePageBackground: cached Chronos graph geometry + frosted layer
     graph/                  # GraphView: virtualized SVG renderer over layout output

@@ -1,6 +1,6 @@
 /**
  * Theme model shared by the boot script (app/layout.tsx), the toggle
- * (components/shell/ThemeToggle.tsx), and browser-chrome surfaces that
+ * (ThemePreferenceControl / footer toggle), and browser-chrome surfaces that
  * cannot read CSS variables (PWA manifest, meta theme-color).
  *
  * CHROME_BG / CHROME_BG_LIGHT mirror --bg per theme in app/globals.css —

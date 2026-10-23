@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { GraphView } from "@/components/graph/GraphView";
 import { DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
 import type { RepoHistory } from "@/lib/graph";
-import { commit, heavyMerge, withHead } from "./fixtures/history";
+import { commit, heavyMerge, linear, withHead } from "./fixtures/history";
 
 /**
  * Renderer contract: accessibility roles, non-color cues, and virtualization.
@@ -36,6 +36,21 @@ describe("GraphView accessibility", () => {
     expect(count(html, 'role="option"')).toBe(4);
     expect(html).toContain('aria-posinset="1"');
     expect(html).toContain(`aria-setsize="4"`);
+  });
+
+  test("agent lens marks referenced rows without replacing selection", () => {
+    const history = linear(4);
+    const layout = layoutGraph(history);
+    const html = renderToStaticMarkup(
+      <GraphView
+        history={history}
+        layout={layout}
+        selectedSha={history.commits[0]!.sha}
+        lensShas={[history.commits[1]!.sha, history.commits[2]!.sha]}
+      />,
+    );
+    expect(html).toContain('data-lens="true"');
+    expect(html).toContain(`aria-selected="true"`);
   });
 
   test("selection is reflected in aria-activedescendant and aria-selected", () => {

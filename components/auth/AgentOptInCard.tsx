@@ -2,9 +2,9 @@
 
 import { Fragment, useState } from "react";
 import { Surface } from "@/components/ui/Surface";
-import buttonStyles from "@/components/ui/button.module.css";
 import { Button } from "@/components/ui/Button";
 import { AgentMark } from "@/components/agent/AgentMark";
+import type { AgentSpendUsage } from "@/lib/agent/spend";
 import { DevMissingEnvList } from "./DevMissingEnvList";
 import styles from "./github-connection.module.css";
 
@@ -27,13 +27,51 @@ function AgentFacts({ className }: { className?: string }) {
   );
 }
 
+function formatUsageReset(resetsAt: string): string {
+  const label = new Date(resetsAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  return `Resets ${label}`;
+}
+
+function AgentUsageMeter({ percentUsed, resetsAt }: { percentUsed: number; resetsAt: string }) {
+  const clamped = Math.min(100, Math.max(0, percentUsed));
+  return (
+    <div className={styles.usage} aria-label="Agent usage">
+      <div className={styles.usageMeta}>
+        <span className={styles.usagePercent}>{clamped}% used</span>
+        <span className={styles.usageReset}>{formatUsageReset(resetsAt)}</span>
+      </div>
+      <div
+        className={styles.usageTrack}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={clamped}
+        aria-valuetext={`${clamped}% used`}
+      >
+        <div className={styles.usageFill} style={{ width: `${clamped}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export interface AgentOptInCardProps {
   initialEnabled: boolean;
   configured: boolean;
   missingEnvVars?: string[];
+  /** Present only when spend Redis is ready; omit or `{ available: false }` to hide. */
+  usage?: AgentSpendUsage;
 }
 
-export function AgentOptInCard({ initialEnabled, configured, missingEnvVars }: AgentOptInCardProps) {
+export function AgentOptInCard({
+  initialEnabled,
+  configured,
+  missingEnvVars,
+  usage,
+}: AgentOptInCardProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +151,9 @@ export function AgentOptInCard({ initialEnabled, configured, missingEnvVars }: A
         </Button>
         {error && <p className={styles.actionError}>{error}</p>}
       </div>
+      {enabled && usage?.available === true && (
+        <AgentUsageMeter percentUsed={usage.percentUsed} resetsAt={usage.resetsAt} />
+      )}
       {!enabled && <AgentFacts className={styles.facts} />}
     </Surface>
   );

@@ -25,9 +25,11 @@
     "@workos-inc/node": "^10.14.0",
     "ai": "^7.0.148",
     "iron-session": "^9.0.1",
+    "marked": "^16.4.2",
     "next": "^16.4.2",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zod": "^4.1.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

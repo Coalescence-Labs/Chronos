@@ -9,6 +9,7 @@ This is the entry point for Claude Code (and other agents) working in the Chrono
 3. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how it's built + **open decisions** (do not invent answers to these).
 4. **[docs/DESIGN.md](docs/DESIGN.md)** — the visual bar.
 5. **[docs/PRIVACY.md](docs/PRIVACY.md)** — non-negotiable privacy/ZDR rules.
+6. **[docs/AI.md](docs/AI.md)** — Chronos Agent infra (decided vs open).
 
 ## Project backbone
 
