@@ -73,7 +73,7 @@ export function GraphExplorer({
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [tracedTip, setTracedTip] = useState<string | null>(null);
   const [lensShas, setLensShas] = useState<string[]>([]);
-  const [desktopAgentOpen, setDesktopAgentOpen] = useState(true);
+  const [desktopAgentOpen, setDesktopAgentOpen] = useState(false);
   const [glance, setGlance] = useState(false);
   const [glanceRequest, setGlanceRequest] = useState(0);
   const [reflowing, setReflowing] = useState(false);

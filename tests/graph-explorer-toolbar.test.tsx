@@ -7,7 +7,6 @@ const SAMPLE_HISTORY = linear(8);
 
 describe("GraphExplorer header toolbar", () => {
   test("actions order is Agent (when collapsed) → Glance → Refresh", () => {
-    // Default mount opens Agent; collapsed control is absent until minimize.
     // Assert source order in the actions cluster so the layout contract is locked.
     const source = Bun.file("components/repo/GraphExplorer.tsx");
     return source.text().then((text) => {
@@ -21,15 +20,14 @@ describe("GraphExplorer header toolbar", () => {
     });
   });
 
-  test("renders Glance and Refresh peers; Agent header control only when minimized", () => {
-    const open = renderToStaticMarkup(
+  test("starts with Agent collapsed beside Glance and Refresh", () => {
+    const html = renderToStaticMarkup(
       <GraphExplorer owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} onRefresh={() => {}} />,
     );
-    expect(open).toContain(">Glance<");
-    expect(open).toContain("Refresh — re-sync branch tips");
-    // Desktop Agent starts open — header collapsed control is not mounted.
-    expect(open).not.toContain('aria-label="Open Chronos Agent"');
-    expect(open).toContain("Minimize Agent");
+    expect(html).toContain(">Glance<");
+    expect(html).toContain("Refresh — re-sync branch tips");
+    expect(html).toContain('aria-label="Open Chronos Agent"');
+    expect(html).not.toContain("Minimize Agent");
   });
 
   test("agent toggle CSS is a glass peer of Glance at touch size (desktop only)", async () => {
