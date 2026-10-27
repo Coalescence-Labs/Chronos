@@ -13,7 +13,6 @@ import {
   createInstallState,
 } from "@/lib/github-app";
 import { mergeGitHubInstallation } from "@/lib/github-app/bindings";
-import { githubInstallBindings } from "@/lib/github-app/bindings";
 import {
   assertGitHubUserInstallation,
   buildGitHubUserAuthorizeUrl,
@@ -94,8 +93,7 @@ export async function GET(request: Request): Promise<Response> {
     if (pending.stage !== "authorize" || !installationId || !code || !pending.codeVerifier) throw new Error("Invalid authorization");
     const credentials = await exchangeGitHubUserCode(code, pending.redirectUri, pending.codeVerifier);
     const existing = await peekGitHubInstallBinding(user.id);
-    await assertGitHubUserInstallation(credentials.userAccessToken!, installationId,
-      existing ? githubInstallBindings(existing).map((binding) => binding.installationId) : []);
+    await assertGitHubUserInstallation(credentials.userAccessToken!, installationId);
     const account = await fetchInstallationAccount(installationId);
     // Re-entering via "Change repos" updates the same installation — keep its original date.
     const session = mergeGitHubInstallation(existing, {

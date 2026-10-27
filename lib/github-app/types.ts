@@ -34,5 +34,5 @@ export interface PublicGitHubConnection {
   /** Dev-only (`ENV=development`): unset env var names — never sent in production. */
   missingEnvVars?: string[];
   state?: "connected" | "disconnected" | "reconnect-required" | "unavailable" | "disconnect-incomplete";
-  accounts?: { login: string; accountType: "User" | "Organization"; connectedAt: string | null }[];
+  accounts?: { login: string; accountType: "User" | "Organization"; connectedAt: string | null; connected?: boolean }[];
 }

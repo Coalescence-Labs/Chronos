@@ -86,9 +86,11 @@ export function refreshGitHubUserToken(refreshToken: string): Promise<GitHubUser
   return exchangeUserCredentials({ grant_type: "refresh_token", refresh_token: refreshToken });
 }
 
-/** Verify the returned installation id against the authenticated GitHub user. */
-export async function assertGitHubUserInstallation(accessToken: string, installationId: number, additionalIds: number[] = []): Promise<void> {
-  const missing = new Set([installationId, ...additionalIds]);
+/** Check saved installations without letting an inaccessible account hide healthy ones. */
+export async function verifiedGitHubUserInstallations(accessToken: string, installationIds: number[]): Promise<Set<number>> {
+  const missing = new Set(installationIds);
+  const verified = new Set<number>();
+  if (!missing.size) return verified;
   const signal = AbortSignal.timeout(20_000);
   for (let page = 1; page <= 100; page++) {
     const response = await githubFetch(`https://api.github.com/user/installations?per_page=100&page=${page}`, {
@@ -101,11 +103,22 @@ export async function assertGitHubUserInstallation(accessToken: string, installa
     });
     if (!response.ok) throw await githubResponseError(response);
     const body = await response.json() as { installations?: { id: number; suspended_at?: string | null }[] };
-    for (const installation of body.installations ?? []) if (!installation.suspended_at) missing.delete(installation.id);
-    if (!missing.size) return;
-    if (!response.headers.get("link")?.includes('rel="next"')) break;
+    if (!Array.isArray(body.installations)) throw new IngestError("upstream", "GitHub returned an invalid installation list. Please retry.");
+    for (const installation of body.installations) {
+      if (!installation.suspended_at && missing.delete(installation.id)) verified.add(installation.id);
+    }
+    if (!missing.size || !response.headers.get("link")?.includes('rel="next"')) return verified;
   }
-  throw new IngestError("access-denied", "GitHub installation is not accessible to this user. Use the GitHub account with access to your saved installations, and check organization approval.");
+  throw new IngestError("upstream", "GitHub installation verification is incomplete. Please retry.");
+}
+
+/** Verify the returned installation id against the authenticated GitHub user. */
+export async function assertGitHubUserInstallation(accessToken: string, installationId: number, additionalIds: number[] = []): Promise<void> {
+  const ids = [installationId, ...additionalIds];
+  const verified = await verifiedGitHubUserInstallations(accessToken, ids);
+  if (ids.some((id) => !verified.has(id))) {
+    throw new IngestError("access-denied", "GitHub installation is not accessible to this user. Use the GitHub account with access to this installation, and check organization approval.");
+  }
 }
 
 export async function revokeGitHubUserGrant(accessToken: string): Promise<void> {

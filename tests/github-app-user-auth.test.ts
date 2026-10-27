@@ -5,6 +5,7 @@ import {
   exchangeGitHubUserCode,
   readGitHubConnectState,
   sealGitHubConnectState,
+  verifiedGitHubUserInstallations,
 } from "@/lib/github-app/user-auth";
 
 const originalFetch = globalThis.fetch;
@@ -80,5 +81,32 @@ describe("GitHub user verification", () => {
     expect(pages).toBe(2);
     pages = 0;
     await expect(assertGitHubUserInstallation("ghu_user", 123)).rejects.toThrow(/not accessible/);
+  });
+
+  test("verification reports only requested active installations across all pages", async () => {
+    let pages = 0;
+    globalThis.fetch = (async () => ++pages === 1
+      ? Response.json({ installations: [{ id: 123, suspended_at: "2026-10-17" }, { id: 999 }] },
+        { headers: { Link: '<https://api.github.com/user/installations?page=2>; rel="next"' } })
+      : Response.json({ installations: [{ id: 456 }] })) as unknown as typeof fetch;
+    const verified = await verifiedGitHubUserInstallations("ghu_user", [123, 456, 789]);
+    expect([...verified]).toEqual([456]);
+    expect(pages).toBe(2);
+  });
+
+  test("a malformed response is a provider failure rather than proof of lost access", async () => {
+    globalThis.fetch = (async () => Response.json({})) as unknown as typeof fetch;
+    await expect(verifiedGitHubUserInstallations("ghu_user", [123])).rejects.toMatchObject({ code: "upstream" });
+  });
+
+  test("an incomplete page scan cannot mark unseen accounts as inaccessible", async () => {
+    let pages = 0;
+    globalThis.fetch = (async () => {
+      pages++;
+      return Response.json({ installations: [{ id: 123 }] },
+        { headers: { Link: '<https://api.github.com/user/installations?page=101>; rel="next"' } });
+    }) as unknown as typeof fetch;
+    await expect(verifiedGitHubUserInstallations("ghu_user", [123, 456])).rejects.toMatchObject({ code: "upstream" });
+    expect(pages).toBe(100);
   });
 });

@@ -163,8 +163,12 @@ Connect state is encrypted, expires after ten minutes, and binds both callback
 stages to the current WorkOS user. A returned installation id is checked against
 the GitHub user's paginated `GET /user/installations` response before saving.
 The authorization stage uses S256 PKCE and requests `offline_access` to ensure
-expiring user credentials without adding repository permissions. Saved installation
-access is also checked before replacing the credential shared by those connections.
+expiring user credentials without adding repository permissions. The selected
+installation must be accessible before saving credentials. Other saved bindings
+are preserved even if their access changed; `/api/github/status` checks them
+individually and reports `accounts[].connected`. A missing or suspended installation
+does not disable healthy accounts. Every repository request still checks the
+GitHub user's access before minting or reusing an installation token.
 See [GitHub's setup URL guidance](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url).
 
 Disconnect removes the user's Chronos bindings, rotates a durable authorization
@@ -187,8 +191,9 @@ users can reconnect after sign-out without reinstalling:
 The original five keys (`chronosGhInstallationId`, `chronosGhAccountLogin`,
 `chronosGhAccountType`, `chronosGhConnectedAt`, `chronosGhPermissions`) remain
 readable and migrate on the next write. Four-field tuples use the initial version.
-Writes patch only supplied installations and legacy keys, preserving simultaneous
-additions and unrelated metadata. Read errors propagate; an outage is never treated
+Writes patch supplied installations and legacy keys, removing superseded installation
+IDs for the same account when the App is reinstalled. Simultaneous additions for
+other accounts and unrelated metadata are preserved. Read errors propagate; an outage is never treated
 as an empty account. Each installation uses one key, with one slot reserved for
 revocation, so at most nine installations fit (fewer with unrelated metadata).
 Exceeding capacity fails without dropping existing bindings.
@@ -208,8 +213,11 @@ Metadata restores installation identities, not credentials. Credential-free
 rehydration never overwrites a live cookie. Every private request reads authoritative
 bindings and checks their authorization version before user/repo access verification.
 `/account` checks live GitHub installation access before showing "connected";
-expired, revoked and unavailable states stay distinct. Transient errors never erase
-bindings. After sign-out, use **Reconnect GitHub** to authorize access again.
+at least one saved installation must be verified, and any unverified accounts are
+labeled "reconnect required". Expired, revoked and unavailable states stay distinct.
+Transient errors never erase bindings. After sign-out, use **Reconnect GitHub** to
+authorize access again. Reconnect-required states always offer **Disconnect**, even
+when a stale session prevents the account name from being resolved.
 
 ### Shared browser / cross-account safety
 

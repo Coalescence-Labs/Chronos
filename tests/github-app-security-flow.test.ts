@@ -13,6 +13,7 @@ let mintCalls = 0;
 let dataCalls = 0;
 let githubCalls = 0;
 let grantRevocations = 0;
+let accessibleInstallations: { id: number; suspended_at?: string }[] = [];
 const originalFetch = globalThis.fetch;
 mock.module("@/lib/auth/config", () => ({ isAuthConfigured: () => true }));
 mock.module("@/lib/github-app/config", () => ({ ...config, isGitHubAppConfigured: () => true, githubAppId: () => "audit_app", githubAppPoolToken: () => undefined,
@@ -37,6 +38,7 @@ beforeEach(() => {
   session = { installationId: 88000 + sequence, accountLogin: "acme", accountType: "Organization", workosUserId: "user_security",
     connectedAt: "2026-10-17T00:00:00Z", permissions: "contents:read,metadata:read", userAccessToken: "ghu_fake", authorizationVersion: "initial" };
   metadata = githubInstallMetadataFromSession(session);
+  accessibleInstallations = [{ id: session.installationId }];
   globalThis.fetch = (async (input, init) => {
     githubCalls++;
     const url = new URL(String(input));
@@ -46,7 +48,7 @@ beforeEach(() => {
       return Response.json({ token: "ghs_fake", expires_at: new Date(Date.now() + 3600_000).toISOString() });
     }
     if (url.pathname.endsWith("/grant")) { grantRevocations++; return new Response(null, { status: 204 }); }
-    if (url.pathname === "/user/installations") return Response.json({ installations: [{ id: session?.installationId }] });
+    if (url.pathname === "/user/installations") return Response.json({ installations: accessibleInstallations });
     if (url.pathname === "/repos/acme/private") return Response.json({ default_branch: "main", private: true });
     if (url.pathname.endsWith("/commits")) { dataCalls++; return Response.json(SMALL_REPO.commits); }
     if (url.pathname.endsWith("/branches")) return Response.json(SMALL_REPO.branches);
@@ -71,6 +73,55 @@ describe("GitHub authorization boundaries through real BFF handlers", () => {
     const { GET } = await import("@/app/api/github/status/route");
     const response = await GET(new Request("https://chronos.test/api/github/status"));
     expect(await response.json()).toMatchObject({ connected: false, state: "reconnect-required" });
+  });
+  test("a stale primary installation cannot hide a healthy saved account", async () => {
+    const healthy = { ...session!, installationId: session!.installationId + 1000, accountLogin: "healthy" };
+    session = { ...session!, additionalInstallations: [healthy] };
+    metadata = githubInstallMetadataFromSession(session);
+    const before = { ...metadata };
+    accessibleInstallations = [{ id: healthy.installationId }];
+    const { GET } = await import("@/app/api/github/status/route");
+    const response = await GET(new Request("https://chronos.test/api/github/status"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({ connected: true, state: "connected", accounts: [
+      { login: "acme", connected: false }, { login: "healthy", connected: true },
+    ] });
+    expect(JSON.stringify(body)).not.toMatch(/ghu_|ghs_|installationId|authorizationVersion/);
+    expect(metadata).toEqual(before); expect(mintCalls).toBe(0);
+  });
+  test("an unavailable saved installation never bypasses the user's repository permission check", async () => {
+    const healthy = { ...session!, installationId: session!.installationId + 1000, accountLogin: "healthy" };
+    session = { ...session!, additionalInstallations: [healthy] };
+    metadata = githubInstallMetadataFromSession(session);
+    accessibleInstallations = [{ id: healthy.installationId }];
+    const fixtureFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => new URL(String(input)).pathname === "/repos/acme/private"
+      ? Response.json({}, { status: 404 }) : fixtureFetch(input, init)) as typeof fetch;
+    const { GET: status } = await import("@/app/api/github/status/route");
+    expect(await (await status(new Request("https://chronos.test/api/github/status"))).json()).toMatchObject({ connected: true });
+    const { GET: repo } = await import("@/app/api/repo/route");
+    expect((await repo(repoRequest())).status).toBe(404);
+    expect(mintCalls).toBe(0); expect(dataCalls).toBe(0);
+  });
+  test("suspended installations are labeled while healthy installations stay connected", async () => {
+    const suspended = { ...session!, installationId: session!.installationId + 1000, accountLogin: "suspended" };
+    session = { ...session!, additionalInstallations: [suspended] };
+    metadata = githubInstallMetadataFromSession(session);
+    accessibleInstallations.push({ id: suspended.installationId, suspended_at: "2026-10-17" });
+    const { GET } = await import("@/app/api/github/status/route");
+    expect(await (await GET(new Request("https://chronos.test/api/github/status"))).json()).toMatchObject({
+      connected: true, accounts: [{ login: "acme", connected: true }, { login: "suspended", connected: false }],
+    });
+  });
+  test("no verified installations requires reconnect without deleting bindings", async () => {
+    accessibleInstallations = [];
+    const before = { ...metadata };
+    const { GET } = await import("@/app/api/github/status/route");
+    expect(await (await GET(new Request("https://chronos.test/api/github/status"))).json()).toMatchObject({
+      connected: false, state: "reconnect-required",
+    });
+    expect(metadata).toEqual(before); expect(mintCalls).toBe(0);
   });
   test("provider outages remain distinct from disconnected status", async () => {
     unavailable = true;
