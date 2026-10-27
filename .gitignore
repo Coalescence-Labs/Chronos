@@ -52,3 +52,4 @@ playwright-report/
 
 # Misc
 *.local
+*.worktrees
