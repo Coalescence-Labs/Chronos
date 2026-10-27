@@ -18,6 +18,9 @@ interface RepoAgentChromeProps {
   onLensChange?: (lens: AgentLensTargets | null) => void;
   onCommitActivate?: (sha: string) => void;
   onBranchActivate?: (name: string, tipSha?: string) => void;
+  /** Desktop panel open; when false the collapsed entry lives in the graph header. */
+  desktopOpen: boolean;
+  onDesktopOpenChange: (open: boolean) => void;
   children: ReactNode;
 }
 
@@ -49,10 +52,11 @@ export function RepoAgentChrome({
   onLensChange,
   onCommitActivate,
   onBranchActivate,
+  desktopOpen,
+  onDesktopOpenChange,
   children,
 }: RepoAgentChromeProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("graph");
-  const [desktopOpen, setDesktopOpen] = useState(true);
 
   const panelProps = {
     owner,
@@ -95,27 +99,15 @@ export function RepoAgentChrome({
         <AgentPanel layout="mobile" {...panelProps} />
       </div>
 
-      <div className={styles.desktopDock} data-open={desktopOpen}>
-        {desktopOpen ? (
+      {desktopOpen ? (
+        <div className={styles.desktopDock} data-open="true">
           <AgentPanel
             layout="desktop"
             {...panelProps}
-            onMinimize={() => setDesktopOpen(false)}
+            onMinimize={() => onDesktopOpenChange(false)}
           />
-        ) : (
-          <button
-            type="button"
-            className={styles.desktopFab}
-            onClick={() => setDesktopOpen(true)}
-            aria-label="Open Chronos Agent"
-          >
-            <span className={styles.desktopFabMark} aria-hidden="true">
-              <AgentMark size={18} />
-            </span>
-            Agent
-          </button>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       <nav className={styles.tabBar} aria-label="Repo view">
         <div

@@ -8,7 +8,13 @@ const SAMPLE_HISTORY = linear(3);
 describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
   test("renders an accessible segmented tablist with Graph and Agent", () => {
     const html = renderToStaticMarkup(
-      <RepoAgentChrome owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY}>
+      <RepoAgentChrome
+        owner="octocat"
+        repo="Hello-World"
+        history={SAMPLE_HISTORY}
+        desktopOpen={true}
+        onDesktopOpenChange={() => {}}
+      >
         <div>graph</div>
       </RepoAgentChrome>,
     );
@@ -45,5 +51,42 @@ describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
     expect(source).toContain('role="tabpanel"');
     expect(source).toContain("ArrowLeft");
     expect(source).toContain("ArrowRight");
+  });
+
+  test("collapsed desktop chrome has no floating FAB — dock only mounts when open", () => {
+    const open = renderToStaticMarkup(
+      <RepoAgentChrome
+        owner="octocat"
+        repo="Hello-World"
+        history={SAMPLE_HISTORY}
+        desktopOpen={true}
+        onDesktopOpenChange={() => {}}
+      >
+        <div>graph</div>
+      </RepoAgentChrome>,
+    );
+    expect(open).toContain('data-open="true"');
+    expect(open).toContain("Minimize Agent");
+
+    const closed = renderToStaticMarkup(
+      <RepoAgentChrome
+        owner="octocat"
+        repo="Hello-World"
+        history={SAMPLE_HISTORY}
+        desktopOpen={false}
+        onDesktopOpenChange={() => {}}
+      >
+        <div>graph</div>
+      </RepoAgentChrome>,
+    );
+    expect(closed).not.toContain("desktopDock");
+    expect(closed).not.toContain("Open Chronos Agent");
+    expect(closed).not.toContain("desktopFab");
+  });
+
+  test("agent CSS no longer defines a floating desktop FAB", async () => {
+    const css = await Bun.file("components/agent/agent.module.css").text();
+    expect(css).not.toContain(".desktopFab");
+    expect(css).not.toContain("agentFabIn");
   });
 });

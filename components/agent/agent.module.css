@@ -65,7 +65,8 @@
 }
 
 .desktopDock {
-  /* Viewport-fixed dock; sit above AppShell footer (theme strip + safe-area). */
+  /* Viewport-fixed open panel; sit above AppShell footer (theme strip + safe-area).
+     Collapsed entry is in the graph header (Agent → Glance → Refresh), not a FAB. */
   --agent-dock-inset-x: calc(var(--space-4) + env(safe-area-inset-right, 0px));
   --agent-dock-clear-footer: calc(
     var(--touch-target) + var(--space-2) + max(var(--space-2), env(safe-area-inset-bottom, 0px))
@@ -78,15 +79,7 @@
   pointer-events: none;
 }
 
-.desktopDock[data-open="false"] {
-  display: flex;
-  justify-content: flex-end;
-  width: auto;
-  max-width: calc(100vw - var(--space-8) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
-}
-
-.desktopDock[data-open="true"] .desktopPanel,
-.desktopDock[data-open="false"] .desktopFab {
+.desktopDock[data-open="true"] .desktopPanel {
   pointer-events: auto;
 }
 
@@ -149,39 +142,6 @@
 .desktopMinimize:hover {
   color: var(--fg);
   background: var(--accent-soft);
-}
-
-.desktopFab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--touch-target);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-full);
-  background: var(--bg-raised);
-  background-image: var(--glass-bg);
-  box-shadow: var(--shadow-2), var(--glass-highlight);
-  color: var(--fg);
-  user-select: none;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
-  cursor: pointer;
-  animation: agentFabIn var(--duration-base) var(--ease-spring) both;
-  transition:
-    transform var(--duration-fast) var(--ease-out),
-    box-shadow var(--duration-fast) var(--ease-out);
-}
-
-.desktopFab:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-3), var(--glass-highlight);
-}
-
-.desktopFabMark {
-  display: inline-flex;
-  color: var(--accent-strong);
 }
 
 .chromeEyebrow {
@@ -1030,17 +990,6 @@
   }
 }
 
-@keyframes agentFabIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes agentMessageIn {
   from {
     opacity: 0;
@@ -1123,7 +1072,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .desktopPanel,
-  .desktopFab,
   .messageRow,
   .emptyState {
     animation: none;
@@ -1148,9 +1096,5 @@
   .rippleCharHighlighted {
     animation: none;
     color: inherit;
-  }
-
-  .desktopFab:hover {
-    transform: none;
   }
 }

@@ -15,6 +15,7 @@ import {
 } from "@/lib/agent/gen-ui";
 import type { Capsule, GlanceResult, RepoHistory } from "@/lib/graph";
 import type { GlanceWorkerClient } from "./glance-worker-client";
+import { AgentMark } from "@/components/agent/AgentMark";
 import { RepoAgentChrome } from "@/components/agent/RepoAgentChrome";
 import styles from "./repo.module.css";
 
@@ -48,6 +49,8 @@ export interface GraphExplorerProps {
   repo: string;
   /** GitHub/API default branch when known (COA-211); Glance falls back to heuristic. */
   defaultBranch?: string;
+  /** When true, Agent skips starters/chat (public-only beta). */
+  repoPrivate?: boolean;
   status?: ReactNode;
   /** Forwarded to GraphView for lazy paging. */
   onNearEnd?: () => void;
@@ -61,6 +64,7 @@ export function GraphExplorer({
   owner,
   repo,
   defaultBranch,
+  repoPrivate = false,
   status,
   onNearEnd,
   onRefresh,
@@ -69,6 +73,7 @@ export function GraphExplorer({
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [tracedTip, setTracedTip] = useState<string | null>(null);
   const [lensShas, setLensShas] = useState<string[]>([]);
+  const [desktopAgentOpen, setDesktopAgentOpen] = useState(true);
   const [glance, setGlance] = useState(false);
   const [glanceRequest, setGlanceRequest] = useState(0);
   const [reflowing, setReflowing] = useState(false);
@@ -202,8 +207,11 @@ export function GraphExplorer({
       repo={repo}
       history={view}
       defaultBranch={defaultBranch}
+      repoPrivate={repoPrivate}
       selectedSha={selectedSha}
       focusedBranch={focusedBranch}
+      desktopOpen={desktopAgentOpen}
+      onDesktopOpenChange={setDesktopAgentOpen}
       onLensChange={(lens) => {
         setLensShas(lens?.shas ?? []);
         // Sync with existing focus when the answer names a single grounded branch tip.
@@ -248,17 +256,18 @@ export function GraphExplorer({
           </p>
         )}
         <div className={styles.actions}>
-          {onRefresh && (
+          {!desktopAgentOpen && (
             <button
               type="button"
-              className={styles.refreshButton}
-              onClick={onRefresh}
-              disabled={refreshing}
-              aria-busy={refreshing}
-              aria-label="Refresh — re-sync branch tips"
-              title="Refresh — re-sync branch tips"
+              className={styles.agentToggle}
+              onClick={() => setDesktopAgentOpen(true)}
+              aria-label="Open Chronos Agent"
+              title="Open Chronos Agent"
             >
-              <RefreshIcon spinning={refreshing} />
+              <span className={styles.agentToggleMark} aria-hidden="true">
+                <AgentMark size={16} />
+              </span>
+              Agent
             </button>
           )}
           <button
@@ -280,6 +289,19 @@ export function GraphExplorer({
           >
             Glance
           </button>
+          {onRefresh && (
+            <button
+              type="button"
+              className={styles.refreshButton}
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-busy={refreshing}
+              aria-label="Refresh — re-sync branch tips"
+              title="Refresh — re-sync branch tips"
+            >
+              <RefreshIcon spinning={refreshing} />
+            </button>
+          )}
         </div>
       </header>
       <GraphView

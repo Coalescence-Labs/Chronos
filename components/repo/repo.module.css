@@ -32,13 +32,63 @@
   color: var(--fg-muted);
 }
 
-/* Header controls, pushed to the trailing edge as a group. */
+/* Header controls, pushed to the trailing edge as a group.
+   Desktop order: Agent (when minimized) → Glance → Refresh. */
 .actions {
   margin-left: auto;
   align-self: center;
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* Collapsed Agent entry — peer of Glance; laptop only (phone uses tab bar). */
+.agentToggle {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.agentToggleMark {
+  display: inline-flex;
+  color: var(--accent-strong);
+}
+
+.agentToggle:hover {
+  border-color: var(--accent);
+  background-color: var(--bg-raised);
+  background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
+  color: var(--accent);
+  box-shadow: var(--shadow-1);
+}
+
+.agentToggle:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (min-width: 701px) {
+  .agentToggle {
+    display: inline-flex;
+  }
 }
 
 /* Refresh: re-sync branch tips (COA-100). Square icon button at touch size. */
