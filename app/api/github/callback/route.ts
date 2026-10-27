@@ -13,7 +13,6 @@ import {
   createInstallState,
 } from "@/lib/github-app";
 import { mergeGitHubInstallation } from "@/lib/github-app/bindings";
-import { githubInstallBindings } from "@/lib/github-app/bindings";
 import {
   assertGitHubUserInstallation,
   buildGitHubUserAuthorizeUrl,
@@ -23,7 +22,7 @@ import {
   createGitHubCodeVerifier,
 } from "@/lib/github-app/user-auth";
 import { readGitHubAuthorizationVersion, INITIAL_GITHUB_AUTHORIZATION_VERSION } from "@/lib/github-app/workos-metadata";
-import { enforceRequestLimit } from "@/lib/security/request";
+import { enforceRequestLimitAsync } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
 
 /**
@@ -70,7 +69,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    enforceRequestLimit(request, user.id, "connection");
+    await enforceRequestLimitAsync(request, user.id, "connection");
     const authorizationVersion = await readGitHubAuthorizationVersion(user.id);
     if (authorizationVersion !== (pending.authorizationVersion ?? INITIAL_GITHUB_AUTHORIZATION_VERSION)) {
       throw new Error("GitHub authorization changed while connecting");
@@ -94,8 +93,7 @@ export async function GET(request: Request): Promise<Response> {
     if (pending.stage !== "authorize" || !installationId || !code || !pending.codeVerifier) throw new Error("Invalid authorization");
     const credentials = await exchangeGitHubUserCode(code, pending.redirectUri, pending.codeVerifier);
     const existing = await peekGitHubInstallBinding(user.id);
-    await assertGitHubUserInstallation(credentials.userAccessToken!, installationId,
-      existing ? githubInstallBindings(existing).map((binding) => binding.installationId) : []);
+    await assertGitHubUserInstallation(credentials.userAccessToken!, installationId);
     const account = await fetchInstallationAccount(installationId);
     // Re-entering via "Change repos" updates the same installation — keep its original date.
     const session = mergeGitHubInstallation(existing, {

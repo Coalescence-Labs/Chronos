@@ -32,6 +32,6 @@ describe("github app routes", () => {
     expect(source).toContain("assertNoSecretsInPublicGitHubConnection");
     expect(source).toContain("toPublicGitHubConnection");
     expect(source).toContain("resolveGitHubAppSessionForUser");
-    expect(source).toContain("assertGitHubUserInstallation");
+    expect(source).toContain("verifiedGitHubUserInstallations");
   });
 });

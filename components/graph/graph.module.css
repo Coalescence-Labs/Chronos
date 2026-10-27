@@ -143,6 +143,13 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+/* Agent lens (concept A): soft multi-row band for answer-referenced commits.
+   Quieter than selection; selection still wins when both apply. */
+.row[data-lens]:not([aria-selected="true"]) {
+  background: color-mix(in srgb, var(--accent-soft) 65%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
 /* Branch trace (COA-84): rows off the traced line recede. Opacity, not color,
    carries the cue; text stays readable at this level. */
 .row[data-dimmed] {
@@ -215,9 +222,21 @@
 
 /* Branch/merged badges are <button>s (click to trace) — reset button chrome. */
 button.badge {
-  cursor: pointer;
+  cursor: grab;
   -webkit-appearance: none;
   appearance: none;
+}
+
+button.badge:active {
+  cursor: grabbing;
+}
+
+.agentDrag {
+  cursor: grab;
+}
+
+.agentDrag:active {
+  cursor: grabbing;
 }
 
 /* The traced branch's badge is emphasized; a ring reads even when its lane
@@ -285,8 +304,8 @@ button.badge {
   bottom: var(--space-3);
   z-index: 2;
   display: flex;
-  gap: var(--space-1);
-  padding: var(--space-1);
+  gap: 0;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   background: var(--bg-raised);

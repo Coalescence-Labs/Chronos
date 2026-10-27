@@ -13,6 +13,8 @@ export interface IngestResult {
   history: RepoHistory;
   /** GitHub default branch name from the BFF (for Glance / layout consumers). */
   defaultBranch: string;
+  /** True when GitHub reports a private repository (Agent beta blocked). */
+  private?: boolean;
   /** True while older history exists upstream that isn't loaded yet. */
   truncated: boolean;
   referencesTruncated?: boolean;
@@ -36,7 +38,10 @@ export interface IngestOptions {
    */
   maxBranchTips?: number;
   /** Called after each page so the UI can render incrementally. */
-  onProgress?: (history: RepoHistory, meta: { defaultBranch: string; referencesTruncated?: boolean }) => void;
+  onProgress?: (
+    history: RepoHistory,
+    meta: { defaultBranch: string; private?: boolean; referencesTruncated?: boolean },
+  ) => void;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
 }
@@ -82,11 +87,16 @@ export async function fetchPublicRepoHistory(
 
   const initial = await requestJson<RepoResponse>(`/api/repo?repo=${repoParam}`);
   const defaultBranch = initial.repo.defaultBranch;
+  const repoPrivate = initial.repo.private === true;
   const history: RepoHistory = {
     commits: [...initial.history.commits],
     refs: initial.history.refs,
   };
-  const meta = { defaultBranch, ...(initial.referencesTruncated ? { referencesTruncated: true } : {}) };
+  const meta = {
+    defaultBranch,
+    ...(repoPrivate ? { private: true as const } : { private: false as const }),
+    ...(initial.referencesTruncated ? { referencesTruncated: true } : {}),
+  };
   options.onProgress?.(history, meta);
 
   const merge = (commits: RepoHistory["commits"]): number => {
@@ -154,6 +164,7 @@ export async function fetchPublicRepoHistory(
     return {
       history,
       defaultBranch,
+      private: repoPrivate,
       truncated: nextPage !== null,
       ...(initial.referencesTruncated ? { referencesTruncated: true } : {}),
       loadMore: nextPage !== null && nextPage <= maxPages ? loadMore : undefined,

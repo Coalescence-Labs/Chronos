@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { profileDisplayName, profileInitial } from "@/lib/auth/profile-label";
+import { ProfileThemeControl } from "./ProfileThemeControl";
 import styles from "./profile-menu.module.css";
 
 export type ProfileMenuUser = {
@@ -18,8 +19,9 @@ type ProfileMenuProps = {
 };
 
 /**
- * Top-bar profile control: compact avatar opens a menu with Account + Sign out.
- * Outside-click / Escape collapse — no menu library. Theme lives in AppShell footer.
+ * Top-bar profile control: compact avatar opens a menu with theme, Account,
+ * and Sign out. Outside-click / Escape collapse — no menu library.
+ * Theme mirrors Ergon's quick-settings row (label + segmented control).
  */
 export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
@@ -57,36 +59,66 @@ export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
 
   useEffect(() => {
     if (!open) return;
-    const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
-    firstItem?.focus();
+    // Land on the theme radiogroup first (Ergon focuses the settings panel at
+    // the theme row); Left/Right cycle preferences, Down reaches Account.
+    const checked =
+      menuRef.current?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]') ??
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    checked?.focus();
   }, [open]);
 
   const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(
-      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
-    );
-    if (items.length === 0) return;
+    const menu = menuRef.current;
+    if (!menu) return;
 
+    const radios = Array.from(menu.querySelectorAll<HTMLElement>('[role="radio"]'));
+    const menuitems = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]'));
     const current = document.activeElement as HTMLElement | null;
-    const index = current ? items.indexOf(current) : -1;
+    const onRadio = current ? radios.includes(current) : false;
+    const itemIndex = current ? menuitems.indexOf(current) : -1;
 
+    // Vertical nav: theme group ↔ Account / Sign out. Horizontal stays on the
+    // radiogroup (ThemePreferenceControl stopPropagates Left/Right).
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const delta = event.key === "ArrowDown" ? 1 : -1;
-      const next = items[(index + delta + items.length) % items.length];
-      next?.focus();
+
+      if (onRadio) {
+        if (delta === 1) menuitems[0]?.focus();
+        else menuitems[menuitems.length - 1]?.focus();
+        return;
+      }
+
+      if (itemIndex < 0) return;
+
+      if (delta === -1 && itemIndex === 0) {
+        const checked =
+          radios.find((radio) => radio.getAttribute("aria-checked") === "true") ?? radios[0];
+        checked?.focus();
+        return;
+      }
+      if (delta === 1 && itemIndex === menuitems.length - 1) {
+        const checked =
+          radios.find((radio) => radio.getAttribute("aria-checked") === "true") ?? radios[0];
+        checked?.focus();
+        return;
+      }
+
+      menuitems[itemIndex + delta]?.focus();
       return;
     }
 
     if (event.key === "Home") {
       event.preventDefault();
-      items[0]?.focus();
+      const checked =
+        radios.find((radio) => radio.getAttribute("aria-checked") === "true") ?? menuitems[0];
+      checked?.focus();
       return;
     }
 
     if (event.key === "End") {
       event.preventDefault();
-      items[items.length - 1]?.focus();
+      menuitems[menuitems.length - 1]?.focus();
       return;
     }
 
@@ -138,6 +170,7 @@ export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
             <p className={styles.name}>{displayName}</p>
             {showEmailUnderName ? <p className={styles.email}>{user.email}</p> : null}
           </div>
+          <ProfileThemeControl />
           <Link
             role="menuitem"
             className={styles.item}

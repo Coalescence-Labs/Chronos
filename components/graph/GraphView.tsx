@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { setAgentContextDragData } from "@/lib/agent/chat-context";
 import { track } from "@/lib/analytics";
 import { attributeBranches, packShelves, pinnedLines } from "@/lib/graph";
 import type { Capsule, EdgeKind, GraphLayout, RepoHistory } from "@/lib/graph";
@@ -73,6 +74,14 @@ export interface GraphViewProps {
   /** True briefly while a Glance toggle restructures the graph: edges fade so
    *  they reform instead of snapping while nodes/rows glide to new positions. */
   reflowing?: boolean;
+  /** Branch trace tip sha (COA-84); controlled when paired with onTracedTipChange. */
+  tracedTip?: string | null;
+  onTracedTipChange?: (tipSha: string | null) => void;
+  /**
+   * Soft Agent lens (concept A): SHAs referenced by the latest Graph Q&A answer.
+   * Drawn as a quieter selection band than aria-selected — not a cosmic overlay.
+   */
+  lensShas?: ReadonlySet<string> | readonly string[] | null;
   /**
    * Fired when the rendered window reaches the oldest loaded rows — the
    * hook for lazy paging. Re-fires after new rows arrive if still near the
@@ -88,6 +97,9 @@ export function GraphView({
   onSelect,
   capsules,
   reflowing = false,
+  tracedTip: tracedTipProp,
+  onTracedTipChange,
+  lensShas = null,
   onNearEnd,
 }: GraphViewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -135,6 +147,13 @@ export function GraphView({
     [layout.placements, selectedSha],
   );
 
+  const lensSet = useMemo(() => {
+    if (!lensShas) return null;
+    if (lensShas instanceof Set) return lensShas.size > 0 ? lensShas : null;
+    const list = lensShas as readonly string[];
+    return list.length > 0 ? new Set(list) : null;
+  }, [lensShas]);
+
   // Branch trace (COA-84): the selected commit's line is highlighted while
   // everything else dims, so one branch can be followed through a busy graph.
   // everything else dims. Trace is its own state (a branch tip), separate
@@ -142,7 +161,17 @@ export function GraphView({
   // badge highlights the branch; tapping the message/hash side opens the
   // commit. Being the single highlight source (no fallback to selection)
   // keeps toggling clean — untoggling never resurrects a stale line.
-  const [tracedTip, setTracedTip] = useState<string | null>(null);
+  const [internalTracedTip, setInternalTracedTip] = useState<string | null>(null);
+  const tracedTipControlled = onTracedTipChange !== undefined;
+  const tracedTip = tracedTipControlled ? (tracedTipProp ?? null) : internalTracedTip;
+  const setTracedTip = useCallback(
+    (next: string | null | ((prev: string | null) => string | null)) => {
+      const value = typeof next === "function" ? next(tracedTip) : next;
+      if (tracedTipControlled) onTracedTipChange!(value);
+      else setInternalTracedTip(value);
+    },
+    [tracedTip, tracedTipControlled, onTracedTipChange],
+  );
   const tracedLine = useMemo(
     () => (tracedTip ? (lineBySha.get(tracedTip) ?? null) : null),
     [tracedTip, lineBySha],
@@ -166,11 +195,14 @@ export function GraphView({
       const tip = lineBySha.get(sha)?.tipSha;
       if (tip) setTracedTip((prev) => (prev === tip ? null : tip));
     },
-    [lineBySha],
+    [lineBySha, setTracedTip],
   );
-  const toggleTrace = useCallback((tip: string) => {
-    setTracedTip((prev) => (prev === tip ? null : tip));
-  }, []);
+  const toggleTrace = useCallback(
+    (tip: string) => {
+      setTracedTip((prev) => (prev === tip ? null : tip));
+    },
+    [setTracedTip],
+  );
 
   // Count a trace whenever a line becomes highlighted (incl. switching lines);
   // clearing (→ null) isn't an interaction. Emitting from an effect is the
@@ -208,7 +240,7 @@ export function GraphView({
     setTracedTip(null);
     setExpandedSha(null);
     onSelect?.(null);
-  }, [onSelect]);
+  }, [onSelect, setTracedTip]);
 
   const pressTimer = useRef(0);
   const pressOrigin = useRef<{ x: number; y: number; sha: string } | null>(null);
@@ -321,7 +353,7 @@ export function GraphView({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [selectedSha, tracedTip, expandedSha, onSelect]);
+  }, [selectedSha, tracedTip, expandedSha, onSelect, setTracedTip]);
 
   const handleScroll = useCallback(() => {
     setExpandedSha(null); // a peek doesn't follow the scroll — collapse it
@@ -474,6 +506,15 @@ export function GraphView({
                     borderColor: laneColor(line.lane),
                   }}
                   title={`${line.name} — jump to the tip`}
+                  draggable
+                  onDragStart={(event) => {
+                    event.stopPropagation();
+                    setAgentContextDragData(event.dataTransfer, {
+                      kind: "branch",
+                      sha: line.tipSha,
+                      label: line.name,
+                    });
+                  }}
                   onClick={(event) => {
                     event.stopPropagation();
                     onSelect?.(line.tipSha);
@@ -594,6 +635,7 @@ export function GraphView({
                 className={`${styles.row}${placed.sha === expandedSha ? ` ${styles.expanded}` : ""}`}
                 data-dimmed={isDimmed(placed.sha) || undefined}
                 data-expanded={placed.sha === expandedSha || undefined}
+                data-lens={lensSet?.has(placed.sha) || undefined}
                 style={{
                   top: rowTop(placed.row),
                   height: placed.sha === expandedSha ? undefined : rowHeight,
@@ -665,6 +707,15 @@ export function GraphView({
                           aria-label={traced ? `Clear trace of ${label.name}` : `Trace ${label.name}`}
                           aria-pressed={traced}
                           style={identity}
+                          draggable
+                          onDragStart={(event) => {
+                            event.stopPropagation();
+                            setAgentContextDragData(event.dataTransfer, {
+                              kind: "branch",
+                              sha: placed.sha,
+                              label: label.name,
+                            });
+                          }}
                           onClick={(event) => {
                             event.stopPropagation();
                             toggleTrace(placed.sha);
@@ -681,8 +732,38 @@ export function GraphView({
                     {capsules.get(placed.sha)!.commitCount} commits
                   </span>
                 )}
-                <span className={styles.message}>{commit?.message}</span>
-                <span className={styles.meta}>
+                <span
+                  className={`${styles.message} ${styles.agentDrag}`}
+                  draggable
+                  title="Drag into Agent for context"
+                  onDragStart={(event) => {
+                    event.stopPropagation();
+                    if (!commit) return;
+                    setAgentContextDragData(event.dataTransfer, {
+                      kind: "commit",
+                      sha: placed.sha,
+                      label: placed.sha.slice(0, 7),
+                      message: commit.message.split("\n")[0]?.slice(0, 200),
+                    });
+                  }}
+                >
+                  {commit?.message}
+                </span>
+                <span
+                  className={`${styles.meta} ${styles.agentDrag}`}
+                  draggable
+                  title="Drag into Agent for context"
+                  onDragStart={(event) => {
+                    event.stopPropagation();
+                    if (!commit) return;
+                    setAgentContextDragData(event.dataTransfer, {
+                      kind: "commit",
+                      sha: placed.sha,
+                      label: placed.sha.slice(0, 7),
+                      message: commit.message.split("\n")[0]?.slice(0, 200),
+                    });
+                  }}
+                >
                   {placed.sha.slice(0, 7)}
                   <span className={styles.byline}>
                     {" "}

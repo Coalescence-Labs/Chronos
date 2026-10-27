@@ -7,9 +7,20 @@ import { CopyButton } from "@/components/ui/CopyButton";
 import { InspectionSurface } from "@/components/ui/InspectionSurface";
 import { layoutMsBucket, sizeBucket, track } from "@/lib/analytics";
 import type { SizeBucket } from "@/lib/analytics";
-import { canApplyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
+import { attributeBranches, canApplyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
+import type { AgentBranchFocus } from "@/lib/agent/chat-context";
+import {
+  toggleAgentShaHighlight,
+  toggleAgentTipHighlight,
+} from "@/lib/agent/gen-ui";
 import type { Capsule, GlanceResult, RepoHistory } from "@/lib/graph";
 import type { GlanceWorkerClient } from "./glance-worker-client";
+import { AgentMark } from "@/components/agent/AgentMark";
+import { RepoAgentChrome } from "@/components/agent/RepoAgentChrome";
+import {
+  AGENT_PRIVATE_CONTROL_LABEL,
+  AGENT_PRIVATE_UI_HINT,
+} from "@/lib/agent/public-repo";
 import styles from "./repo.module.css";
 
 /**
@@ -42,6 +53,8 @@ export interface GraphExplorerProps {
   repo: string;
   /** GitHub/API default branch when known (COA-211); Glance falls back to heuristic. */
   defaultBranch?: string;
+  /** When true, Agent skips starters/chat (public-only beta). */
+  repoPrivate?: boolean;
   status?: ReactNode;
   /** Forwarded to GraphView for lazy paging. */
   onNearEnd?: () => void;
@@ -55,12 +68,16 @@ export function GraphExplorer({
   owner,
   repo,
   defaultBranch,
+  repoPrivate = false,
   status,
   onNearEnd,
   onRefresh,
   refreshing = false,
 }: GraphExplorerProps) {
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
+  const [tracedTip, setTracedTip] = useState<string | null>(null);
+  const [lensShas, setLensShas] = useState<string[]>([]);
+  const [desktopAgentOpen, setDesktopAgentOpen] = useState(false);
   const [glance, setGlance] = useState(false);
   const [glanceRequest, setGlanceRequest] = useState(0);
   const [reflowing, setReflowing] = useState(false);
@@ -144,6 +161,20 @@ export function GraphExplorer({
 
   const layout = useMemo(() => layoutGraph(view, { maxLanes }), [view, maxLanes]);
 
+  const [seenRepoKey, setSeenRepoKey] = useState(repoKey);
+  if (seenRepoKey !== repoKey) {
+    setSeenRepoKey(repoKey);
+    setTracedTip(null);
+    setLensShas([]);
+  }
+
+  const focusedBranch = useMemo((): AgentBranchFocus | null => {
+    if (!tracedTip) return null;
+    const { lineBySha } = attributeBranches(view, layout);
+    const line = lineBySha.get(tracedTip);
+    return line ? { name: line.name, tipSha: line.tipSha } : null;
+  }, [tracedTip, view, layout]);
+
   // Layout cost (COA-98): report once per size bucket reached this mount — as a
   // live repo streams in (100 → 2k → …) we capture cost at each scale, and for
   // a static history (demo / fully-loaded) exactly once. The measurement runs
@@ -175,6 +206,47 @@ export function GraphExplorer({
   );
 
   return (
+    <RepoAgentChrome
+      owner={owner}
+      repo={repo}
+      history={view}
+      defaultBranch={defaultBranch}
+      repoPrivate={repoPrivate}
+      selectedSha={selectedSha}
+      focusedBranch={focusedBranch}
+      desktopOpen={repoPrivate ? false : desktopAgentOpen}
+      onDesktopOpenChange={(open) => {
+        if (repoPrivate) return;
+        setDesktopAgentOpen(open);
+      }}
+      onLensChange={(lens) => {
+        setLensShas(lens?.shas ?? []);
+        // Sync with existing focus when the answer names a single grounded branch tip.
+        if (lens?.branches.length === 1) {
+          const name = lens.branches[0]!;
+          const ref = view.refs.find(
+            (r) => r.type === "branch" && r.name.toLowerCase() === name.toLowerCase(),
+          );
+          if (ref) setTracedTip(ref.sha);
+        }
+      }}
+      onCommitActivate={(sha) => {
+        const next = toggleAgentShaHighlight(selectedSha, sha);
+        setSelectedSha(next);
+        // Click-driven highlight: second click clears soft lens too.
+        setLensShas(next ? [next] : []);
+      }}
+      onBranchActivate={(name, tipSha) => {
+        const resolved =
+          tipSha ??
+          view.refs.find((r) => r.type === "branch" && r.name.toLowerCase() === name.toLowerCase())
+            ?.sha;
+        if (!resolved) return;
+        const next = toggleAgentTipHighlight(tracedTip, resolved);
+        setTracedTip(next);
+        setLensShas(next ? [next] : []);
+      }}
+    >
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.repoName}>
@@ -191,17 +263,27 @@ export function GraphExplorer({
           </p>
         )}
         <div className={styles.actions}>
-          {onRefresh && (
+          {(repoPrivate || !desktopAgentOpen) && (
             <button
               type="button"
-              className={styles.refreshButton}
-              onClick={onRefresh}
-              disabled={refreshing}
-              aria-busy={refreshing}
-              aria-label="Refresh — re-sync branch tips"
-              title="Refresh — re-sync branch tips"
+              className={
+                repoPrivate
+                  ? `${styles.agentToggle} ${styles.agentToggleDisabled}`
+                  : styles.agentToggle
+              }
+              onClick={() => {
+                if (repoPrivate) return;
+                setDesktopAgentOpen(true);
+              }}
+              disabled={repoPrivate}
+              aria-disabled={repoPrivate || undefined}
+              aria-label={repoPrivate ? AGENT_PRIVATE_CONTROL_LABEL : "Open Chronos Agent"}
+              title={repoPrivate ? AGENT_PRIVATE_UI_HINT : "Open Chronos Agent"}
             >
-              <RefreshIcon spinning={refreshing} />
+              <span className={styles.agentToggleMark} aria-hidden="true">
+                <AgentMark size={16} />
+              </span>
+              Agent
             </button>
           )}
           <button
@@ -223,6 +305,19 @@ export function GraphExplorer({
           >
             Glance
           </button>
+          {onRefresh && (
+            <button
+              type="button"
+              className={styles.refreshButton}
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-busy={refreshing}
+              aria-label="Refresh — re-sync branch tips"
+              title="Refresh — re-sync branch tips"
+            >
+              <RefreshIcon spinning={refreshing} />
+            </button>
+          )}
         </div>
       </header>
       <GraphView
@@ -232,6 +327,9 @@ export function GraphExplorer({
         reflowing={reflowing}
         selectedSha={selectedSha}
         onSelect={setSelectedSha}
+        tracedTip={tracedTip}
+        onTracedTipChange={setTracedTip}
+        lensShas={lensShas}
         onNearEnd={onNearEnd}
       />
       <InspectionSurface
@@ -269,6 +367,7 @@ export function GraphExplorer({
         )}
       </InspectionSurface>
     </div>
+    </RepoAgentChrome>
   );
 }
 

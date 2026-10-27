@@ -38,7 +38,11 @@ export function githubAppClientId(): string | undefined {
 }
 
 export function githubAppClientSecret(): string | undefined {
-  return process.env.GITHUB_APP_CLIENT_SECRET?.trim() || undefined;
+  const value = process.env.GITHUB_APP_CLIENT_SECRET?.trim();
+  if (!value) return undefined;
+  // OAuth client secrets are short opaque strings — PEM belongs in GITHUB_APP_PRIVATE_KEY.
+  if (value.includes("BEGIN") || value.length > 256) return undefined;
+  return value;
 }
 
 /**
@@ -72,12 +76,17 @@ export function githubAppPoolToken(): string | undefined {
 }
 
 export function isGitHubAppConfigured(): boolean {
-  return Boolean(
-    githubAppId() &&
-      githubAppSlug() &&
-      githubAppClientId() &&
-      githubAppClientSecret() &&
-      githubAppPrivateKey() &&
-      githubSessionPassword(),
-  );
+  return githubAppMissingEnvVarNames().length === 0;
+}
+
+/** Required GitHub App env var names that are unset or invalid (values never returned). */
+export function githubAppMissingEnvVarNames(): string[] {
+  const missing: string[] = [];
+  if (!githubAppId()) missing.push("GITHUB_APP_ID");
+  if (!githubAppSlug()) missing.push("GITHUB_APP_SLUG");
+  if (!githubAppClientId()) missing.push("GITHUB_APP_CLIENT_ID");
+  if (!githubAppClientSecret()) missing.push("GITHUB_APP_CLIENT_SECRET");
+  if (!githubAppPrivateKey()) missing.push("GITHUB_APP_PRIVATE_KEY");
+  if (!githubSessionPassword()) missing.push("GITHUB_SESSION_PASSWORD");
+  return missing;
 }

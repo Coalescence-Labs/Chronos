@@ -1,10 +1,11 @@
 /**
- * AI integration point — intentionally empty.
+ * AI integration point — Chronos Agent orchestration lives under lib/agent.
  *
- * Both the feature surface (decision #4) and the ZDR provider (decision #5)
- * are OPEN — see docs/ARCHITECTURE.md. Any code added here must first clear
- * the privacy pre-flight (.claude/skills/privacy-preflight/) and respect
- * docs/PRIVACY.md: opt-in only, ZDR verified in writing, minimum context.
+ * Canonical decided vs open map: docs/AI.md
+ * Beta: Graph Q&A (public repos) via Gateway + Sonnet/Haiku; spend Redis; gates.
+ * Still open: written ZDR (#5), Agent UX directions, feature surface beyond beta.
  */
 
-export const AI_FEATURES_ENABLED = false;
+export { evaluateAgentGate, isAgentFeatureConfigured, isAgentKillSwitchActive } from "@/lib/agent";
+/** Live Agent turns still require opt-in, Redis spend, gateway env, and budget. */
+export const AI_FEATURES_ENABLED = Boolean(process.env.AI_GATEWAY_API_KEY?.trim());
