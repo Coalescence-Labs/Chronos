@@ -64,22 +64,11 @@
 }
 
 @media (max-width: 699px) {
-  /* Footer guest control: collapsed icon with a light lift so it reads as a
-     chip, not a full chrome strip. Profile compact stays always-expanded. */
-  .toggle:not(.compact) {
-    box-shadow: var(--glass-highlight), var(--shadow-1);
-  }
-
   .toggle:not([data-expanded]) .options {
     display: none;
   }
   .toggle:not([data-expanded]) .trigger {
     display: inline-flex;
-  }
-
-  .option,
-  .trigger {
-    padding: 0;
   }
 
   .compact:not([data-expanded]) .options {

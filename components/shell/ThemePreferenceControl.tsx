@@ -83,11 +83,7 @@ export function ThemePreferenceControl({
     radios[THEME_PREFERENCES.indexOf(next)]?.focus();
   };
 
-  const rootClass = [
-    themeStyles.toggle,
-    compact ? themeStyles.compact : null,
-    className,
-  ]
+  const rootClass = [themeStyles.toggle, compact ? themeStyles.compact : null, className]
     .filter(Boolean)
     .join(" ");
 

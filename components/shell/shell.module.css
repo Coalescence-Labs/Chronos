@@ -28,8 +28,6 @@
 }
 
 .header {
-  position: relative;
-  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -65,9 +63,6 @@
   margin-inline-start: auto;
   flex-shrink: 0;
   min-height: var(--touch-target);
-  /* Keep Sign in / profile above home frosted graph + scrolling main. */
-  position: relative;
-  z-index: 1;
 }
 
 .main {
@@ -80,8 +75,7 @@
   padding: 0 var(--space-5) var(--space-5);
 }
 
-/* Guest appearance strip (signed-in users use the profile menu). Desktop keeps
-   a light glass bar; phones drop the strip (media below). */
+/* Guest-only theme strip (signed-in users use the profile menu). Centered. */
 .shellFooter {
   display: flex;
   flex-shrink: 0;
@@ -105,9 +99,8 @@
   margin-inline: auto;
 }
 
+/* Phones: drop the full-bleed glass strip — just the control + safe-area. */
 @media (max-width: 699px) {
-  /* Compact guest chrome: floating pill, no full-bleed glass strip. Must follow
-     .shellFooter base so these overrides win the cascade. */
   .shellFooter {
     padding: var(--space-1) var(--space-4);
     padding-bottom: max(var(--space-1), env(safe-area-inset-bottom));

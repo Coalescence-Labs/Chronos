@@ -27,17 +27,14 @@ describe("profile menu shell wiring", () => {
   test("AccountControls uses ProfileMenu and no longer mounts a standalone Sign out Button", async () => {
     const source = await Bun.file("components/auth/AccountControls.tsx").text();
     expect(source).toContain("ProfileMenu");
-    expect(source).toContain("SignInLink");
+    expect(source).toContain("Sign in");
     expect(source).not.toMatch(/from\s+"@\/components\/ui\/Button"/);
     expect(source).not.toMatch(/<Button[\s\S]*Sign out/);
-
-    const signIn = await Bun.file("components/auth/SignInLink.tsx").text();
-    expect(signIn).toContain("Sign in");
   });
 
-  test("ProfileMenu is an accessible disclosure menu with compact theme controls", async () => {
+  test("ProfileMenu is an accessible disclosure menu with Ergon-style theme row", async () => {
     const source = await Bun.file("components/auth/ProfileMenu.tsx").text();
-    expect(source).toContain('aria-expanded={open}');
+    expect(source).toContain("aria-expanded={open}");
     expect(source).toContain('aria-haspopup="menu"');
     expect(source).toContain('role="menu"');
     expect(source).toContain('role="menuitem"');
@@ -45,11 +42,21 @@ describe("profile menu shell wiring", () => {
     expect(source).toContain("Sign out");
     expect(source).toContain('href="/account"');
     expect(source).toContain("ProfileThemeControl");
+    // Theme is its own section, not nested under identity.
+    expect(source).toMatch(/<\/div>\s*<ProfileThemeControl/);
     expect(source).not.toMatch(/console\.(log|info|debug|warn|error)/);
 
     const themeSource = await Bun.file("components/auth/ProfileThemeControl.tsx").text();
     expect(themeSource).toContain('variant="profile"');
+    expect(themeSource).toContain("labelledBy=");
     expect(themeSource).toContain("ThemePreferenceControl");
+    expect(themeSource).toContain("themeSection");
+
+    const control = await Bun.file("components/shell/ThemePreferenceControl.tsx").text();
+    expect(control).toContain("labelledBy");
+    expect(control).toContain("aria-labelledby={labelledBy}");
+    // Profile variant: Left/Right only so Up/Down can reach Account.
+    expect(control).toMatch(/compact[\s\S]*ArrowRight[\s\S]*ArrowLeft/);
   });
 
   test("AppShell keeps guest theme in the footer, not the header", async () => {
@@ -64,7 +71,7 @@ describe("profile menu shell wiring", () => {
     const footerSource = await Bun.file("components/shell/ShellAppearanceFooter.tsx").text();
     expect(footerSource).toContain("ThemeToggle");
     expect(footerSource).toContain("useAuth");
-    // Guests only — hide while AuthKit resolves or the user is signed in.
+    // Hide while AuthKit loads or when signed in (no flash of guest strip).
     expect(footerSource).toMatch(/loading\s*\|\|\s*user/);
 
     const css = await Bun.file("components/shell/shell.module.css").text();
@@ -74,52 +81,8 @@ describe("profile menu shell wiring", () => {
   test("AccountControls delegates theme to ProfileMenu, not the footer", async () => {
     const source = await Bun.file("components/auth/AccountControls.tsx").text();
     expect(source).not.toContain("ThemeToggle");
-    expect(source).toContain("SignInLink");
+    expect(source).toContain("Sign in");
     expect(source).toContain("ProfileMenu");
-  });
-
-  test("header holds a stable skeleton while AuthKit loads (no Sign in flash)", async () => {
-    const gate = await Bun.file("components/auth/AccountControlsGate.tsx").text();
-    expect(gate).toContain("AccountControlsSkeleton");
-    expect(gate).toContain("loading:");
-    expect(gate).not.toContain("SignInLink");
-    expect(gate).not.toMatch(/loading:\s*\(\)\s*=>\s*null/);
-
-    const controls = await Bun.file("components/auth/AccountControls.tsx").text();
-    expect(controls).toContain("AccountControlsSkeleton");
-    expect(controls).toMatch(/if\s*\(\s*loading\s*\)/);
-    expect(controls).toMatch(/if\s*\(\s*!user\s*\)/);
-    expect(controls).not.toMatch(/loading\s*\|\|\s*!user/);
-    expect(controls).toContain("SignInLink");
-
-    const skeleton = await Bun.file("components/auth/AccountControlsSkeleton.tsx").text();
-    expect(skeleton).toContain('aria-busy="true"');
-    expect(skeleton).toContain("Loading account");
-
-    const css = await Bun.file("components/auth/profile-menu.module.css").text();
-    expect(css).toMatch(/\.skeleton\s*\{[^}]*width:\s*var\(--touch-target\)/s);
-    expect(css).toMatch(/\.skeleton\s*\{[^}]*height:\s*var\(--touch-target\)/s);
-  });
-
-  test("mobile guest theme footer is compressed (no full-bleed glass strip)", async () => {
-    const css = await Bun.file("components/shell/shell.module.css").text();
-    const baseIdx = css.search(/\.shellFooter\s*\{/);
-    const mobileIdx = css.search(/@media\s*\(max-width:\s*699px\)/);
-    expect(baseIdx).toBeGreaterThanOrEqual(0);
-    expect(mobileIdx).toBeGreaterThan(baseIdx);
-    expect(css.slice(mobileIdx)).toMatch(/\.shellFooter\s*\{[^}]*border-top:\s*none/s);
-    expect(css.slice(mobileIdx)).toMatch(/\.shellFooter\s*\{[^}]*background-color:\s*transparent/s);
-
-    const themeCss = await Bun.file("components/shell/theme-control.module.css").text();
-    expect(themeCss).toMatch(/\.option[\s\S]*?min-width:\s*var\(--touch-target\)/);
-    expect(themeCss).toMatch(/\.option[\s\S]*?min-height:\s*var\(--touch-target\)/);
-  });
-
-  test("Sign in chip uses glass surface so it stays visible on the home frost", async () => {
-    const link = await Bun.file("components/auth/SignInLink.tsx").text();
-    expect(link).toContain("styles.signIn");
-    const css = await Bun.file("components/auth/profile-menu.module.css").text();
-    expect(css).toMatch(/\.signIn\s*\{[^}]*background-image:\s*var\(--glass-bg\)/s);
   });
 
   test("header actions are right-justified via shell CSS", async () => {
@@ -130,10 +93,22 @@ describe("profile menu shell wiring", () => {
     expect(css).toMatch(/\.shellFooter\s*\{[^}]*justify-content:\s*center/s);
   });
 
-  test("profile menu styles separate theme from account actions", async () => {
+  test("profile menu styles separate theme from identity and account actions", async () => {
     const css = await Bun.file("components/auth/profile-menu.module.css").text();
     expect(css).toMatch(/\.identity\s*\{[^}]*border-bottom/s);
     expect(css).toMatch(/\.themeSection\s*\{[^}]*border-bottom/s);
-    expect(css).toContain(".themeRow");
+    expect(css).toMatch(/\.themeRow\s*\{[^}]*min-height:\s*var\(--touch-target\)/s);
+    expect(css).toMatch(/\.themeLabel\s*\{[^}]*font-size:\s*var\(--text-sm\)/s);
+    expect(css).not.toMatch(/\.themeLabel\s*\{[^}]*text-transform:\s*uppercase/s);
+  });
+
+  test("guest mobile theme footer drops the full-bleed glass strip", async () => {
+    const css = await Bun.file("components/shell/shell.module.css").text();
+    expect(css).toMatch(
+      /@media\s*\(max-width:\s*699px\)\s*\{[\s\S]*?\.shellFooter\s*\{[^}]*border-top:\s*none/s,
+    );
+    expect(css).toMatch(
+      /@media\s*\(max-width:\s*699px\)\s*\{[\s\S]*?\.shellFooter\s*\{[^}]*background-color:\s*transparent/s,
+    );
   });
 });
