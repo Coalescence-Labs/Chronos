@@ -4,18 +4,7 @@ import { useAuth } from "@workos-inc/authkit-nextjs/components";
 import styles from "./shell.module.css";
 import { ThemeToggle } from "./ThemeToggle";
 
-/**
- * Guest appearance strip. Signed-in users set theme from the profile menu;
- * hide the footer while AuthKit is resolving so the strip does not flash.
- */
-export function ShellAppearanceFooter() {
-  const configured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
-  const { user, loading } = useAuth();
-
-  if (configured && (loading || user)) {
-    return null;
-  }
-
+function AppearanceFooterChrome() {
   return (
     <footer className={styles.shellFooter} aria-label="Appearance">
       <div className={styles.footerTheme}>
@@ -23,4 +12,29 @@ export function ShellAppearanceFooter() {
       </div>
     </footer>
   );
+}
+
+/**
+ * Guest appearance strip. Signed-in users set theme from the profile menu;
+ * hide the footer while AuthKit is resolving so the strip does not flash.
+ *
+ * When WorkOS is unset, AuthProvider skips AuthKitProvider — never call
+ * useAuth() in that mode (e2e / anonymous builds).
+ */
+export function ShellAppearanceFooter() {
+  const configured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
+  if (!configured) {
+    return <AppearanceFooterChrome />;
+  }
+  return <ShellAppearanceFooterAuthed />;
+}
+
+function ShellAppearanceFooterAuthed() {
+  const { user, loading } = useAuth();
+
+  if (loading || user) {
+    return null;
+  }
+
+  return <AppearanceFooterChrome />;
 }
