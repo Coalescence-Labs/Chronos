@@ -62,6 +62,8 @@ interface AgentPanelProps {
   history: RepoHistory;
   /** GitHub/API default branch when known (COA-211); falls back to main/master/trunk heuristic. */
   defaultBranch?: string;
+  /** When true, skip starters fetch + chat (public-only beta). */
+  repoPrivate?: boolean;
   selectedSha?: string | null;
   focusedBranch?: AgentBranchFocus | null;
   layout?: "desktop" | "mobile";
@@ -101,6 +103,7 @@ export function AgentPanel({
   repo,
   history,
   defaultBranch,
+  repoPrivate = false,
   selectedSha,
   focusedBranch = null,
   layout = "desktop",
@@ -132,32 +135,39 @@ export function AgentPanel({
     [owner, repo, history, defaultBranch],
   );
   const [paintedCacheInput, setPaintedCacheInput] = useState<typeof cacheInput | null>(null);
+  // SSR + first client paint must match: never read localStorage during render.
+  const [startersHydrated, setStartersHydrated] = useState(false);
 
-  // Instant paint from last-known chips when snapshot material matches.
-  // On cache miss, keep already-painted chips (history fingerprint can change as the
-  // graph progressive-loads) so we never flash empty → skeleton → chips again.
-  // Adjust during render (not an effect) so the first paint already has chips.
-  // When WorkOS is unset, never hit /api/agent/starters (demo/e2e stay offline).
+  // Demo / offline: static chips without network. Auth path stays on skeletons until
+  // after mount so warm localStorage cannot diverge from SSR markup.
   if (turns.length === 0 && paintedCacheInput !== cacheInput) {
     setPaintedCacheInput(cacheInput);
-    if (!authConfigured) {
+    if (repoPrivate) {
+      setStarters([]);
+      setStartersPhase("fallback");
+    } else if (!authConfigured) {
       setStarters(fallbackStarters);
       setStartersPhase("fallback");
-    } else {
-      const paint = paintFromLocalCache(readClientStarterCache(cacheInput));
-      if (paint.phase === "ready") {
-        setStarters(paint.starters);
-        setStartersPhase("ready");
-      } else if (startersPhase !== "ready" && startersPhase !== "fallback") {
-        setStartersPhase("loading");
-      }
+    } else if (startersPhase !== "ready" && startersPhase !== "fallback") {
+      setStartersPhase("loading");
     }
   }
 
   useEffect(() => {
-    if (turns.length > 0 || !authConfigured) return;
+    setStartersHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (turns.length > 0 || !authConfigured || repoPrivate || !startersHydrated) return;
     let cancelled = false;
     const controller = new AbortController();
+
+    // Post-hydrate: optional warm localStorage paint, then network refresh.
+    const localPaint = paintFromLocalCache(readClientStarterCache(cacheInput));
+    if (localPaint.phase === "ready") {
+      setStarters(localPaint.starters);
+      setStartersPhase("ready");
+    }
 
     void (async () => {
       try {
@@ -174,6 +184,12 @@ export function AgentPanel({
         });
         const payload = await response.json().catch(() => null);
         if (cancelled || !payload || typeof payload !== "object") return;
+        if (response.status === 403) {
+          clearClientStarterCache(cacheInput);
+          setStarters([]);
+          setStartersPhase("fallback");
+          return;
+        }
         const parsed = parseStartersPayload({ starters: payload.starters });
         const paint = paintFromStartersApi({
           source: typeof payload.source === "string" ? payload.source : undefined,
@@ -211,6 +227,8 @@ export function AgentPanel({
     };
   }, [
     authConfigured,
+    repoPrivate,
+    startersHydrated,
     cacheInput,
     owner,
     repo,
@@ -260,7 +278,7 @@ export function AgentPanel({
 
   const ask = async (rawQuestion: string) => {
     const trimmed = rawQuestion.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || repoPrivate) return;
     const refsForTurn = contextRefs;
     setDraft("");
     setContextRefs([]);

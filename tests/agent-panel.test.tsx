@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AgentPanel } from "@/components/agent/AgentPanel";
-import { STARTER_SLOT_COUNT } from "@/lib/agent/starters/client-cache";
+import {
+  STARTER_SLOT_COUNT,
+  setClientStarterStorageForTests,
+  writeClientStarterCache,
+} from "@/lib/agent/starters/client-cache";
 import { linear } from "@/tests/fixtures/history";
 
 const SAMPLE_HISTORY = linear(3);
@@ -75,5 +79,62 @@ describe("Agent panel UI", () => {
     // No chat-precedent You/Agent meta chrome in the shell.
     expect(html).not.toContain("You ·");
     expect(html).not.toContain("Agent ·");
+  });
+});
+
+describe("agent panel starters hydration", () => {
+  test("Auth-configured first paint stays on skeletons even with warm localStorage", () => {
+    const prev = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = "http://localhost:3005/callback";
+    try {
+      const storage = new Map<string, string>();
+      setClientStarterStorageForTests({
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => {
+          storage.set(key, value);
+        },
+        removeItem: (key) => {
+          storage.delete(key);
+        },
+      });
+      writeClientStarterCache(
+        { owner: "octocat", repo: "Hello-World", history: SAMPLE_HISTORY },
+        [
+          {
+            id: "warm",
+            label: "Warm cached starter label",
+            prompt: "Warm cached starter prompt?",
+          },
+          {
+            id: "warm-2",
+            label: "Another warm chip",
+            prompt: "Another warm chip?",
+          },
+        ],
+      );
+      const html = renderToStaticMarkup(
+        <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
+      );
+      // Must match SSR: skeletons, not warm localStorage chips.
+      expect(html).toContain('aria-label="Loading example questions"');
+      expect(html).not.toContain("Warm cached starter label");
+    } finally {
+      setClientStarterStorageForTests(null);
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+      else process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = prev;
+    }
+  });
+
+  test("private repos do not paint starter chips on first render", () => {
+    const html = renderToStaticMarkup(
+      <AgentPanel
+        owner="acme"
+        repo="secret"
+        history={SAMPLE_HISTORY}
+        repoPrivate
+      />,
+    );
+    expect(html).not.toContain("Recent merges into main?");
+    expect(html).not.toContain('aria-label="Loading example questions"');
   });
 });

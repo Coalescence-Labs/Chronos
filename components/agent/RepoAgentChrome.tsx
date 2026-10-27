@@ -13,6 +13,8 @@ interface RepoAgentChromeProps {
   repo: string;
   history: RepoHistory;
   defaultBranch?: string;
+  /** When true, Agent skips starters/chat (public-only beta). */
+  repoPrivate?: boolean;
   selectedSha?: string | null;
   focusedBranch?: AgentBranchFocus | null;
   onLensChange?: (lens: AgentLensTargets | null) => void;
@@ -47,6 +49,7 @@ export function RepoAgentChrome({
   repo,
   history,
   defaultBranch,
+  repoPrivate = false,
   selectedSha,
   focusedBranch,
   onLensChange,
@@ -63,6 +66,7 @@ export function RepoAgentChrome({
     repo,
     history,
     defaultBranch,
+    repoPrivate,
     selectedSha,
     focusedBranch,
     onLensChange,

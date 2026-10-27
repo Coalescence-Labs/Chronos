@@ -39,7 +39,8 @@
 **Empty-chat starters (Haiku):** when the Agent panel is empty, `POST /api/agent/starters`
 may generate 2–4 chip prompts from the same fact-tool class of graph context (public
 repos, opt-in + spend Redis required). **UX:** skeleton chips while loading (never
-static→generated flash); browser `localStorage` may paint last-known labels/prompts
+static→generated flash); first client paint matches SSR skeletons when Auth is on;
+browser `localStorage` may paint last-known labels/prompts only **after hydrate**,
 keyed by owner/repo + UTC day + history fingerprint; Redis
 `chronos:agent-starters:{snapshotHash}` is authoritative. Static chips only on hard
 failure / gate deny. Cache-hit path = fingerprint + Redis GET only (no Haiku); target
@@ -92,12 +93,16 @@ Haiku 500k rails; they exist to prevent accidental spend spikes. Starters keep a
 - **Cap:** **$5 USD per user per month** (owner policy).
 - **Store:** Upstash Redis (`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
 - **Keys:** always under the **`chronos:`** prefix (`lib/redis/keys.ts`). A **shared** Redis with other Coalescence projects (e.g. Organic) is acceptable **only** if Chronos never writes outside that prefix and never stores repo content.
+- **Ledger key scheme:** `chronos:agent-spend:{YYYY-MM}:{workosUserId}` — **per user + UTC month** (migrated from the earlier shared month-only `chronos:agent-spend:{YYYY-MM}` key).
+- **Atomic reserve:** `recordAgentSpendUsd` uses a Redis `EVAL` capped reservation so concurrent turns cannot overwrite totals or undercount past the $5 cap.
+- **Charge order:** orchestration reserves the turn estimate **before** Jev runs, so refused/failed classifier calls are not free.
 - **Values:** spend totals / counts / idempotency markers — **no** prompts, facts, or repo identity.
 - Optional Resend alert near 80% of cap (`RESEND_API_KEY`, `CHRONOS_AGENT_SPEND_FROM`).
 - Live turns require spend-ready Redis (`evaluateAgentGate` + `requireSpendReady`).
-- **Starter cache** (separate keys): `chronos:agent-starters:{snapshotHash}` holds Zod-validated `{ starters: [{ id, label, prompt }] }` only — **no** SHAs, commit messages, or raw facts. Snapshot hash covers owner/repo + WorkOS user id + UTC day (`d-m-y`) + history fingerprint (`sorted branch tip SHAs | commit count | default branch`). TTL = remainder of UTC day. Gate + Redis GET run in parallel; on hit, return immediately (no Haiku / no graph-context build). Target Redis GET **≤ ~25ms** (Upstash REST). Browser also keeps a same-day localStorage copy of chip labels/prompts only (`chronos:agent-starters:v1:{hash}`) for instant paint — no tokens or commit payloads. Haiku starter input capped at **~$0.05** (50k tokens @ $1/MTok conservative; 3 chars/token; fail closed), under the hard Haiku rails in §Per-call hard rails.
+- **Public-only beta gate:** chat + starters verify GitHub/BFF visibility (`assertPublicRepoForAgent`) and fail closed for private/unknown before any Gateway path sees graph facts.
+- **Starter cache** (separate keys): `chronos:agent-starters:{snapshotHash}` holds Zod-validated `{ starters: [{ id, label, prompt }] }` only — **no** SHAs, commit messages, or raw facts. Snapshot hash covers owner/repo + WorkOS user id + UTC day (`d-m-y`) + history fingerprint (`sorted branch tip SHAs | commit count | default branch`). TTL = remainder of UTC day. Gate + Redis GET run in parallel; on hit, return immediately (no Haiku / no graph-context build). Target Redis GET **≤ ~25ms** (Upstash REST). Browser may keep a same-day localStorage copy of chip labels/prompts only (`chronos:agent-starters:v1:{hash}`) for **post-hydrate** paint — first client render matches SSR skeletons when Auth is configured (no localStorage during render). Haiku starter input capped at **~$0.05** (50k tokens @ $1/MTok conservative; 3 chars/token; fail closed), under the hard Haiku rails in §Per-call hard rails.
 
-Implementation: `lib/agent/spend/*`, `lib/agent/spend-limits.ts`, `lib/agent/starters/*`. Keep the ledger honest as per-user keying matures; the **policy** is per-user.
+Implementation: `lib/agent/spend/*`, `lib/agent/spend-limits.ts`, `lib/agent/starters/*`, `lib/agent/public-repo.ts`.
 
 ---
 

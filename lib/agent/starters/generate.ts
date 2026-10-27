@@ -2,6 +2,7 @@ import { generateText, gateway, Output } from "ai";
 import type { RepoHistory } from "@/lib/graph";
 import { agentGateMessage, evaluateAgentGate } from "@/lib/agent/gate";
 import { agentJevModelId } from "@/lib/agent/models";
+import { AGENT_PUBLIC_ONLY_ERROR } from "@/lib/agent/public-repo";
 import {
   agentMonthlyCapUsd,
   isAgentSpendWithinBudget,
@@ -43,6 +44,11 @@ export interface GenerateStartersInput {
   history: RepoHistory;
   defaultBranch?: string;
   now?: Date;
+  /**
+   * Server-verified public visibility. Must be true after `assertPublicRepoForAgent`.
+   * Fail closed when missing — never send private graph facts to the Gateway.
+   */
+  repoIsPublic: boolean;
 }
 
 export interface GenerateStartersResult {
@@ -59,6 +65,15 @@ export async function generateAgentStarters(
   input: GenerateStartersInput,
 ): Promise<GenerateStartersResult> {
   const fallback = staticAgentStarters(input.history, input.defaultBranch);
+
+  if (input.repoIsPublic !== true) {
+    return {
+      ok: false,
+      starters: [],
+      source: "fallback",
+      error: AGENT_PUBLIC_ONLY_ERROR,
+    };
+  }
 
   // Gate + Redis lookup in parallel so a warm cache is not blocked behind Haiku
   // and only pays fingerprint (cheap tip-set) + one GET (target ≤ ~25ms).
@@ -102,7 +117,7 @@ export async function generateAgentStarters(
     };
   }
 
-  if (!(await isAgentSpendWithinBudget())) {
+  if (!(await isAgentSpendWithinBudget(input.workosUserId))) {
     return {
       ok: false,
       starters: fallback,
@@ -154,7 +169,7 @@ export async function generateAgentStarters(
     };
   }
 
-  const reserved = await recordAgentSpendUsd(ESTIMATED_STARTERS_USD);
+  const reserved = await recordAgentSpendUsd(input.workosUserId, ESTIMATED_STARTERS_USD);
   if (!reserved) {
     return {
       ok: false,
@@ -189,7 +204,7 @@ export async function generateAgentStarters(
     }
 
     await writeStarterCache(key, parsed.data, input.now);
-    const spent = await readAgentSpendUsd();
+    const spent = await readAgentSpendUsd(input.workosUserId);
     void notifyAgentSpendThreshold(
       input.workosUserId,
       spent,

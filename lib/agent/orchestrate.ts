@@ -15,6 +15,7 @@ import {
 import { agentGateMessage, evaluateAgentGate } from "./gate";
 import { classifyQuestionWithJev } from "./jev";
 import { agentSonnetModelId } from "./models";
+import { AGENT_PUBLIC_ONLY_ERROR } from "./public-repo";
 import { runAgentFactTool } from "./facts/tools";
 import { fetchPullRequestFacts, questionRequestsPullRequestFacts } from "./pr-tools";
 import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
@@ -28,6 +29,7 @@ import {
 } from "./spend";
 import { guardGeneratePrompt } from "./spend-limits";
 
+/** Soft estimate covering Jev + answer for one turn (charged before Jev). */
 const ESTIMATED_TURN_USD = 0.02;
 
 export interface AgentTurnInput {
@@ -43,6 +45,11 @@ export interface AgentTurnInput {
   /** Client hint for narrow dock / phone tab answer crafting. */
   ui?: AgentAnswerUiHint | null;
   githubAuth?: GitHubRequestAuth | null;
+  /**
+   * Server-verified public visibility. Must be true after `assertPublicRepoForAgent`.
+   * Fail closed when missing — never send private graph facts to the Gateway.
+   */
+  repoIsPublic: boolean;
 }
 
 export interface AgentTurnResult {
@@ -60,11 +67,21 @@ export interface AgentTurnResult {
 }
 
 export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
+  if (input.repoIsPublic !== true) {
+    return { ok: false, error: AGENT_PUBLIC_ONLY_ERROR };
+  }
+
   const gate = await evaluateAgentGate(input.workosUserId, { requireSpendReady: true });
   if (!gate.allowed) {
     return { ok: false, error: agentGateMessage(gate.reason) };
   }
-  if (!(await isAgentSpendWithinBudget())) {
+  if (!(await isAgentSpendWithinBudget(input.workosUserId))) {
+    return { ok: false, error: "Chronos Agent reached its monthly spend cap." };
+  }
+
+  // Reserve before Jev so classifier calls are never free on refuse/failure.
+  const reserved = await recordAgentSpendUsd(input.workosUserId, ESTIMATED_TURN_USD);
+  if (!reserved) {
     return { ok: false, error: "Chronos Agent reached its monthly spend cap." };
   }
 
@@ -111,17 +128,12 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
       return { ok: false, error: guarded.error };
     }
 
-    const reserved = await recordAgentSpendUsd(ESTIMATED_TURN_USD);
-    if (!reserved) {
-      return { ok: false, error: "Chronos Agent reached its monthly spend cap." };
-    }
-
     const { text } = await generateText({
       model: gateway(agentSonnetModelId()),
       prompt: guarded.prompt,
       maxOutputTokens: guarded.maxOutputTokens,
     });
-    const spent = await readAgentSpendUsd();
+    const spent = await readAgentSpendUsd(input.workosUserId);
     void notifyAgentSpendThreshold(
       input.workosUserId,
       spent,

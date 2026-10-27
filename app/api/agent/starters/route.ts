@@ -1,12 +1,15 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import type { RepoHistory } from "@/lib/graph";
 import { generateAgentStarters } from "@/lib/agent/starters";
+import { assertPublicRepoForAgent } from "@/lib/agent/public-repo";
 import { isAuthConfigured } from "@/lib/auth/config";
 import { enforceDistributedRateLimit } from "@/lib/redis/rate-limit";
 import { isRedisConfigured } from "@/lib/redis/config";
 import { requestRateLimitIdentity } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
 import { errorResponse } from "@/lib/ingest/respond";
+import { githubAuthForRequest } from "@/lib/ingest/github/auth";
+import { parseRepoInput } from "@/lib/ingest/github/parse";
 
 const MAX_COMMITS = 2_500;
 
@@ -62,6 +65,23 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: false, error: "Missing repo or history." }, { status: 400 });
   }
 
+  let githubAuth = null;
+  try {
+    const repoId = parseRepoInput(`${owner}/${repo}`);
+    githubAuth = await githubAuthForRequest(repoId, request);
+  } catch {
+    githubAuth = null;
+  }
+
+  // Public-only beta: refuse before cache/Gateway see private graph facts.
+  const visibility = await assertPublicRepoForAgent({ owner, repo, auth: githubAuth });
+  if (!visibility.ok) {
+    return Response.json(
+      { ok: false, error: visibility.error, starters: [], source: "fallback" },
+      { status: 403 },
+    );
+  }
+
   const result = await generateAgentStarters({
     workosUserId: user.id,
     userEmail: user.email,
@@ -69,6 +89,7 @@ export async function POST(request: Request): Promise<Response> {
     repo,
     history,
     defaultBranch: defaultBranch || undefined,
+    repoIsPublic: true,
   });
 
   // Always return starters (generated/cached or static fallback) so the empty state never blocks.

@@ -5,6 +5,7 @@ import type { AgentBranchFocus, AgentChatContextRef } from "@/lib/agent/chat-con
 import { agentTurnContextPayload } from "@/lib/agent/chat-context";
 import type { RepoHistory } from "@/lib/graph";
 import { runAgentTurn } from "@/lib/agent/orchestrate";
+import { assertPublicRepoForAgent } from "@/lib/agent/public-repo";
 import { enforceDistributedRateLimit } from "@/lib/redis/rate-limit";
 import { isRedisConfigured } from "@/lib/redis/config";
 import { requestRateLimitIdentity } from "@/lib/security/request";
@@ -106,6 +107,12 @@ export async function POST(request: Request): Promise<Response> {
     githubAuth = null;
   }
 
+  // Public-only beta: verify before any model/cache path sees graph facts.
+  const visibility = await assertPublicRepoForAgent({ owner, repo, auth: githubAuth });
+  if (!visibility.ok) {
+    return Response.json({ ok: false, error: visibility.error }, { status: 403 });
+  }
+
   const { focusedBranch, contextRefs } = agentTurnContextPayload({
     focusedBranch: parseFocusedBranch(body.focusedBranch),
     contextRefs: parseContextRefs(body.contextRefs),
@@ -123,6 +130,7 @@ export async function POST(request: Request): Promise<Response> {
     contextRefs,
     ui: parseAnswerUi(body.ui) ?? resolveAgentAnswerUi({ surface: "narrow-panel", density: "narrow" }),
     githubAuth,
+    repoIsPublic: true,
   });
 
   const status = result.ok ? 200 : result.error?.includes("cap") ? 402 : 403;

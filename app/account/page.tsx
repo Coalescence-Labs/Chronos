@@ -97,7 +97,9 @@ export default async function AccountPage({
   const agentMissingEnvVars = agentConfigured
     ? undefined
     : devOnlyMissingEnvVarNames(agentMissingEnvVarNames());
-  const agentUsage = agentConfigured ? await readAgentSpendUsage() : { available: false as const };
+  const agentUsage = agentConfigured
+    ? await readAgentSpendUsage(user.id)
+    : { available: false as const };
   const hasName = Boolean(publicUser.firstName?.trim() || publicUser.lastName?.trim());
   return (
     <AccountFrame>

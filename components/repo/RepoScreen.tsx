@@ -29,6 +29,8 @@ interface LoadedState {
   history: RepoHistory;
   /** GitHub default branch from the BFF — threaded into Glance (COA-211). */
   defaultBranch: string;
+  /** GitHub private flag — Agent beta is public-only. */
+  private?: boolean;
   truncated: boolean;
   referencesTruncated?: boolean;
   /** More pages remain within the cap — scrolling will load them. */
@@ -90,13 +92,14 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
       signal: controller.signal,
-      onProgress: (h, { defaultBranch, referencesTruncated }) => {
+      onProgress: (h, { defaultBranch, private: repoPrivate, referencesTruncated }) => {
         if (!cancelled) {
           historyRef.current = h;
           setLoaded({
             key: requestKey,
             history: snapshot(h),
             defaultBranch,
+            private: repoPrivate === true,
             truncated: false,
             referencesTruncated,
             hasMore: false,
@@ -123,6 +126,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           key: requestKey,
           history: snapshot(result.history),
           defaultBranch: result.defaultBranch,
+          private: result.private === true,
           truncated: result.truncated,
           referencesTruncated: result.referencesTruncated,
           hasMore: result.loadMore !== undefined,
@@ -169,6 +173,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           key: requestKey,
           history: snapshot(result.history),
           defaultBranch: result.defaultBranch,
+          private: result.private === true,
           truncated: result.truncated,
           referencesTruncated: result.referencesTruncated,
           hasMore: result.loadMore !== undefined,
@@ -230,6 +235,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
 
   const history = loaded?.key === requestKey ? loaded.history : null;
   const defaultBranch = loaded?.key === requestKey ? loaded.defaultBranch : undefined;
+  const repoPrivate = loaded?.key === requestKey ? loaded.private === true : false;
   const error = failed?.key === requestKey ? failed.error : null;
   const note = refreshNote?.key === requestKey ? refreshNote.note : null;
 
@@ -265,6 +271,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       owner={owner}
       repo={repo}
       defaultBranch={defaultBranch}
+      repoPrivate={repoPrivate}
       onNearEnd={handleNearEnd}
       onRefresh={handleRefresh}
       refreshing={refreshing}
