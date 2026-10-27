@@ -11,26 +11,51 @@ const SCOPE_LEAD =
 
 describe("Agent panel UI", () => {
   test("empty state hierarchy: eyebrow, title, muted lead once, skeleton starters, no competing copy", () => {
-    const html = renderToStaticMarkup(
-      <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
-    );
+    const prev = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = "http://localhost:3005/callback";
+    try {
+      const html = renderToStaticMarkup(
+        <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
+      );
 
-    expect(html).toContain("Chronos Agent");
-    expect(html).toContain("Graph Q&amp;A");
-    expect(html).toContain("Public beta");
-    expect(html).toContain(SCOPE_LEAD);
-    // Visible empty-state must not restate scope under a second title.
-    expect(html).not.toContain("Ask about this graph</h3>");
-    expect(html).not.toContain("no invented history");
-    expect(html).not.toContain(">Question<");
-    // First paint: reserved skeleton slots — not static fallbacks (avoids default→generated flash).
-    expect(html).toContain('aria-label="Loading example questions"');
-    expect(html).toContain('aria-busy="true"');
-    expect(html.match(/data-skeleton-index="/g)?.length).toBe(STARTER_SLOT_COUNT);
-    expect(html).not.toContain("Recent merges into main?");
-    expect(html).not.toContain("Branches that share a parent?");
-    // Thread empty-state is a prompt stack, not a message list.
-    expect(html).not.toContain("messageList");
+      expect(html).toContain("Chronos Agent");
+      expect(html).toContain("Graph Q&amp;A");
+      expect(html).toContain("Public beta");
+      expect(html).toContain(SCOPE_LEAD);
+      // Visible empty-state must not restate scope under a second title.
+      expect(html).not.toContain("Ask about this graph</h3>");
+      expect(html).not.toContain("no invented history");
+      expect(html).not.toContain(">Question<");
+      // First paint with Auth configured: reserved skeleton slots — not static
+      // fallbacks (avoids default→generated flash while /api/agent/starters loads).
+      expect(html).toContain('aria-label="Loading example questions"');
+      expect(html).toContain('aria-busy="true"');
+      expect(html.match(/data-skeleton-index="/g)?.length).toBe(STARTER_SLOT_COUNT);
+      expect(html).not.toContain("Recent merges into main?");
+      expect(html).not.toContain("Branches that share a parent?");
+      // Thread empty-state is a prompt stack, not a message list.
+      expect(html).not.toContain("messageList");
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+      else process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = prev;
+    }
+  });
+
+  test("empty state uses static starters when WorkOS is unset (demo / offline)", () => {
+    const prev = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    try {
+      const html = renderToStaticMarkup(
+        <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
+      );
+      expect(html).toContain("Recent merges into main?");
+      expect(html).toContain("Branches that share a parent?");
+      expect(html).not.toContain('aria-label="Loading example questions"');
+      expect(html).toContain('aria-busy="false"');
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+      else process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = prev;
+    }
   });
 
   test("composer starts compact with Chronos Ask control and reserved footer facts band", () => {

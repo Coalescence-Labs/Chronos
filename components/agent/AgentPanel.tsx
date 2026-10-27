@@ -126,6 +126,7 @@ export function AgentPanel({
   );
   const [starters, setStarters] = useState<AgentStarter[]>([]);
   const [startersPhase, setStartersPhase] = useState<StartersPhase>("loading");
+  const authConfigured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
   const cacheInput = useMemo(
     () => ({ owner, repo, history, defaultBranch }),
     [owner, repo, history, defaultBranch],
@@ -136,19 +137,25 @@ export function AgentPanel({
   // On cache miss, keep already-painted chips (history fingerprint can change as the
   // graph progressive-loads) so we never flash empty → skeleton → chips again.
   // Adjust during render (not an effect) so the first paint already has chips.
+  // When WorkOS is unset, never hit /api/agent/starters (demo/e2e stay offline).
   if (turns.length === 0 && paintedCacheInput !== cacheInput) {
     setPaintedCacheInput(cacheInput);
-    const paint = paintFromLocalCache(readClientStarterCache(cacheInput));
-    if (paint.phase === "ready") {
-      setStarters(paint.starters);
-      setStartersPhase("ready");
-    } else if (startersPhase !== "ready" && startersPhase !== "fallback") {
-      setStartersPhase("loading");
+    if (!authConfigured) {
+      setStarters(fallbackStarters);
+      setStartersPhase("fallback");
+    } else {
+      const paint = paintFromLocalCache(readClientStarterCache(cacheInput));
+      if (paint.phase === "ready") {
+        setStarters(paint.starters);
+        setStartersPhase("ready");
+      } else if (startersPhase !== "ready" && startersPhase !== "fallback") {
+        setStartersPhase("loading");
+      }
     }
   }
 
   useEffect(() => {
-    if (turns.length > 0) return;
+    if (turns.length > 0 || !authConfigured) return;
     let cancelled = false;
     const controller = new AbortController();
 
@@ -202,7 +209,16 @@ export function AgentPanel({
       cancelled = true;
       controller.abort();
     };
-  }, [cacheInput, owner, repo, history, defaultBranch, turns.length, fallbackStarters]);
+  }, [
+    authConfigured,
+    cacheInput,
+    owner,
+    repo,
+    history,
+    defaultBranch,
+    turns.length,
+    fallbackStarters,
+  ]);
 
   const scrollThread = useCallback(() => {
     const node = threadRef.current;
