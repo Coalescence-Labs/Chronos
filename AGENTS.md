@@ -83,7 +83,7 @@ Chronos/
     adr/                    # decision records (006 = rate limits & caching, proposed)
   .claude/skills/
     privacy-preflight/      # MANDATORY guardrail before AI / new data egress
-  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; /callback + /sign-in AuthKit; /account; /styleguide; /repo/[owner]/[repo] = graph view; /demo = synthetic graph, no network)
+  app/                      # Next.js App Router (globals.css = design tokens; api/repo = BFF proxy; api/mcp = local git MCP, off unless configured; /callback + /sign-in AuthKit; /account; /styleguide; /repo/[owner]/[repo] = graph view; /demo = synthetic graph, no network)
   lib/
     graph/                  # pure layout engine (layout.ts, hybrid lanes) + normalized model (types.ts) — no DOM/network
     ingest/                 # source adapters -> normalized model (GitHub via BFF)
@@ -93,6 +93,7 @@ Chronos/
     demo/                   # deterministic synthetic history backing /demo
     ai/                     # thin re-exports; Agent lives in lib/agent (see docs/AI.md)
     agent/                  # Graph Q&A: gate, Jev, facts, orchestrate, spend
+    mcp/                    # owner-only MCP endpoint for local, allowlisted read-only git (open decision #9)
   components/
     background/             # HomePageBackground: cached Chronos graph geometry + frosted layer
     graph/                  # GraphView: virtualized SVG renderer over layout output
