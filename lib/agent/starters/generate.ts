@@ -1,4 +1,5 @@
 import { generateText, gateway, Output } from "ai";
+import { z } from "zod";
 import type { RepoHistory } from "@/lib/graph";
 import { agentGateMessage, evaluateAgentGate } from "@/lib/agent/gate";
 import { agentJevModelId } from "@/lib/agent/models";
@@ -8,11 +9,10 @@ import {
   isAgentSpendWithinBudget,
   notifyAgentSpendThreshold,
   readAgentSpendUsd,
-  recordAgentSpendUsd,
 } from "@/lib/agent/spend";
+import { AgentSpendCapError, withAgentGenerationSpend } from "@/lib/agent/spend/generation";
 import { guardGeneratePrompt } from "@/lib/agent/spend-limits";
 import {
-  ESTIMATED_STARTERS_USD,
   isWithinStarterInputBudget,
 } from "./budget";
 import {
@@ -169,28 +169,24 @@ export async function generateAgentStarters(
     };
   }
 
-  const reserved = await recordAgentSpendUsd(input.workosUserId, ESTIMATED_STARTERS_USD);
-  if (!reserved) {
-    return {
-      ok: false,
-      starters: fallback,
-      source: "fallback",
-      error: "Chronos Agent reached its monthly spend cap.",
-      snapshotHash,
-    };
-  }
-
   try {
-    const { output } = await generateText({
-      model: gateway(agentJevModelId()),
+    const modelId = agentJevModelId();
+    const { output } = await withAgentGenerationSpend({
+      workosUserId: input.workosUserId,
+      modelId,
+      prompt: guarded.prompt,
+      schemaText: JSON.stringify(z.toJSONSchema(agentStartersResponseSchema)),
+      maxOutputTokens: guarded.maxOutputTokens,
+    }, (limits) => generateText({
+      model: gateway(modelId),
       output: Output.object({
         schema: agentStartersResponseSchema,
         name: "AgentStarters",
         description: "Empty-chat graph Q&A starter prompts for Chronos Agent.",
       }),
       prompt: guarded.prompt,
-      maxOutputTokens: guarded.maxOutputTokens,
-    });
+      ...limits,
+    }));
 
     const parsed = agentStartersResponseSchema.safeParse(output);
     if (!parsed.success) {
@@ -218,12 +214,12 @@ export async function generateAgentStarters(
       source: "generated",
       snapshotHash,
     };
-  } catch {
+  } catch (error) {
     return {
       ok: false,
       starters: fallback,
       source: "fallback",
-      error: "Could not generate starters.",
+      error: error instanceof AgentSpendCapError ? error.message : "Could not generate starters.",
       snapshotHash,
     };
   }

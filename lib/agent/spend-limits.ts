@@ -2,8 +2,9 @@
  * Pre-call hard cost/token rails for Chronos Agent gateway generations.
  *
  * These sit *in front of* the monthly Upstash spend ledger (`lib/agent/spend`):
- * refuse or clamp oversized prompts and set `maxOutputTokens` so a single
- * call cannot spike past the dollar targets below. Ledger recording is unchanged.
+ * refuse or clamp oversized prompts and set `maxOutputTokens` using the token
+ * ceilings below. The spend wrapper reserves against current Gateway pricing
+ * and settles actual usage; these dollar targets are configuration estimates.
  *
  * ## Pricing assumptions (document; do not invent tighter product policy)
  *

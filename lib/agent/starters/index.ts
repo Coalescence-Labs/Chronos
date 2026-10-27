@@ -12,7 +12,6 @@ export {
   STARTER_MAX_INPUT_TOKENS,
   STARTER_MAX_INPUT_CHARS,
   MAX_STARTER_CONTEXT_CHARS,
-  ESTIMATED_STARTERS_USD,
   estimatePromptChars,
   isWithinStarterInputBudget,
   clampStarterContextJson,

@@ -7,7 +7,9 @@ export {
   isAgentSpendWithinBudget,
   readAgentSpendUsd,
   readAgentSpendUsage,
-  recordAgentSpendUsd,
+  reserveAgentSpendUsd,
+  settleAgentSpendUsd,
+  type AgentSpendReservation,
   tryReserveAgentSpend,
   type AgentSpendUsage,
 } from "./ledger";

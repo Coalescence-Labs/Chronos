@@ -131,12 +131,10 @@ export function AgentPanel({
   const [startersPhase, setStartersPhase] = useState<StartersPhase>("loading");
   const authConfigured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
   const cacheInput = useMemo(
-    () => ({ owner, repo, history, defaultBranch }),
-    [owner, repo, history, defaultBranch],
+    () => ({ owner, repo, history, defaultBranch, repoPrivate, authConfigured }),
+    [owner, repo, history, defaultBranch, repoPrivate, authConfigured],
   );
   const [paintedCacheInput, setPaintedCacheInput] = useState<typeof cacheInput | null>(null);
-  // SSR + first client paint must match: never read localStorage during render.
-  const [startersHydrated, setStartersHydrated] = useState(false);
 
   // Demo / offline: static chips without network. Auth path stays on skeletons until
   // after mount so warm localStorage cannot diverge from SSR markup.
@@ -148,28 +146,26 @@ export function AgentPanel({
     } else if (!authConfigured) {
       setStarters(fallbackStarters);
       setStartersPhase("fallback");
-    } else if (startersPhase !== "ready" && startersPhase !== "fallback") {
+    } else {
+      setStarters([]);
       setStartersPhase("loading");
     }
   }
 
   useEffect(() => {
-    setStartersHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (turns.length > 0 || !authConfigured || repoPrivate || !startersHydrated) return;
+    if (turns.length > 0 || !authConfigured || repoPrivate) return;
     let cancelled = false;
     const controller = new AbortController();
 
-    // Post-hydrate: optional warm localStorage paint, then network refresh.
-    const localPaint = paintFromLocalCache(readClientStarterCache(cacheInput));
-    if (localPaint.phase === "ready") {
-      setStarters(localPaint.starters);
-      setStartersPhase("ready");
-    }
-
     void (async () => {
+      // Defer cache paint until hydration completes; cleanup cancels stale snapshots.
+      await Promise.resolve();
+      if (cancelled) return;
+      const localPaint = paintFromLocalCache(readClientStarterCache(cacheInput));
+      if (localPaint.phase === "ready") {
+        setStarters(localPaint.starters);
+        setStartersPhase("ready");
+      }
       try {
         const response = await fetch("/api/agent/starters", {
           method: "POST",
@@ -183,13 +179,14 @@ export function AgentPanel({
           }),
         });
         const payload = await response.json().catch(() => null);
-        if (cancelled || !payload || typeof payload !== "object") return;
+        if (cancelled) return;
         if (response.status === 403) {
           clearClientStarterCache(cacheInput);
           setStarters([]);
           setStartersPhase("fallback");
           return;
         }
+        if (!payload || typeof payload !== "object") throw new Error("Invalid starters response");
         const parsed = parseStartersPayload({ starters: payload.starters });
         const paint = paintFromStartersApi({
           source: typeof payload.source === "string" ? payload.source : undefined,
@@ -228,7 +225,6 @@ export function AgentPanel({
   }, [
     authConfigured,
     repoPrivate,
-    startersHydrated,
     cacheInput,
     owner,
     repo,

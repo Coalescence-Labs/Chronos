@@ -42,9 +42,6 @@ export const STARTER_INSTRUCTION_RESERVE_CHARS = 2_500;
 export const MAX_STARTER_CONTEXT_CHARS =
   STARTER_MAX_INPUT_CHARS - STARTER_INSTRUCTION_RESERVE_CHARS; // 147_500
 
-/** Soft estimate charged to the monthly spend ledger per generation (not cache hit). */
-export const ESTIMATED_STARTERS_USD = 0.005;
-
 export function estimatePromptChars(instruction: string, contextJson: string): number {
   return instruction.length + contextJson.length;
 }

@@ -72,8 +72,8 @@ Env knobs are listed in `.env.example`.
 ## Per-call hard rails (ratified)
 
 Pre-call guardrails in `lib/agent/spend-limits.ts` bound a **single** Gateway
-generation. They are separate from the monthly Upstash ledger (still recorded as
-today): clamp/refuse oversized prompts, then set `maxOutputTokens` on every
+generation. They are separate from the monthly Upstash ledger: clamp/refuse
+oversized prompts, then set `maxOutputTokens` on every
 `generateText` in Agent code (Jev, answer turn, starters).
 
 | Model | Input ceiling | Output ceiling (`maxOutputTokens`) | Dollar target |
@@ -81,10 +81,17 @@ today): clamp/refuse oversized prompts, then set `maxOutputTokens` on every
 | **Haiku 5.5** | **500_000** tokens (owner hard cap) | **500_000** | ≈ **$0.05** in / **$0.25** out → implies **$0.10 / MTok** in, **$0.50 / MTok** out |
 | **Sonnet 5.5** | **16_666** tokens | **16_666** | same **$0.05 / $0.25** at list-class **$3 / $15** per MTok (`floor(0.05/3×1e6)`, `floor(0.25/15×1e6)`) |
 
-Char→token density is **3 chars/token** (fail-closed). Users should never hit the
+Prompt sizing estimates **3 chars/token**. Users should never hit the
 Haiku 500k rails; they exist to prevent accidental spend spikes. Starters keep a
 *tighter* operational Haiku input budget (**50_000** tokens ≈ $0.05 at conservative
 **$1 / MTok**) in `lib/agent/starters/budget.ts`, layered under the hard rail.
+
+These are configured token ceilings and approximate dollar targets, not billing
+rates. The spend wrapper fetches the public Gateway model catalog (cached for five
+minutes), includes higher pricing tiers, regions and cache-write rates, and clamps
+output to the lower of the configured ceiling and the provider's published limit.
+Its input reservation uses UTF-8 bytes plus schema and framing overhead instead
+of the chars/3 estimate. Missing or unsupported pricing fails closed.
 
 ---
 
@@ -94,9 +101,11 @@ Haiku 500k rails; they exist to prevent accidental spend spikes. Starters keep a
 - **Store:** Upstash Redis (`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
 - **Keys:** always under the **`chronos:`** prefix (`lib/redis/keys.ts`). A **shared** Redis with other Coalescence projects (e.g. Organic) is acceptable **only** if Chronos never writes outside that prefix and never stores repo content.
 - **Ledger key scheme:** `chronos:agent-spend:{YYYY-MM}:{workosUserId}` — **per user + UTC month** (migrated from the earlier shared month-only `chronos:agent-spend:{YYYY-MM}` key).
-- **Atomic reserve:** `recordAgentSpendUsd` uses a Redis `EVAL` capped reservation so concurrent turns cannot overwrite totals or undercount past the $5 cap.
-- **Charge order:** orchestration reserves the turn estimate **before** Jev runs, so refused/failed classifier calls are not free.
-- **Values:** spend totals / counts / idempotency markers — **no** prompts, facts, or repo identity.
+- **Atomic reserve:** `reserveAgentSpendUsd` uses Redis `EVAL` to reserve the full input/output cost bound before each Jev, answer, or starter call. Concurrent calls share the user's $5 capacity. In-flight holds count toward Account usage.
+- **Settlement:** each hold is replaced atomically, once, with `providerMetadata.gateway.cost` ([Gateway receipt documentation](https://vercel.com/academy/ai-gateway/ai-gateway-pricing)). If the receipt lacks cost, actual input/output token counts are billed at the conservative catalog rates. No usable receipt means the full hold stays charged. SDK retries are disabled to prevent unreserved duplicate calls.
+- **Charge order:** Jev settles even on refusals; a successful classifier is followed by a separate answer reservation. Invalid structured starter output still settles its completed model call. Cache hits require no reservation or model call.
+- **Month boundary:** settlement uses the reservation's original UTC month, even if the call finishes after rollover. An unexpected cost above the hold is recorded in full and blocks subsequent reservations.
+- **Values:** totals plus random reservation ids and USD amounts under `chronos:agent-spend-reservation:{YYYY-MM}:{workosUserId}:{uuid}` — **no** prompts, facts, or repo identity. Keys expire after 40 days; settled holds are deleted atomically.
 - Optional Resend alert near 80% of cap (`RESEND_API_KEY`, `CHRONOS_AGENT_SPEND_FROM`).
 - Live turns require spend-ready Redis (`evaluateAgentGate` + `requireSpendReady`).
 - **Public-only beta gate:** chat + starters verify GitHub/BFF visibility (`assertPublicRepoForAgent`) and fail closed for private/unknown before any Gateway path sees graph facts.

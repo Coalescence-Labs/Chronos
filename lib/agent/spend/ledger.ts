@@ -5,7 +5,7 @@ const LEDGER_TTL_SECONDS = 60 * 60 * 24 * 40;
 
 /**
  * Atomic capped reservation (Redis EVAL).
- * KEYS[1] = ledger key; ARGV = delta, cap, ttlSeconds.
+ * KEYS = ledger, reservation; ARGV = delta, cap, ttlSeconds.
  * Returns 1 on success, 0 when the cap would be exceeded.
  */
 const RESERVE_LUA = `
@@ -13,6 +13,7 @@ local current = tonumber(redis.call("GET", KEYS[1]) or "0")
 local delta = tonumber(ARGV[1])
 local cap = tonumber(ARGV[2])
 local ttl = tonumber(ARGV[3])
+if redis.call("EXISTS", KEYS[2]) == 1 then return 0 end
 if (not delta) or delta <= 0 then
   return 0
 end
@@ -21,8 +22,28 @@ if (current + delta) > cap then
 end
 local next = current + delta
 redis.call("SET", KEYS[1], tostring(next), "EX", ttl)
+redis.call("SET", KEYS[2], ARGV[1], "EX", ttl)
 return 1
 `;
+
+const SETTLE_LUA = `
+local reserved = tonumber(redis.call("GET", KEYS[2]))
+if not reserved then return 0 end
+local current = tonumber(redis.call("GET", KEYS[1]))
+if not current then return 0 end
+local actual = tonumber(ARGV[1])
+if (not actual) or actual < 0 then return 0 end
+local next = math.max(0, current - reserved + actual)
+redis.call("SET", KEYS[1], tostring(next), "EX", tonumber(ARGV[2]))
+redis.call("DEL", KEYS[2])
+return 1
+`;
+
+export interface AgentSpendReservation {
+  ledgerKey: string;
+  reservationKey: string;
+  reservedUsd: number;
+}
 
 /** UTC calendar month key matching Redis `chronos:agent-spend:YYYY-MM:…`. */
 export function agentSpendMonthKey(now: Date = new Date()): string {
@@ -84,19 +105,38 @@ export async function agentSpendBudgetRemainingUsd(workosUserId: string): Promis
  * Atomically reserve `deltaUsd` against the user's monthly cap.
  * Concurrent callers cannot overwrite each other or exceed the cap.
  */
-export async function recordAgentSpendUsd(
+export async function reserveAgentSpendUsd(
   workosUserId: string,
   deltaUsd: number,
-): Promise<boolean> {
+  now: Date = new Date(),
+): Promise<AgentSpendReservation | null> {
   const redis = getRedis();
-  if (!redis || deltaUsd <= 0) return false;
-  const key = agentSpendLedgerKey(workosUserId);
+  if (!redis || !Number.isFinite(deltaUsd) || deltaUsd <= 0) return null;
+  const key = agentSpendLedgerKey(workosUserId, now);
+  const reservationKey = chronosKey("agent-spend-reservation", agentSpendMonthKey(now), workosUserId.trim(), crypto.randomUUID());
   const result = await redis.eval<string[], number>(
     RESERVE_LUA,
-    [key],
+    [key, reservationKey],
     [String(deltaUsd), String(MONTHLY_CAP_USD), String(LEDGER_TTL_SECONDS)],
   );
-  return result === 1;
+  return result === 1 ? { ledgerKey: key, reservationKey, reservedUsd: deltaUsd } : null;
+}
+
+/** Settle exactly once in the original month, even when a call crosses midnight. */
+export async function settleAgentSpendUsd(
+  reservation: AgentSpendReservation,
+  actualUsd: number,
+): Promise<void> {
+  const redis = getRedis();
+  if (!redis || !Number.isFinite(actualUsd) || actualUsd < 0) {
+    throw new Error("Agent spend settlement unavailable");
+  }
+  // Never cap the receipt: an unexpected overrun must block further reservations.
+  await redis.eval<string[], number>(
+    SETTLE_LUA,
+    [reservation.ledgerKey, reservation.reservationKey],
+    [String(actualUsd), String(LEDGER_TTL_SECONDS)],
+  );
 }
 
 export async function isAgentSpendWithinBudget(workosUserId: string): Promise<boolean> {

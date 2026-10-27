@@ -25,12 +25,9 @@ import {
   isAgentSpendWithinBudget,
   notifyAgentSpendThreshold,
   readAgentSpendUsd,
-  recordAgentSpendUsd,
 } from "./spend";
 import { guardGeneratePrompt } from "./spend-limits";
-
-/** Soft estimate covering Jev + answer for one turn (charged before Jev). */
-const ESTIMATED_TURN_USD = 0.02;
+import { AgentSpendCapError, withAgentGenerationSpend } from "./spend/generation";
 
 export interface AgentTurnInput {
   workosUserId: string;
@@ -79,14 +76,8 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
     return { ok: false, error: "Chronos Agent reached its monthly spend cap." };
   }
 
-  // Reserve before Jev so classifier calls are never free on refuse/failure.
-  const reserved = await recordAgentSpendUsd(input.workosUserId, ESTIMATED_TURN_USD);
-  if (!reserved) {
-    return { ok: false, error: "Chronos Agent reached its monthly spend cap." };
-  }
-
   try {
-    const jev = await classifyQuestionWithJev(input.question);
+    const jev = await classifyQuestionWithJev(input.question, input.workosUserId);
     if (!jev.allow) {
       return { ok: false, error: "That question cannot be answered here.", flags: jev.flags };
     }
@@ -128,11 +119,11 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
       return { ok: false, error: guarded.error };
     }
 
-    const { text } = await generateText({
-      model: gateway(agentSonnetModelId()),
-      prompt: guarded.prompt,
-      maxOutputTokens: guarded.maxOutputTokens,
-    });
+    const modelId = agentSonnetModelId();
+    const { text } = await withAgentGenerationSpend(
+      { workosUserId: input.workosUserId, modelId, prompt: guarded.prompt, maxOutputTokens: guarded.maxOutputTokens },
+      (limits) => generateText({ model: gateway(modelId), prompt: guarded.prompt, ...limits }),
+    );
     const spent = await readAgentSpendUsd(input.workosUserId);
     void notifyAgentSpendThreshold(
       input.workosUserId,
@@ -151,7 +142,8 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
       flags: jev.flags,
       loadHandle,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof AgentSpendCapError) return { ok: false, error: error.message };
     return { ok: false, error: "Chronos Agent could not complete that question." };
   }
 }

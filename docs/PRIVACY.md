@@ -214,7 +214,9 @@ Agent without redeploying UI. **Public repos only** until written ZDR (open #5).
    slugs). Jev sends **only the question text** for allow/flag classification before
    orchestration. Starter generation uses Haiku with a hard **~$0.05** input budget
    (fail closed). Spend ledger, rate limits, and starter cache use Upstash keys
-   prefixed `chronos:` (spend = counts/usd; starter cache = `{id,label,prompt}` only —
+   prefixed `chronos:` (spend = per-user/month totals plus random reservation ids
+   and USD amounts; holds expire after 40 days or are deleted on settlement;
+   starter cache = `{id,label,prompt}` only —
    no raw repo facts). Shared Organic Redis is OK under that prefix only. Browser
    `localStorage` may hold the same chip labels/prompts for the current UTC day
    (keyed by repo + history fingerprint hash) — **on-device only**, no secrets/SHAs.
@@ -222,7 +224,7 @@ Agent without redeploying UI. **Public repos only** until written ZDR (open #5).
    not raw GitHub payloads. Starters reuse that minimum slice and cache only chip copy.
 4. **Retention & training:** Written ZDR remains **open (#5)**. Beta carve-out allows
    public-repo Graph Q&A without written ZDR; Redis ledger holds monthly spend totals
-   only. Private-repo Agent waits on written ZDR + a fresh pre-flight.
+   and reservation amounts only. Private-repo Agent waits on written ZDR + a fresh pre-flight.
 5. **Consent:** Account toggle + in-product disclosure before first send; public paste
    works without Agent.
 6. **Least privilege:** no new GitHub scopes for Agent; PR tools reuse existing read
@@ -230,6 +232,13 @@ Agent without redeploying UI. **Public repos only** until written ZDR (open #5).
 7. **Secrets:** `AI_GATEWAY_API_KEY` server-only; never in client bundles or logs.
 8. **Untrusted input:** model output passes through `renderSafeAgentMarkdown` before
    HTML render; questions treated as untrusted in prompts.
+
+Spend reservations also read the public `https://ai-gateway.vercel.sh/v1/models`
+catalog without credentials or a request body. No user, repo, or question fields
+are sent by that lookup. Only public prices and limits are cached in process for
+five minutes. Settlement uses cost/token fields already returned by existing model
+calls; it adds no model context or consent surface. The public-only beta carve-out
+and Account opt-in remain required; written ZDR remains open.
 
 ## Search indexing & link previews (COA-126)
 

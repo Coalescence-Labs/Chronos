@@ -2,6 +2,7 @@
 
 /* Mobile/desktop chrome root: one flex column so Graph | Agent panes share height. */
 .chrome {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -65,17 +66,16 @@
 }
 
 .desktopDock {
-  /* Viewport-fixed open panel; sit above AppShell footer (theme strip + safe-area).
-     Collapsed entry is in the graph header (Agent → Glance → Refresh), not a FAB. */
-  --agent-dock-inset-x: calc(var(--space-4) + env(safe-area-inset-right, 0px));
-  --agent-dock-clear-footer: calc(
-    var(--touch-target) + var(--space-2) + max(var(--space-2), env(safe-area-inset-bottom, 0px))
-  );
-  position: fixed;
+  /* Keep the zoom row and a gap clear inside the graph work area. */
+  --agent-dock-bottom: calc(var(--touch-target) + 2px + var(--space-6));
+  position: absolute;
   z-index: 40;
-  right: var(--agent-dock-inset-x);
-  bottom: calc(var(--space-4) + var(--agent-dock-clear-footer));
-  width: min(400px, calc(100vw - var(--space-8)));
+  right: var(--space-3);
+  bottom: var(--agent-dock-bottom);
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100% - var(--space-6)));
+  max-height: calc(100% - var(--agent-dock-bottom) - var(--touch-target) - var(--space-6));
   pointer-events: none;
 }
 
