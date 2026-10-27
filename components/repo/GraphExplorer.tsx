@@ -152,10 +152,12 @@ export function GraphExplorer({
 
   const layout = useMemo(() => layoutGraph(view, { maxLanes }), [view, maxLanes]);
 
-  useEffect(() => {
+  const [seenRepoKey, setSeenRepoKey] = useState(repoKey);
+  if (seenRepoKey !== repoKey) {
+    setSeenRepoKey(repoKey);
     setTracedTip(null);
     setLensShas([]);
-  }, [repoKey]);
+  }
 
   const focusedBranch = useMemo((): AgentBranchFocus | null => {
     if (!tracedTip) return null;

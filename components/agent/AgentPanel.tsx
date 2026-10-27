@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -131,20 +130,22 @@ export function AgentPanel({
     () => ({ owner, repo, history, defaultBranch }),
     [owner, repo, history, defaultBranch],
   );
+  const [paintedCacheInput, setPaintedCacheInput] = useState<typeof cacheInput | null>(null);
 
-  // Instant paint from last-known chips when snapshot material matches (before paint).
+  // Instant paint from last-known chips when snapshot material matches.
   // On cache miss, keep already-painted chips (history fingerprint can change as the
   // graph progressive-loads) so we never flash empty → skeleton → chips again.
-  useLayoutEffect(() => {
-    if (turns.length > 0) return;
+  // Adjust during render (not an effect) so the first paint already has chips.
+  if (turns.length === 0 && paintedCacheInput !== cacheInput) {
+    setPaintedCacheInput(cacheInput);
     const paint = paintFromLocalCache(readClientStarterCache(cacheInput));
     if (paint.phase === "ready") {
       setStarters(paint.starters);
       setStartersPhase("ready");
-      return;
+    } else if (startersPhase !== "ready" && startersPhase !== "fallback") {
+      setStartersPhase("loading");
     }
-    setStartersPhase((phase) => (phase === "ready" || phase === "fallback" ? phase : "loading"));
-  }, [cacheInput, turns.length]);
+  }
 
   useEffect(() => {
     if (turns.length > 0) return;

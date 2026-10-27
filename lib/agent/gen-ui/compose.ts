@@ -190,7 +190,7 @@ export function quietRefAdjacentShas(parts: AgentGenUiInlinePart[]): AgentGenUiI
 }
 
 function quietAnswerTree(parts: AgentGenUiPart[]): AgentGenUiPart[] {
-  return parts.flatMap((part) => {
+  return parts.flatMap((part): AgentGenUiPart[] => {
     if (part.type === "list") {
       return [
         {

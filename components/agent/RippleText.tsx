@@ -9,7 +9,7 @@
  * Highlight token: `--agent-stream-highlight` (ember in dark, accent in light).
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useState, useSyncExternalStore, type CSSProperties } from "react";
 import styles from "./agent.module.css";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -38,6 +38,8 @@ interface AgentRippleTextProps {
   className?: string;
 }
 
+type RippleTrack = { len: number; start: number | null };
+
 export function AgentRippleText({
   text,
   active = true,
@@ -48,26 +50,24 @@ export function AgentRippleText({
     getReducedMotionSnapshot,
     getReducedMotionServerSnapshot,
   );
-  const prevLengthRef = useRef(0);
-  const [highlightStart, setHighlightStart] = useState<number | null>(null);
+  const [track, setTrack] = useState<RippleTrack>({ len: 0, start: null });
 
-  useEffect(() => {
-    if (!active || reducedMotion) {
-      prevLengthRef.current = text.length;
-      setHighlightStart(null);
-      return;
+  // Adjust highlight window while rendering when the streamed text grows/shrinks
+  // (avoids setState-in-effect; React re-renders once when track changes).
+  let highlightStart = track.start;
+  if (!active || reducedMotion) {
+    if (track.start !== null || track.len !== text.length) {
+      setTrack({ len: text.length, start: null });
     }
-    if (text.length > prevLengthRef.current) {
-      const start = prevLengthRef.current;
-      prevLengthRef.current = text.length;
-      setHighlightStart(start);
-      return;
-    }
-    if (text.length < prevLengthRef.current) {
-      prevLengthRef.current = text.length;
-      setHighlightStart(null);
-    }
-  }, [text, active, reducedMotion]);
+    highlightStart = null;
+  } else if (text.length > track.len) {
+    const start = track.len;
+    setTrack({ len: text.length, start });
+    highlightStart = start;
+  } else if (text.length < track.len) {
+    setTrack({ len: text.length, start: null });
+    highlightStart = null;
+  }
 
   const rootClass = [styles.assistantStreaming, styles.rippleRoot, className]
     .filter(Boolean)
@@ -91,9 +91,9 @@ export function AgentRippleText({
       }
     >
       {characters.map((char, idx) => {
-        const isHighlighted =
-          highlightStart !== null && idx >= highlightStart && idx < text.length;
-        const staggerMs = isHighlighted ? (idx - highlightStart) * AGENT_RIPPLE_MS_PER_CHAR : 0;
+        const start = highlightStart;
+        const isHighlighted = start !== null && idx >= start && idx < text.length;
+        const staggerMs = isHighlighted ? (idx - start) * AGENT_RIPPLE_MS_PER_CHAR : 0;
 
         return (
           <span
