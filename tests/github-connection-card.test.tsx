@@ -85,6 +85,27 @@ describe("GitHub connection card (COA-202)", () => {
     expect(html).toContain("Disconnect");
   });
 
+  test("a stale session without a login still offers disconnect recovery", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...NOT_CONNECTED, state: "reconnect-required" }} status="access-denied" />);
+    expect(html).toContain("Reconnect GitHub");
+    expect(html).toContain("Disconnect all");
+    expect(html).toContain("selected installation");
+  });
+
+  test("an inaccessible saved account is labeled without hiding healthy connections", () => {
+    const html = renderToStaticMarkup(<GitHubConnectionCard connection={{
+      ...CONNECTED,
+      accounts: [
+        { login: "ada", accountType: "User", connectedAt: CONNECTED.connectedAt, connected: true },
+        { login: "acme", accountType: "Organization", connectedAt: null, connected: false },
+      ],
+    }} />);
+    expect(html).toContain("@ada"); expect(html).toContain("@acme");
+    expect(html).toContain("reconnect required");
+    expect(html).toContain("Some saved accounts need reconnecting");
+    expect(html).toContain("Disconnect all");
+  });
+
   test("a provider outage offers a check without suggesting a new connection", () => {
     const html = renderToStaticMarkup(<GitHubConnectionCard connection={{ ...NOT_CONNECTED, state: "unavailable" }} onRetry={() => {}} />);
     expect(html).toContain("Retry check");

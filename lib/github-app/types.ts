@@ -32,5 +32,5 @@ export interface PublicGitHubConnection {
   connectedAt: string | null;
   configured: boolean;
   state?: "connected" | "disconnected" | "reconnect-required" | "unavailable" | "disconnect-incomplete";
-  accounts?: { login: string; accountType: "User" | "Organization"; connectedAt: string | null }[];
+  accounts?: { login: string; accountType: "User" | "Organization"; connectedAt: string | null; connected?: boolean }[];
 }

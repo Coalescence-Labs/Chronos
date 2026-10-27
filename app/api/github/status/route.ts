@@ -5,7 +5,7 @@ import {
   resolveGitHubAppSessionForUser, toPublicGitHubConnection,
 } from "@/lib/github-app";
 import { activeGitHubUserToken } from "@/lib/github-app/token";
-import { assertGitHubUserInstallation } from "@/lib/github-app/user-auth";
+import { verifiedGitHubUserInstallations } from "@/lib/github-app/user-auth";
 import { githubInstallBindings } from "@/lib/github-app/bindings";
 import type { GitHubAppSessionData } from "@/lib/github-app/types";
 import { IngestError } from "@/lib/ingest/errors";
@@ -21,9 +21,15 @@ export async function GET(request: Request): Promise<Response> {
       session = await resolveGitHubAppSessionForUser(user?.id);
       if (session?.userAccessToken) {
         const token = await activeGitHubUserToken(session);
-        await assertGitHubUserInstallation(token, session.installationId,
-          githubInstallBindings(session).slice(1).map((binding) => binding.installationId));
-        const body = { ...toPublicGitHubConnection(session), connected: true, state: "connected" as const };
+        const bindings = githubInstallBindings(session);
+        const verified = await verifiedGitHubUserInstallations(token, bindings.map((binding) => binding.installationId));
+        if (!verified.size) throw new IngestError("access-denied", "Reconnect GitHub to verify your installation access.");
+        const connection = toPublicGitHubConnection(session);
+        const body = { ...connection, connected: true, state: "connected" as const,
+          accounts: connection.accounts?.map((account, index) => ({
+            ...account, connected: verified.has(bindings[index]!.installationId),
+          })),
+        };
         assertNoSecretsInPublicGitHubConnection(body);
         return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
       }
