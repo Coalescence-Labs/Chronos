@@ -73,6 +73,10 @@ describe("profile menu shell wiring", () => {
     expect(footerSource).toContain("useAuth");
     // Hide while AuthKit loads or when signed in (no flash of guest strip).
     expect(footerSource).toMatch(/loading\s*\|\|\s*user/);
+    // Never call useAuth when AuthKitProvider is skipped (CI / unset redirect URI).
+    expect(footerSource).toMatch(
+      /if\s*\(\s*!configured\s*\)[\s\S]*return\s+<AppearanceFooterChrome/,
+    );
 
     const css = await Bun.file("components/shell/shell.module.css").text();
     expect(css).toMatch(/\.shellFooter\s*\{[^}]*justify-content:\s*center/s);
