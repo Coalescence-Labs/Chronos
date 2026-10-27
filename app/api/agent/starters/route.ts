@@ -1,6 +1,7 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import type { RepoHistory } from "@/lib/graph";
 import { generateAgentStarters } from "@/lib/agent/starters";
+import { isAuthConfigured } from "@/lib/auth/config";
 import { enforceDistributedRateLimit } from "@/lib/redis/rate-limit";
 import { isRedisConfigured } from "@/lib/redis/config";
 import { requestRateLimitIdentity } from "@/lib/security/request";
@@ -18,6 +19,9 @@ function parseHistory(raw: unknown): RepoHistory | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (!isAuthConfigured()) {
+    return Response.json({ ok: false, error: "Sign in required." }, { status: 401 });
+  }
   const { user } = await withAuth({ ensureSignedIn: true });
   try {
     if (isRedisConfigured()) {

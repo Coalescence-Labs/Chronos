@@ -300,6 +300,7 @@ button.badge:active {
 
 .zoomControls {
   position: absolute;
+  /* Clear the Agent desktop dock (fixed, ~400px) so zoom stays clickable. */
   right: var(--space-3);
   bottom: var(--space-3);
   z-index: 2;
@@ -310,6 +311,15 @@ button.badge:active {
   border-radius: var(--radius-full);
   background: var(--bg-raised);
   box-shadow: var(--shadow-2);
+}
+
+@media (min-width: 701px) {
+  .zoomControls {
+    right: calc(
+      min(400px, calc(100vw - var(--space-8))) + var(--space-4) + var(--space-3) +
+        env(safe-area-inset-right, 0px)
+    );
+  }
 }
 
 .zoomButton {
