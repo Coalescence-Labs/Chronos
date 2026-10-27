@@ -22,6 +22,9 @@ import type { AgentGenUiPart, AgentLensTargets } from "@/lib/agent/gen-ui";
 import { sanitizeAgentGenUiParts } from "@/lib/agent/gen-ui";
 import { renderSafeAgentMarkdown } from "@/lib/agent/safe-markdown";
 import {
+  AGENT_PRIVATE_UI_HINT,
+} from "@/lib/agent/public-repo";
+import {
   STARTER_SLOT_COUNT,
   clearClientStarterCache,
   readClientStarterCache,
@@ -41,8 +44,22 @@ import { revealAgentText } from "./reveal-stream";
 import styles from "./agent.module.css";
 
 const BETA_SCOPE_TOOLTIP =
-  "Answers use commits already loaded in this view. Public repos only for now.";
+  `Answers use commits already loaded in this view. ${AGENT_PRIVATE_UI_HINT}`;
 
+/** Hard-reset starters only when owner/repo/visibility/auth change — not on progressive history. */
+function startersScopeKey(input: {
+  owner: string;
+  repo: string;
+  repoPrivate: boolean;
+  authConfigured: boolean;
+}): string {
+  return [
+    input.owner.trim().toLowerCase(),
+    input.repo.trim().toLowerCase(),
+    input.repoPrivate ? "private" : "public",
+    input.authConfigured ? "auth" : "offline",
+  ].join("\0");
+}
 type TurnStatus = "complete" | "streaming" | "thinking" | "error";
 
 interface AgentTurn {
@@ -130,16 +147,14 @@ export function AgentPanel({
   const [starters, setStarters] = useState<AgentStarter[]>([]);
   const [startersPhase, setStartersPhase] = useState<StartersPhase>("loading");
   const authConfigured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
-  const cacheInput = useMemo(
-    () => ({ owner, repo, history, defaultBranch, repoPrivate, authConfigured }),
-    [owner, repo, history, defaultBranch, repoPrivate, authConfigured],
-  );
-  const [paintedCacheInput, setPaintedCacheInput] = useState<typeof cacheInput | null>(null);
+  const scopeKey = startersScopeKey({ owner, repo, repoPrivate, authConfigured });
+  const [paintedScopeKey, setPaintedScopeKey] = useState<string | null>(null);
 
-  // Demo / offline: static chips without network. Auth path stays on skeletons until
+  // Demo / offline / private: paint without network. Auth stays on skeletons until
   // after mount so warm localStorage cannot diverge from SSR markup.
-  if (turns.length === 0 && paintedCacheInput !== cacheInput) {
-    setPaintedCacheInput(cacheInput);
+  // Scope ignores progressive history fingerprint changes — keep painted chips stable.
+  if (turns.length === 0 && paintedScopeKey !== scopeKey) {
+    setPaintedScopeKey(scopeKey);
     if (repoPrivate) {
       setStarters([]);
       setStartersPhase("fallback");
@@ -154,8 +169,12 @@ export function AgentPanel({
 
   useEffect(() => {
     if (turns.length > 0 || !authConfigured || repoPrivate) return;
+    // Once ready/fallback for this scope, ignore progressive history re-fires.
+    if (startersPhase !== "loading") return;
     let cancelled = false;
     const controller = new AbortController();
+    const cacheInput = { owner, repo, history, defaultBranch };
+    const fallback = staticAgentStarters(history, defaultBranch);
 
     void (async () => {
       // Defer cache paint until hydration completes; cleanup cancels stale snapshots.
@@ -163,8 +182,10 @@ export function AgentPanel({
       if (cancelled) return;
       const localPaint = paintFromLocalCache(readClientStarterCache(cacheInput));
       if (localPaint.phase === "ready") {
+        // Stable once painted — skip network refresh that could swap chip labels.
         setStarters(localPaint.starters);
         setStartersPhase("ready");
+        return;
       }
       try {
         const response = await fetch("/api/agent/starters", {
@@ -191,7 +212,7 @@ export function AgentPanel({
         const paint = paintFromStartersApi({
           source: typeof payload.source === "string" ? payload.source : undefined,
           starters: parsed?.starters ?? null,
-          fallback: fallbackStarters,
+          fallback,
         });
         if (cancelled) return;
         if (paint.clearLocalCache) clearClientStarterCache(cacheInput);
@@ -206,15 +227,14 @@ export function AgentPanel({
         setStartersPhase(paint.phase);
       } catch {
         if (cancelled) return;
-        // Fail open: keep local chips if painted; else static (not infinite skeletons).
-        setStarters((current) =>
-          paintFromStartersFetchFailure({
-            currentPhase: current.length > 0 ? "ready" : "loading",
-            currentStarters: current,
-            fallback: fallbackStarters,
-          }).starters,
-        );
-        setStartersPhase((phase) => (phase === "ready" ? "ready" : "fallback"));
+        // Fail open: static fallbacks (not infinite skeletons).
+        const paint = paintFromStartersFetchFailure({
+          currentPhase: "loading",
+          currentStarters: [],
+          fallback,
+        });
+        setStarters(paint.starters);
+        setStartersPhase(paint.phase);
       }
     })();
 
@@ -225,13 +245,13 @@ export function AgentPanel({
   }, [
     authConfigured,
     repoPrivate,
-    cacheInput,
+    scopeKey,
     owner,
     repo,
     history,
     defaultBranch,
     turns.length,
-    fallbackStarters,
+    startersPhase,
   ]);
 
   const scrollThread = useCallback(() => {
@@ -430,50 +450,56 @@ export function AgentPanel({
       <div className={styles.thread} ref={threadRef} aria-live="polite">
         {turns.length === 0 ? (
           <div className={styles.emptyState}>
-            <div
-              className={styles.promptStack}
-              role="group"
-              aria-label={
-                startersPhase === "loading" ? "Loading example questions" : "Example questions"
-              }
-              aria-busy={startersPhase === "loading"}
-            >
-              {startersPhase === "loading"
-                ? Array.from({ length: STARTER_SLOT_COUNT }, (_, index) => (
-                    <span
-                      key={`starter-skeleton-${index}`}
-                      className={styles.promptChipSkeleton}
-                      data-skeleton-index={index}
-                      aria-hidden="true"
-                    />
-                  ))
-                : (
-                    <>
-                      {starters.map((starter) => (
-                        <button
-                          key={starter.id}
-                          type="button"
-                          className={styles.promptChip}
-                          disabled={busy}
-                          onClick={() => void ask(starter.prompt)}
-                        >
-                          {starter.label}
-                        </button>
-                      ))}
-                      {/* Invisible slots keep stack height at STARTER_SLOT_COUNT. */}
-                      {Array.from(
-                        { length: Math.max(0, STARTER_SLOT_COUNT - starters.length) },
-                        (_, index) => (
-                          <span
-                            key={`starter-slot-${index}`}
-                            className={styles.promptChipSlot}
-                            aria-hidden="true"
-                          />
-                        ),
-                      )}
-                    </>
-                  )}
-            </div>
+            {repoPrivate ? (
+              <p className={styles.privateNotice} role="status">
+                {AGENT_PRIVATE_UI_HINT} Private repositories stay off Agent until written ZDR.
+              </p>
+            ) : (
+              <div
+                className={styles.promptStack}
+                role="group"
+                aria-label={
+                  startersPhase === "loading" ? "Loading example questions" : "Example questions"
+                }
+                aria-busy={startersPhase === "loading"}
+              >
+                {startersPhase === "loading"
+                  ? Array.from({ length: STARTER_SLOT_COUNT }, (_, index) => (
+                      <span
+                        key={`starter-skeleton-${index}`}
+                        className={styles.promptChipSkeleton}
+                        data-skeleton-index={index}
+                        aria-hidden="true"
+                      />
+                    ))
+                  : (
+                      <>
+                        {starters.map((starter) => (
+                          <button
+                            key={starter.id}
+                            type="button"
+                            className={styles.promptChip}
+                            disabled={busy}
+                            onClick={() => void ask(starter.prompt)}
+                          >
+                            {starter.label}
+                          </button>
+                        ))}
+                        {/* Invisible slots keep stack height at STARTER_SLOT_COUNT. */}
+                        {Array.from(
+                          { length: Math.max(0, STARTER_SLOT_COUNT - starters.length) },
+                          (_, index) => (
+                            <span
+                              key={`starter-slot-${index}`}
+                              className={styles.promptChipSlot}
+                              aria-hidden="true"
+                            />
+                          ),
+                        )}
+                      </>
+                    )}
+              </div>
+            )}
           </div>
         ) : (
           <ul className={styles.messageList}>
@@ -597,8 +623,9 @@ export function AgentPanel({
               className={styles.composerInput}
               rows={1}
               value={draft}
-              disabled={busy}
-              placeholder="Ask about this graph…"
+              disabled={busy || repoPrivate}
+              placeholder={repoPrivate ? AGENT_PRIVATE_UI_HINT : "Ask about this graph…"}
+              title={repoPrivate ? AGENT_PRIVATE_UI_HINT : undefined}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
@@ -611,7 +638,7 @@ export function AgentPanel({
               type="submit"
               variant="ghost"
               className={styles.sendButton}
-              disabled={busy || !draft.trim()}
+              disabled={busy || repoPrivate || !draft.trim()}
               aria-label="Ask"
             >
               Ask

@@ -5,6 +5,10 @@ import { AgentPanel } from "./AgentPanel";
 import { AgentMark } from "./AgentMark";
 import type { AgentBranchFocus } from "@/lib/agent/chat-context";
 import type { AgentLensTargets } from "@/lib/agent/gen-ui";
+import {
+  AGENT_PRIVATE_CONTROL_LABEL,
+  AGENT_PRIVATE_UI_HINT,
+} from "@/lib/agent/public-repo";
 import type { RepoHistory } from "@/lib/graph";
 import styles from "./agent.module.css";
 
@@ -74,9 +78,12 @@ export function RepoAgentChrome({
     onBranchActivate,
   } as const;
 
+  const agentAvailable = !repoPrivate;
+
   const onTabListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
+    if (!agentAvailable) return;
     const next: MobileTab = mobileTab === "graph" ? "agent" : "graph";
     setMobileTab(next);
     const id = next === "graph" ? "repo-tab-graph" : "repo-tab-agent";
@@ -143,9 +150,20 @@ export function RepoAgentChrome({
             aria-controls="repo-panel-agent"
             tabIndex={mobileTab === "agent" ? 0 : -1}
             className={
-              mobileTab === "agent" ? `${styles.tabButton} ${styles.tabButtonActive}` : styles.tabButton
+              mobileTab === "agent"
+                ? `${styles.tabButton} ${styles.tabButtonActive}`
+                : agentAvailable
+                  ? styles.tabButton
+                  : `${styles.tabButton} ${styles.tabButtonDisabled}`
             }
-            onClick={() => setMobileTab("agent")}
+            disabled={!agentAvailable}
+            aria-disabled={!agentAvailable || undefined}
+            aria-label={agentAvailable ? undefined : AGENT_PRIVATE_CONTROL_LABEL}
+            title={agentAvailable ? undefined : AGENT_PRIVATE_UI_HINT}
+            onClick={() => {
+              if (!agentAvailable) return;
+              setMobileTab("agent");
+            }}
           >
             <AgentMark size={16} />
             Agent

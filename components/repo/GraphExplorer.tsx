@@ -17,6 +17,10 @@ import type { Capsule, GlanceResult, RepoHistory } from "@/lib/graph";
 import type { GlanceWorkerClient } from "./glance-worker-client";
 import { AgentMark } from "@/components/agent/AgentMark";
 import { RepoAgentChrome } from "@/components/agent/RepoAgentChrome";
+import {
+  AGENT_PRIVATE_CONTROL_LABEL,
+  AGENT_PRIVATE_UI_HINT,
+} from "@/lib/agent/public-repo";
 import styles from "./repo.module.css";
 
 /**
@@ -210,8 +214,11 @@ export function GraphExplorer({
       repoPrivate={repoPrivate}
       selectedSha={selectedSha}
       focusedBranch={focusedBranch}
-      desktopOpen={desktopAgentOpen}
-      onDesktopOpenChange={setDesktopAgentOpen}
+      desktopOpen={repoPrivate ? false : desktopAgentOpen}
+      onDesktopOpenChange={(open) => {
+        if (repoPrivate) return;
+        setDesktopAgentOpen(open);
+      }}
       onLensChange={(lens) => {
         setLensShas(lens?.shas ?? []);
         // Sync with existing focus when the answer names a single grounded branch tip.
@@ -256,13 +263,22 @@ export function GraphExplorer({
           </p>
         )}
         <div className={styles.actions}>
-          {!desktopAgentOpen && (
+          {(repoPrivate || !desktopAgentOpen) && (
             <button
               type="button"
-              className={styles.agentToggle}
-              onClick={() => setDesktopAgentOpen(true)}
-              aria-label="Open Chronos Agent"
-              title="Open Chronos Agent"
+              className={
+                repoPrivate
+                  ? `${styles.agentToggle} ${styles.agentToggleDisabled}`
+                  : styles.agentToggle
+              }
+              onClick={() => {
+                if (repoPrivate) return;
+                setDesktopAgentOpen(true);
+              }}
+              disabled={repoPrivate}
+              aria-disabled={repoPrivate || undefined}
+              aria-label={repoPrivate ? AGENT_PRIVATE_CONTROL_LABEL : "Open Chronos Agent"}
+              title={repoPrivate ? AGENT_PRIVATE_UI_HINT : "Open Chronos Agent"}
             >
               <span className={styles.agentToggleMark} aria-hidden="true">
                 <AgentMark size={16} />

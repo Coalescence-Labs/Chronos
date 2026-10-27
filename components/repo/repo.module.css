@@ -85,6 +85,28 @@
   outline-offset: 2px;
 }
 
+.agentToggleDisabled,
+.agentToggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  color: var(--fg-subtle);
+  box-shadow: none;
+}
+
+.agentToggleDisabled:hover,
+.agentToggle:disabled:hover {
+  border-color: var(--border-strong);
+  background-color: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  color: var(--fg-subtle);
+  box-shadow: none;
+}
+
+.agentToggleDisabled .agentToggleMark,
+.agentToggle:disabled .agentToggleMark {
+  color: var(--fg-subtle);
+}
+
 @media (min-width: 701px) {
   .agentToggle {
     display: inline-flex;

@@ -89,4 +89,24 @@ describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
     expect(css).not.toContain(".desktopFab");
     expect(css).not.toContain("agentFabIn");
   });
+
+  test("private repos disable the mobile Agent tab with calm copy", () => {
+    const html = renderToStaticMarkup(
+      <RepoAgentChrome
+        owner="acme"
+        repo="secret"
+        history={SAMPLE_HISTORY}
+        repoPrivate
+        desktopOpen={false}
+        onDesktopOpenChange={() => {}}
+      >
+        <div>graph</div>
+      </RepoAgentChrome>,
+    );
+    expect(html).toContain('id="repo-tab-agent"');
+    expect(html).toContain('aria-label="Chronos Agent unavailable for private repositories"');
+    expect(html).toContain('title="Public repos only for now."');
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain("Public repos only for now. Private repositories stay off Agent");
+  });
 });

@@ -11,6 +11,12 @@ export const AGENT_PUBLIC_ONLY_ERROR =
 export const AGENT_PUBLIC_VERIFY_ERROR =
   "Chronos Agent could not verify that this repository is public.";
 
+/** Calm UI copy when Agent is unavailable for a private repo (header/tab/panel). */
+export const AGENT_PRIVATE_UI_HINT = "Public repos only for now.";
+
+export const AGENT_PRIVATE_CONTROL_LABEL =
+  "Chronos Agent unavailable for private repositories";
+
 /** Synthetic /demo history is not a GitHub private repo — treat as public for Agent. */
 export function isSyntheticDemoRepo(owner: string, repo: string): boolean {
   return (

@@ -569,6 +569,15 @@
   animation: agentEmptyIn var(--duration-slow) var(--ease-out) both;
 }
 
+.privateNotice {
+  margin: 0;
+  padding: var(--space-1) 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  max-width: 28ch;
+}
+
 .promptStack {
   display: flex;
   flex-direction: column;
@@ -964,13 +973,20 @@
     box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.tabButton:hover {
+.tabButton:hover:not(:disabled) {
   color: var(--fg);
 }
 
 .tabButton:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 2px;
+}
+
+.tabButtonDisabled,
+.tabButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: var(--fg-subtle);
 }
 
 .tabButtonActive {

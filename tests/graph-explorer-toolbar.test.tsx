@@ -47,4 +47,21 @@ describe("GraphExplorer header toolbar", () => {
     expect(css).not.toContain("Clear the Agent desktop dock");
     expect(css).not.toMatch(/min\(400px/);
   });
+
+  test("private repos mute the header Agent control instead of opening chat", () => {
+    const html = renderToStaticMarkup(
+      <GraphExplorer
+        owner="acme"
+        repo="secret"
+        history={SAMPLE_HISTORY}
+        repoPrivate
+        onRefresh={() => {}}
+      />,
+    );
+    expect(html).toContain('aria-label="Chronos Agent unavailable for private repositories"');
+    expect(html).toContain('title="Public repos only for now."');
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain("disabled=");
+    expect(html).not.toContain("Minimize Agent");
+  });
 });

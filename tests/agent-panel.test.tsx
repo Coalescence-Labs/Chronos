@@ -83,6 +83,15 @@ describe("Agent panel UI", () => {
 });
 
 describe("agent panel starters hydration", () => {
+  test("starters settle per owner/repo scope — ready/fallback ignores progressive history", async () => {
+    const source = await Bun.file("components/agent/AgentPanel.tsx").text();
+    expect(source).toContain("startersScopeKey");
+    expect(source).toContain('if (startersPhase !== "loading") return');
+    expect(source).toContain("paintedScopeKey !== scopeKey");
+    // Hard reset is scoped; phase gate keeps chips stable after first paint.
+    expect(source).toContain("Stable once painted");
+  });
+
   test("Auth-configured first paint stays on skeletons even with warm localStorage", () => {
     const prev = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
     process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = "http://localhost:3005/callback";
@@ -136,5 +145,9 @@ describe("agent panel starters hydration", () => {
     );
     expect(html).not.toContain("Recent merges into main?");
     expect(html).not.toContain('aria-label="Loading example questions"');
+    expect(html).toContain("Public repos only for now.");
+    expect(html).toContain('role="status"');
+    expect(html).toContain("disabled=");
+    expect(html).toContain('placeholder="Public repos only for now."');
   });
 });
