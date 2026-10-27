@@ -79,12 +79,13 @@ and return HTTP 429 for APIs rather than an interactive browser challenge. These
 are proposed operator settings, not globally enforced application limits.
 
 Refresh coordination and installation-token reuse remain ephemeral in process memory
-when Upstash is unset. Optional **Upstash Redis** (`UPSTASH_REDIS_REST_*`) is a
-Chronos-only deployment secret used for deployment-wide request fairness, GitHub
-refresh locks, agent spend ledgers, and outbound idempotency — never for durable
-repo content. Keys are prefixed `chronos:`; values hold counts, locks, spend
-totals, and opaque idempotency markers only. Repo caching ADR 006 remains open;
-none of its proposed repo-content caching is implemented.
+when Upstash is unset. Optional **Upstash Redis** (`UPSTASH_REDIS_REST_*`) is used for
+deployment-wide request fairness, GitHub refresh locks, agent spend ledgers
+(**$5/user/mo** policy — see [AI.md](AI.md)), and outbound idempotency — never for
+durable repo content. Keys are prefixed `chronos:`; a shared Redis (e.g. with Organic)
+is acceptable only under that prefix. Values hold counts, locks, spend totals, and
+opaque idempotency markers only. Repo caching ADR 006 remains open; none of its
+proposed repo-content caching is implemented.
 
 The CSP uses a fresh request nonce with strict script execution, forbids framing,
 objects and unsafe base URLs, and permits inline styles only for graph geometry.

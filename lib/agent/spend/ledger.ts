@@ -1,14 +1,22 @@
-import { chronosKey, getRedis } from "@/lib/redis";
+import { chronosKey, getRedis, isRedisConfigured } from "@/lib/redis";
 
 const MONTHLY_CAP_USD = 5;
 
-function monthKey(): string {
-  const now = new Date();
+/** UTC calendar month key matching Redis `chronos:agent-spend:YYYY-MM`. */
+export function agentSpendMonthKey(now: Date = new Date()): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function ledgerKey(): string {
-  return chronosKey("agent-spend", monthKey());
+/**
+ * Instant the current UTC spend window ends (start of next UTC calendar month).
+ * Matches the ledger month key rollover.
+ */
+export function agentSpendWindowResetsAt(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+}
+
+function ledgerKey(now?: Date): string {
+  return chronosKey("agent-spend", agentSpendMonthKey(now));
 }
 
 export function agentMonthlyCapUsd(): number {
@@ -39,4 +47,35 @@ export async function recordAgentSpendUsd(deltaUsd: number): Promise<boolean> {
 
 export async function isAgentSpendWithinBudget(): Promise<boolean> {
   return (await agentSpendBudgetRemainingUsd()) > 0;
+}
+
+/** Account / UI snapshot — percent + reset only; no dollar amounts. */
+export type AgentSpendUsage =
+  | { available: false }
+  | {
+      available: true;
+      /** 0–100, rounded; relative to the monthly cap. */
+      percentUsed: number;
+      /** ISO timestamp of UTC month-boundary reset. */
+      resetsAt: string;
+    };
+
+/**
+ * Read current-month usage for Account UI.
+ * When spend Redis is missing, returns `{ available: false }` — never a fake 0%.
+ */
+export async function readAgentSpendUsage(
+  now: Date = new Date(),
+): Promise<AgentSpendUsage> {
+  if (!isRedisConfigured()) return { available: false };
+  const spent = await readAgentSpendUsd();
+  const percentUsed =
+    MONTHLY_CAP_USD <= 0
+      ? 0
+      : Math.min(100, Math.round((spent / MONTHLY_CAP_USD) * 100));
+  return {
+    available: true,
+    percentUsed,
+    resetsAt: agentSpendWindowResetsAt(now).toISOString(),
+  };
 }

@@ -143,6 +143,13 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+/* Agent lens (concept A): soft multi-row band for answer-referenced commits.
+   Quieter than selection; selection still wins when both apply. */
+.row[data-lens]:not([aria-selected="true"]) {
+  background: color-mix(in srgb, var(--accent-soft) 65%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
 /* Branch trace (COA-84): rows off the traced line recede. Opacity, not color,
    carries the cue; text stays readable at this level. */
 .row[data-dimmed] {
@@ -293,6 +300,7 @@ button.badge:active {
 
 .zoomControls {
   position: absolute;
+  /* Clear the Agent desktop dock (fixed, ~400px) so zoom stays clickable. */
   right: var(--space-3);
   bottom: var(--space-3);
   z-index: 2;
@@ -303,6 +311,15 @@ button.badge:active {
   border-radius: var(--radius-full);
   background: var(--bg-raised);
   box-shadow: var(--shadow-2);
+}
+
+@media (min-width: 701px) {
+  .zoomControls {
+    right: calc(
+      min(400px, calc(100vw - var(--space-8))) + var(--space-4) + var(--space-3) +
+        env(safe-area-inset-right, 0px)
+    );
+  }
 }
 
 .zoomButton {

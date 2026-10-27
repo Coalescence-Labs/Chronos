@@ -10,15 +10,17 @@
 4. **No silent egress.** Every path that sends data off-device or off-server is documented and intentional. New egress paths require the privacy pre-flight (below).
 5. **Transparency.** Because Chronos is open source, the privacy claims are auditable. Keep them honest.
 
-## AI: Zero Data Retention (ZDR) only
+## AI: Zero Data Retention (ZDR) — long-term rule; beta carve-out
 
-AI features are **opt-in** and may only use a provider that contractually guarantees **Zero Data Retention** — no storage of prompts/outputs beyond the request, and **no training** on user data.
+**Long-term:** AI features are **opt-in** and may only use a provider that contractually guarantees **Zero Data Retention** — no storage of prompts/outputs beyond the request, and **no training** on user data. Written ZDR is still an open architecture decision (#5); see [AI.md](AI.md).
 
-Hard rules:
-- Verify ZDR **in writing** from the provider before any integration. (Open decision: which provider — see [ARCHITECTURE.md](ARCHITECTURE.md) #5.)
+**Hard rules (always):**
 - Send the **minimum** necessary context to answer the user's request — never the whole repo "just in case."
 - Make it explicit in the UI what is sent off-device when an AI feature is used.
 - AI is gated behind the **privacy pre-flight skill** — see below.
+- **Private-repo Agent** and any expansion beyond the beta carve-out require **written ZDR** before shipping.
+
+**Beta carve-out (owner-ratified):** Graph Q&A may run on **public repositories only** via Vercel AI Gateway **before** written ZDR is on file. This does **not** authorize private-repo Agent, whole-repo dumps, or silent retention. Ending the carve-out or widening scope needs a new pre-flight and owner ratification. Infra detail: [AI.md](AI.md).
 
 ## The privacy pre-flight (mandatory)
 
@@ -189,28 +191,38 @@ Cookieless, anonymous, first-party product analytics (no third party, no cross-d
 4. **Retention/training:** product analytics, not an AI path — no ZDR question; cookieless, aggregated, no training.
 5. **Consent:** cookieless/anonymous (no consent banner needed); disclosed in the public [PRIVACY.md](../PRIVACY.md). Opt-out via the env switch.
 
-## Chronos Agent (graph Q&A — proposed)
+## Chronos Agent (Graph Q&A — beta)
 
-Opt-in graph Q&amp;A from history already loaded in the browser. Live model calls
-require Account opt-in (`chronosAgentOptIn`), optional Upstash spend controls, and
-Vercel AI Gateway with **written ZDR** (open decision #5 — owner must ratify
-provider tier). `CHRONOS_AGENT_KILL_SWITCH` disables Agent without redeploying UI.
+Opt-in graph Q&amp;A from history already loaded in the browser. Canonical infra map:
+[AI.md](AI.md). Live model calls require Account opt-in (`chronosAgentOptIn`), Upstash
+spend controls ($5/user/mo under `chronos:` Redis keys), and Vercel AI Gateway
+(Claude Sonnet 5.5 answers + Haiku 5.5 Jev). `CHRONOS_AGENT_KILL_SWITCH` disables
+Agent without redeploying UI. **Public repos only** until written ZDR (open #5).
 
-### Privacy pre-flight — Agent (M1 gate; orchestration follows)
+### Privacy pre-flight — Agent (beta)
 
 1. **What leaves (when live):** the user's natural-language question; graph-anchored
    facts derived from loaded commits/refs (sha, parents, dates, first-line messages,
    branch/tag names — **author names omitted**); optional selected commit sha; PR
    titles/labels only when GitHub connect grants access and the user asks a PR-capable
-   question. **Not sent:** file contents, diffs, whole-repo dumps, tokens, or Exa/web
-   search.
-2. **Where:** Vercel AI Gateway → configured ZDR model(s). Jev moderation sends **only
-   the question text** for classification flags before orchestration. Spend ledger and
-   rate limits use Chronos-only Upstash keys (counts/usd estimates — no repo content).
+   question. **Empty-chat starters (Haiku):** compact fact-tool slice (repo name,
+   default branch, ref names, short tip SHAs, truncated merge first-lines) — same
+   author-omitted class as Graph Q&A facts; no file contents. **Not sent:** file
+   contents, diffs, whole-repo dumps, tokens, or Exa/web search. **Scope:** public
+   repositories for beta (Account disclosure).
+2. **Where:** Vercel AI Gateway → Sonnet 5.5 / Haiku 5.5 (env-overridable Gateway
+   slugs). Jev sends **only the question text** for allow/flag classification before
+   orchestration. Starter generation uses Haiku with a hard **~$0.05** input budget
+   (fail closed). Spend ledger, rate limits, and starter cache use Upstash keys
+   prefixed `chronos:` (spend = counts/usd; starter cache = `{id,label,prompt}` only —
+   no raw repo facts). Shared Organic Redis is OK under that prefix only. Browser
+   `localStorage` may hold the same chip labels/prompts for the current UTC day
+   (keyed by repo + history fingerprint hash) — **on-device only**, no secrets/SHAs.
 3. **Minimum:** fact tools answer from in-memory graph; model sees compact fact bundles,
-   not raw GitHub payloads.
-4. **Retention & training:** ZDR in writing required before enabling live calls; Redis
-   ledger holds monthly spend totals only.
+   not raw GitHub payloads. Starters reuse that minimum slice and cache only chip copy.
+4. **Retention & training:** Written ZDR remains **open (#5)**. Beta carve-out allows
+   public-repo Graph Q&A without written ZDR; Redis ledger holds monthly spend totals
+   only. Private-repo Agent waits on written ZDR + a fresh pre-flight.
 5. **Consent:** Account toggle + in-product disclosure before first send; public paste
    works without Agent.
 6. **Least privilege:** no new GitHub scopes for Agent; PR tools reuse existing read

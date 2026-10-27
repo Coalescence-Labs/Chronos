@@ -14,7 +14,7 @@ Chronos is **web-first** with a **native companion** planned later.
                 │                                           │
    public URL → │  ingestion → graph engine → render → UI   │ ← phone + laptop
   GitHub OAuth →│                                ▲          │   (responsive PWA)
-                │           opt-in AI (ZDR) ──────┘          │
+                │     opt-in AI (ZDR long-term; see AI.md) ──┘│
                 └─────────────────────────────────────────┘
                                   ▲
                                   │ reuses the SAME web UI
@@ -28,7 +28,7 @@ Chronos is **web-first** with a **native companion** planned later.
 - **Next.js / React**, hosted on **Vercel**.
 - **Two entry points:** paste a public **GitHub** repo URL; or link GitHub via OAuth and select a repo. (v1 is GitHub-only — see decision #3.)
 - **Responsive PWA** — first-class on phone and laptop.
-- **Optional AI** features, opt-in, ZDR-only.
+- **Optional AI** features, opt-in; long-term **ZDR-only**. Beta Graph Q&A stack: [AI.md](AI.md).
 
 ### Companion (phase 2 — keep thin)
 - A [`zero-native`](https://github.com/vercel-labs/zero-native) desktop shell (Zig native layer + web UI) that **reuses the v1 web UI**.
@@ -46,7 +46,7 @@ source → ingest → normalized commit/branch model → layout → render → i
 - **layout** — assign commits to lanes/rows; the heart of the product. *(Open.)*
 - **render** — draw it. *(Open: SVG/Canvas/WebGL.)*
 - **interaction** — hover/tap to inspect; progressive depth.
-- **AI** — optional, opt-in, ZDR. *(Open: feature surface + provider.)*
+- **AI** — optional, opt-in; long-term **ZDR-only**. Beta Graph Q&A infra is documented in [AI.md](AI.md). *(Open: #4 remainder + #5 written ZDR; Agent UX directions.)*
 
 Keep these as **clean module boundaries** so ingestion source and render target can vary independently. The normalized model is the contract between them.
 
@@ -61,11 +61,15 @@ These are unresolved. Resolve them deliberately (with the owner), then move the 
 | ~~1~~ | ~~Graph layout algorithm~~ | RESOLVED: **hybrid lane assignment in our own pure `lib/graph` module** (no render-coupled lib). Stable columns for active/long-lived branches; compact reuse of freed lanes for stale branches; a **hard column cap** so the graph stays readable on mobile. Topological order with date tie-breaking. | Branch *identity* and the "active/long-lived" heuristic + cap value are tuning parameters, not blockers — pick simple defaults, make them adjustable, unit-test heavily (highest-risk module). |
 | ~~2~~ | ~~Render technology~~ | RESOLVED: **SVG with viewport virtualization** (render only on-screen rows). Best fit for the DESIGN bar (theming, gradients, crisp strokes) and accessibility; virtualization + worker layout + progressive load (#3) keep big repos within budget without a second renderer. | Keep the renderer behind the `components/graph` interface so a Canvas/WebGL path can be added later **without touching `lib/graph`** — only if profiling proves SVG can't hold the perf budget. |
 | ~~3~~ | ~~Public-repo ingestion model~~ | RESOLVED: **server-side BFF proxy** (revised — see #7). Our server proxies GitHub API calls; repo data flows GitHub → our server → browser **transiently, with zero server-side persistence or content logging**. v1 is GitHub-only. Large repos handled via **progressive loading** (render recent slice first, backfill in background). *(Originally resolved as client-side; flipped when #7 chose the BFF security posture, which requires the server to make the API calls.)* | Trade-off: weaker than client-side on "data off our servers," stronger on token security. Privacy pre-flight completed; the binding posture lives in [PRIVACY.md](PRIVACY.md). Caching (#6) is now server- and client-side. |
-| 4 | **AI feature surface** | The owner wants AI but never said what it does. Building a chatbot "because AI" violates the cognitive-load mandate. | Pick one concrete, load-reducing job first (e.g. "summarize this branch"). |
-| 5 | **AI provider (ZDR)** | The privacy promise depends on a provider that contractually does zero retention / no training. | Verify ZDR in writing before integrating. Run the privacy pre-flight skill. |
+| 4 | **AI feature surface (beyond beta)** | Building AI "because AI" violates the cognitive-load mandate. | **Partial:** beta = **Graph Q&A** over loaded history ([AI.md](AI.md)). Broader jobs and Agent UX (exploration A–E, generative-UI ambition) remain **open** — do not invent them. |
+| 5 | **AI provider (written ZDR)** | The long-term privacy promise needs contractual zero retention / no training. | **Partial:** beta wires **Vercel AI Gateway** + Claude Sonnet 5.5 / Haiku 5.5. Written ZDR is still required before private-repo Agent or ending the public-only beta carve-out ([PRIVACY.md](PRIVACY.md), [AI.md](AI.md)). |
 | 6 | **Rate limits & caching** | Public-URL viewing + GitHub API both hit limits; caching strategy interacts with #3 and privacy. | **Proposed ADR awaiting ratification:** [adr/006-bff-rate-limits-and-caching.md](adr/006-bff-rate-limits-and-caching.md). Repo-content caching remains unimplemented. Current reversible safeguards are bounded instance-local credential reuse, request/concurrency limits, deadlines and explicit 429 backoff; see [SECURITY.md](SECURITY.md). Deployment-wide coordination remains open. |
 | ~~7~~ | ~~Auth/session for GitHub API access~~ | RESOLVED: **BFF (Backend-for-Frontend)** — the GitHub App connects personal and organization installations. GitHub user credentials and bindings stay in an encrypted httpOnly `gh-session` cookie, separate from WorkOS. Every private request checks authoritative WorkOS bindings/revocation version and live GitHub user access before using a repository-scoped installation token. Non-secret bindings and their authorization version live in WorkOS metadata. Metadata alone cannot restore GitHub credentials; reconnect is required when credentials are absent. Disconnect rotates the durable version across devices and attempts user-grant revocation; installations remain on GitHub. | Permissions: Contents: Read + Metadata: Read only. PKCE and expiring user credentials; no browser-readable tokens. See [AUTH.md](AUTH.md), [SECURITY.md](SECURITY.md) and the completed [privacy pre-flight](PRIVACY.md). |
 | ~~8~~ | ~~License~~ | RESOLVED: **Apache 2.0** (see `LICENSE`). | Permissive + patent grant; maximizes adoption. |
+
+### AI beta infra (ratified — detail in [AI.md](AI.md))
+
+Not open decisions: Gateway + Sonnet/Haiku slugs; Upstash spend ledger (**$5/user/mo**, `chronos:` prefix); Account opt-in + kill switch; Jev + fact tools; **public-repos-only** beta until written ZDR. Agent UX chrome remains open (do not ship “2025 chat” as default product).
 
 ## Performance posture
 
@@ -92,6 +96,6 @@ See [PRIVACY.md](PRIVACY.md#route-preparation-and-browser-local-glance).
 - `lib/ingest/*` — source-specific adapters → normalized model. Swappable (URL / GitHub / local).
 - `lib/graph/*` — pure layout over the normalized model. No DOM, no network. Unit-testable.
 - `components/graph/*` — render + interaction over layout output.
-- `lib/ai/*` — opt-in, ZDR-gated, isolated behind the privacy pre-flight.
+- `lib/ai/*` — thin AI flag / re-exports; live Agent orchestration is `lib/agent/*` (see [AI.md](AI.md)). Opt-in; privacy pre-flight mandatory; long-term ZDR.
 
 Keeping `lib/graph` pure and DOM-free is what makes the phase-2 native companion cheap.

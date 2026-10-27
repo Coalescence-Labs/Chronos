@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { RepoHistory } from "@/lib/graph";
+import { Button } from "@/components/ui/Button";
 import { Surface } from "@/components/ui/Surface";
-import buttonStyles from "@/components/ui/button.module.css";
 import {
   CHRONOS_AGENT_CONTEXT_MIME,
   mergeContextRefs,
@@ -11,13 +18,27 @@ import {
   type AgentBranchFocus,
   type AgentChatContextRef,
 } from "@/lib/agent/chat-context";
+import type { AgentGenUiPart, AgentLensTargets } from "@/lib/agent/gen-ui";
+import { sanitizeAgentGenUiParts } from "@/lib/agent/gen-ui";
+import { renderSafeAgentMarkdown } from "@/lib/agent/safe-markdown";
+import {
+  STARTER_SLOT_COUNT,
+  clearClientStarterCache,
+  readClientStarterCache,
+  writeClientStarterCache,
+} from "@/lib/agent/starters/client-cache";
+import { staticAgentStarters } from "@/lib/agent/starters/fallback";
+import {
+  paintFromLocalCache,
+  paintFromStartersApi,
+  paintFromStartersFetchFailure,
+  type StartersPhase,
+} from "@/lib/agent/starters/paint";
+import { parseStartersPayload, type AgentStarter } from "@/lib/agent/starters/schema";
+import { AgentAnswerView } from "./gen-ui";
+import { AgentRippleText } from "./RippleText";
 import { revealAgentText } from "./reveal-stream";
 import styles from "./agent.module.css";
-
-const STARTERS = [
-  "Recent merges into default?",
-  "Branches that share a parent?",
-] as const;
 
 const BETA_SCOPE_TOOLTIP =
   "Answers use commits already loaded in this view. Public repos only for now.";
@@ -29,6 +50,7 @@ interface AgentTurn {
   role: "user" | "assistant";
   body?: string;
   html?: string;
+  parts?: AgentGenUiPart[];
   error?: string;
   stamp: string;
   status: TurnStatus;
@@ -38,23 +60,21 @@ interface AgentPanelProps {
   owner: string;
   repo: string;
   history: RepoHistory;
+  /** GitHub/API default branch when known (COA-211); falls back to main/master/trunk heuristic. */
+  defaultBranch?: string;
   selectedSha?: string | null;
   focusedBranch?: AgentBranchFocus | null;
   layout?: "desktop" | "mobile";
   onMinimize?: () => void;
+  /** Soft GraphView lens from the latest assistant answer (concept A). */
+  onLensChange?: (lens: AgentLensTargets | null) => void;
+  onCommitActivate?: (sha: string) => void;
+  onBranchActivate?: (name: string, tipSha?: string) => void;
   className?: string;
 }
 
 function formatStamp(date = new Date()): string {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
-function SendIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="m5 12 14-7-7 14-2-5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-    </svg>
-  );
 }
 
 function PublicBetaBadge() {
@@ -80,22 +100,125 @@ export function AgentPanel({
   owner,
   repo,
   history,
+  defaultBranch,
   selectedSha,
   focusedBranch = null,
   layout = "desktop",
   onMinimize,
+  onLensChange,
+  onCommitActivate,
+  onBranchActivate,
   className,
 }: AgentPanelProps) {
   const inputId = useId();
   const threadRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const revealAbortRef = useRef<AbortController | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [turns, setTurns] = useState<AgentTurn[]>([]);
-  const [loadHandle, setLoadHandle] = useState<string | null>(null);
   const [contextRefs, setContextRefs] = useState<AgentChatContextRef[]>([]);
   const [dropActive, setDropActive] = useState(false);
   const dragDepthRef = useRef(0);
+  const fallbackStarters = useMemo(
+    () => staticAgentStarters(history, defaultBranch),
+    [history, defaultBranch],
+  );
+  const [starters, setStarters] = useState<AgentStarter[]>([]);
+  const [startersPhase, setStartersPhase] = useState<StartersPhase>("loading");
+  const authConfigured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
+  const cacheInput = useMemo(
+    () => ({ owner, repo, history, defaultBranch }),
+    [owner, repo, history, defaultBranch],
+  );
+  const [paintedCacheInput, setPaintedCacheInput] = useState<typeof cacheInput | null>(null);
+
+  // Instant paint from last-known chips when snapshot material matches.
+  // On cache miss, keep already-painted chips (history fingerprint can change as the
+  // graph progressive-loads) so we never flash empty → skeleton → chips again.
+  // Adjust during render (not an effect) so the first paint already has chips.
+  // When WorkOS is unset, never hit /api/agent/starters (demo/e2e stay offline).
+  if (turns.length === 0 && paintedCacheInput !== cacheInput) {
+    setPaintedCacheInput(cacheInput);
+    if (!authConfigured) {
+      setStarters(fallbackStarters);
+      setStartersPhase("fallback");
+    } else {
+      const paint = paintFromLocalCache(readClientStarterCache(cacheInput));
+      if (paint.phase === "ready") {
+        setStarters(paint.starters);
+        setStartersPhase("ready");
+      } else if (startersPhase !== "ready" && startersPhase !== "fallback") {
+        setStartersPhase("loading");
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (turns.length > 0 || !authConfigured) return;
+    let cancelled = false;
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/agent/starters", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            owner,
+            repo,
+            history,
+            defaultBranch,
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (cancelled || !payload || typeof payload !== "object") return;
+        const parsed = parseStartersPayload({ starters: payload.starters });
+        const paint = paintFromStartersApi({
+          source: typeof payload.source === "string" ? payload.source : undefined,
+          starters: parsed?.starters ?? null,
+          fallback: fallbackStarters,
+        });
+        if (cancelled) return;
+        if (paint.clearLocalCache) clearClientStarterCache(cacheInput);
+        if (paint.writeLocalCache) {
+          writeClientStarterCache(
+            cacheInput,
+            paint.starters,
+            typeof payload.snapshotHash === "string" ? payload.snapshotHash : undefined,
+          );
+        }
+        setStarters(paint.starters);
+        setStartersPhase(paint.phase);
+      } catch {
+        if (cancelled) return;
+        // Fail open: keep local chips if painted; else static (not infinite skeletons).
+        setStarters((current) =>
+          paintFromStartersFetchFailure({
+            currentPhase: current.length > 0 ? "ready" : "loading",
+            currentStarters: current,
+            fallback: fallbackStarters,
+          }).starters,
+        );
+        setStartersPhase((phase) => (phase === "ready" ? "ready" : "fallback"));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [
+    authConfigured,
+    cacheInput,
+    owner,
+    repo,
+    history,
+    defaultBranch,
+    turns.length,
+    fallbackStarters,
+  ]);
 
   const scrollThread = useCallback(() => {
     const node = threadRef.current;
@@ -106,6 +229,24 @@ export function AgentPanel({
   useEffect(() => {
     scrollThread();
   }, [turns, scrollThread]);
+
+  const resizeComposer = useCallback(() => {
+    const node = composerRef.current;
+    if (!node) return;
+    // Idle: drop inline height so CSS `height: 2.75rem` owns the footprint (no
+    // hydrate jump from scrollHeight vs font metrics).
+    if (!draft) {
+      node.style.height = "";
+      return;
+    }
+    node.style.height = "auto";
+    const next = Math.min(node.scrollHeight, 160);
+    node.style.height = `${Math.max(next, 44)}px`;
+  }, [draft]);
+
+  useEffect(() => {
+    resizeComposer();
+  }, [draft, resizeComposer]);
 
   const addContextRef = useCallback((ref: AgentChatContextRef) => {
     setContextRefs((current) => mergeContextRefs(current, [ref]));
@@ -150,6 +291,12 @@ export function AgentPanel({
           selectedSha,
           focusedBranch,
           contextRefs: refsForTurn,
+          // Desktop dock ~400px outer / ~360px content; phone tab still a narrow column.
+          ui: {
+            surface: "narrow-panel",
+            density: "narrow",
+            approxWidthPx: layout === "mobile" ? 390 : 360,
+          },
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -165,11 +312,16 @@ export function AgentPanel({
         return;
       }
 
-      if (typeof payload.loadHandle === "string") setLoadHandle(payload.loadHandle);
-
       const text = typeof payload.text === "string" ? payload.text : "";
       const html = typeof payload.html === "string" ? payload.html : "";
-      if (!text && !html) {
+      const parts = Array.isArray(payload.parts)
+        ? sanitizeAgentGenUiParts(payload.parts)
+        : undefined;
+      const lens =
+        payload.lens && typeof payload.lens === "object"
+          ? (payload.lens as AgentLensTargets)
+          : null;
+      if (!text && !html && !(parts && parts.length > 0)) {
         setTurns((current) =>
           current.map((turn) =>
             turn.id === assistantId
@@ -203,9 +355,24 @@ export function AgentPanel({
       setTurns((current) =>
         current.map((turn) =>
           turn.id === assistantId
-            ? { ...turn, html, body: undefined, status: "complete", stamp: formatStamp() }
+            ? {
+                ...turn,
+                html,
+                parts: parts && parts.length > 0 ? parts : undefined,
+                body: undefined,
+                status: "complete",
+                stamp: formatStamp(),
+              }
             : turn,
         ),
+      );
+      onLensChange?.(
+        lens && (lens.shas?.length > 0 || lens.branches?.length > 0)
+          ? {
+              shas: Array.isArray(lens.shas) ? lens.shas.slice(0, 12) : [],
+              branches: Array.isArray(lens.branches) ? lens.branches.slice(0, 8) : [],
+            }
+          : null,
       );
     } catch {
       setTurns((current) =>
@@ -230,11 +397,14 @@ export function AgentPanel({
   return (
     <Surface level={3} padded={false} className={`${shellClass} ${className ?? ""}`}>
       <header className={headerClass}>
-        <div className={layout === "mobile" ? undefined : styles.desktopHeaderText}>
+        <div className={styles.headerText}>
           <p className={styles.chromeEyebrow}>Chronos Agent</p>
-          <h2 className={styles.panelTitle}>
-            Graph Q&amp;A <PublicBetaBadge />
-          </h2>
+          <div className={styles.titleBlock}>
+            <div className={styles.titleRow}>
+              <h2 className={styles.panelTitle}>Graph Q&amp;A</h2>
+              <PublicBetaBadge />
+            </div>
+          </div>
         </div>
         {onMinimize && (
           <button type="button" className={styles.desktopMinimize} onClick={onMinimize} aria-label="Minimize Agent">
@@ -246,40 +416,65 @@ export function AgentPanel({
       <div className={styles.thread} ref={threadRef} aria-live="polite">
         {turns.length === 0 ? (
           <div className={styles.emptyState}>
-            <h3 className={styles.emptyTitle}>Ask about this graph</h3>
-            <p className={styles.emptyLead}>
-              Answers use commits already loaded in this view — no invented history.
-            </p>
-            <ul className={styles.promptRow} aria-label="Example questions">
-              {STARTERS.map((prompt) => (
-                <li key={prompt}>
-                  <button
-                    type="button"
-                    className={styles.promptChip}
-                    disabled={busy}
-                    onClick={() => void ask(prompt)}
-                  >
-                    {prompt}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div
+              className={styles.promptStack}
+              role="group"
+              aria-label={
+                startersPhase === "loading" ? "Loading example questions" : "Example questions"
+              }
+              aria-busy={startersPhase === "loading"}
+            >
+              {startersPhase === "loading"
+                ? Array.from({ length: STARTER_SLOT_COUNT }, (_, index) => (
+                    <span
+                      key={`starter-skeleton-${index}`}
+                      className={styles.promptChipSkeleton}
+                      data-skeleton-index={index}
+                      aria-hidden="true"
+                    />
+                  ))
+                : (
+                    <>
+                      {starters.map((starter) => (
+                        <button
+                          key={starter.id}
+                          type="button"
+                          className={styles.promptChip}
+                          disabled={busy}
+                          onClick={() => void ask(starter.prompt)}
+                        >
+                          {starter.label}
+                        </button>
+                      ))}
+                      {/* Invisible slots keep stack height at STARTER_SLOT_COUNT. */}
+                      {Array.from(
+                        { length: Math.max(0, STARTER_SLOT_COUNT - starters.length) },
+                        (_, index) => (
+                          <span
+                            key={`starter-slot-${index}`}
+                            className={styles.promptChipSlot}
+                            aria-hidden="true"
+                          />
+                        ),
+                      )}
+                    </>
+                  )}
+            </div>
           </div>
         ) : (
           <ul className={styles.messageList}>
             {turns.map((turn) => (
               <li key={turn.id} className={styles.messageRow} data-role={turn.role}>
                 {turn.role === "user" && turn.body && (
-                  <div>
-                    <p className={styles.messageMeta}>You · {turn.stamp}</p>
-                    <p className={styles.userBubble}>{turn.body}</p>
-                  </div>
+                  <div
+                    className={`${styles.userBubble} ${styles.md}`}
+                    dangerouslySetInnerHTML={{ __html: renderSafeAgentMarkdown(turn.body) }}
+                  />
                 )}
                 {turn.role === "assistant" && (
                   <div className={styles.assistantShell}>
                     <span className={styles.assistantMark} aria-hidden="true" />
                     <div className={styles.assistantBody}>
-                      <p className={styles.messageMeta}>Agent · {turn.stamp}</p>
                       {turn.status === "thinking" && (
                         <div className={styles.thinking}>
                           <span className={styles.thinkingLabel}>Reading graph</span>
@@ -290,12 +485,22 @@ export function AgentPanel({
                           </span>
                         </div>
                       )}
+                      {/* Plain text while revealing — ripple/chunking agent owns stream UX. */}
                       {turn.status === "streaming" && turn.body !== undefined && (
-                        <p className={styles.assistantStreaming}>{turn.body}</p>
+                        <AgentRippleText text={turn.body} active />
                       )}
-                      {turn.status === "complete" && turn.html && (
-                        <div dangerouslySetInnerHTML={{ __html: turn.html }} />
-                      )}
+                      {turn.status === "complete" && turn.parts && turn.parts.length > 0 ? (
+                        <AgentAnswerView
+                          parts={turn.parts}
+                          onCommitActivate={onCommitActivate}
+                          onBranchActivate={onBranchActivate}
+                        />
+                      ) : turn.status === "complete" && turn.html ? (
+                        <div
+                          className={styles.md}
+                          dangerouslySetInnerHTML={{ __html: turn.html }}
+                        />
+                      ) : null}
                       {turn.status === "error" && (
                         <p className={styles.errorBubble} role="alert">
                           {turn.error}
@@ -374,8 +579,9 @@ export function AgentPanel({
             </label>
             <textarea
               id={inputId}
+              ref={composerRef}
               className={styles.composerInput}
-              rows={3}
+              rows={1}
               value={draft}
               disabled={busy}
               placeholder="Ask about this graph…"
@@ -387,42 +593,45 @@ export function AgentPanel({
                 }
               }}
             />
-            <button
+            <Button
               type="submit"
-              className={`${buttonStyles.button} ${buttonStyles.primary} ${styles.sendButton}`}
+              variant="ghost"
+              className={styles.sendButton}
               disabled={busy || !draft.trim()}
-              aria-label="Send question"
+              aria-label="Ask"
             >
-              <SendIcon />
-            </button>
+              Ask
+            </Button>
           </div>
         </form>
-        <p className={styles.snapshotStamp}>
-          <span className={styles.snapshotRepo}>
+        <div className={styles.snapshotBar} aria-label="Graph context">
+          <p className={styles.snapshotRepo} title={`${owner}/${repo}`}>
             {owner}/{repo}
-          </span>
-          {focusedBranch ? (
-            <>
-              {" · "}
-              <span className={styles.snapshotFocus}>
-                focused: <span className={styles.snapshotHandle}>{focusedBranch.name}</span>
-              </span>
-            </>
-          ) : null}
-          {selectedSha ? (
-            <>
-              {" · "}
-              <span className={styles.snapshotTip}>inspect </span>
-              <span className={styles.snapshotHandle}>{selectedSha.slice(0, 7)}</span>
-            </>
-          ) : null}
-          {loadHandle ? (
-            <>
-              {" · "}
-              <span className={styles.snapshotHandle}>{loadHandle}</span>
-            </>
-          ) : null}
-        </p>
+          </p>
+          {/* Always mount the facts row so focus/inspect arrival does not grow the footer. */}
+          <ul
+            className={styles.snapshotFacts}
+            data-empty={!focusedBranch && !selectedSha ? "true" : undefined}
+            aria-hidden={!focusedBranch && !selectedSha}
+          >
+            {focusedBranch ? (
+              <li className={styles.snapshotFact}>
+                <span className={styles.snapshotLabel}>focused</span>
+                <span className={styles.snapshotHandle} title={focusedBranch.name}>
+                  {focusedBranch.name}
+                </span>
+              </li>
+            ) : null}
+            {selectedSha ? (
+              <li className={styles.snapshotFact}>
+                <span className={styles.snapshotLabel}>inspect</span>
+                <span className={styles.snapshotHandle} title={selectedSha}>
+                  {selectedSha.slice(0, 7)}
+                </span>
+              </li>
+            ) : null}
+          </ul>
+        </div>
       </footer>
     </Surface>
   );

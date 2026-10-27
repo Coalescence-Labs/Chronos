@@ -1,4 +1,6 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
+import type { AgentAnswerUiHint } from "@/lib/agent/answer-format";
+import { resolveAgentAnswerUi } from "@/lib/agent/answer-format";
 import type { AgentBranchFocus, AgentChatContextRef } from "@/lib/agent/chat-context";
 import { agentTurnContextPayload } from "@/lib/agent/chat-context";
 import type { RepoHistory } from "@/lib/graph";
@@ -47,6 +49,16 @@ function parseHistory(raw: unknown): RepoHistory | null {
   return history;
 }
 
+function parseAnswerUi(raw: unknown): AgentAnswerUiHint | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const hint: AgentAnswerUiHint = {};
+  if (record.surface === "narrow-panel") hint.surface = "narrow-panel";
+  if (record.density === "narrow" || record.density === "comfortable") hint.density = record.density;
+  if (typeof record.approxWidthPx === "number") hint.approxWidthPx = record.approxWidthPx;
+  return Object.keys(hint).length > 0 ? resolveAgentAnswerUi(hint) : null;
+}
+
 export async function POST(request: Request): Promise<Response> {
   const { user } = await withAuth({ ensureSignedIn: true });
   try {
@@ -70,6 +82,7 @@ export async function POST(request: Request): Promise<Response> {
     selectedSha?: string | null;
     focusedBranch?: unknown;
     contextRefs?: unknown;
+    ui?: unknown;
   };
   try {
     body = await request.json();
@@ -108,6 +121,7 @@ export async function POST(request: Request): Promise<Response> {
     selectedSha: body.selectedSha,
     focusedBranch,
     contextRefs,
+    ui: parseAnswerUi(body.ui) ?? resolveAgentAnswerUi({ surface: "narrow-panel", density: "narrow" }),
     githubAuth,
   });
 

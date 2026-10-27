@@ -9,6 +9,10 @@ import { layoutMsBucket, sizeBucket, track } from "@/lib/analytics";
 import type { SizeBucket } from "@/lib/analytics";
 import { attributeBranches, canApplyGlance, DEFAULT_MAX_LANES, layoutGraph } from "@/lib/graph";
 import type { AgentBranchFocus } from "@/lib/agent/chat-context";
+import {
+  toggleAgentShaHighlight,
+  toggleAgentTipHighlight,
+} from "@/lib/agent/gen-ui";
 import type { Capsule, GlanceResult, RepoHistory } from "@/lib/graph";
 import type { GlanceWorkerClient } from "./glance-worker-client";
 import { RepoAgentChrome } from "@/components/agent/RepoAgentChrome";
@@ -64,6 +68,7 @@ export function GraphExplorer({
 }: GraphExplorerProps) {
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [tracedTip, setTracedTip] = useState<string | null>(null);
+  const [lensShas, setLensShas] = useState<string[]>([]);
   const [glance, setGlance] = useState(false);
   const [glanceRequest, setGlanceRequest] = useState(0);
   const [reflowing, setReflowing] = useState(false);
@@ -147,9 +152,12 @@ export function GraphExplorer({
 
   const layout = useMemo(() => layoutGraph(view, { maxLanes }), [view, maxLanes]);
 
-  useEffect(() => {
+  const [seenRepoKey, setSeenRepoKey] = useState(repoKey);
+  if (seenRepoKey !== repoKey) {
+    setSeenRepoKey(repoKey);
     setTracedTip(null);
-  }, [repoKey]);
+    setLensShas([]);
+  }
 
   const focusedBranch = useMemo((): AgentBranchFocus | null => {
     if (!tracedTip) return null;
@@ -193,8 +201,36 @@ export function GraphExplorer({
       owner={owner}
       repo={repo}
       history={view}
+      defaultBranch={defaultBranch}
       selectedSha={selectedSha}
       focusedBranch={focusedBranch}
+      onLensChange={(lens) => {
+        setLensShas(lens?.shas ?? []);
+        // Sync with existing focus when the answer names a single grounded branch tip.
+        if (lens?.branches.length === 1) {
+          const name = lens.branches[0]!;
+          const ref = view.refs.find(
+            (r) => r.type === "branch" && r.name.toLowerCase() === name.toLowerCase(),
+          );
+          if (ref) setTracedTip(ref.sha);
+        }
+      }}
+      onCommitActivate={(sha) => {
+        const next = toggleAgentShaHighlight(selectedSha, sha);
+        setSelectedSha(next);
+        // Click-driven highlight: second click clears soft lens too.
+        setLensShas(next ? [next] : []);
+      }}
+      onBranchActivate={(name, tipSha) => {
+        const resolved =
+          tipSha ??
+          view.refs.find((r) => r.type === "branch" && r.name.toLowerCase() === name.toLowerCase())
+            ?.sha;
+        if (!resolved) return;
+        const next = toggleAgentTipHighlight(tracedTip, resolved);
+        setTracedTip(next);
+        setLensShas(next ? [next] : []);
+      }}
     >
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -255,6 +291,7 @@ export function GraphExplorer({
         onSelect={setSelectedSha}
         tracedTip={tracedTip}
         onTracedTipChange={setTracedTip}
+        lensShas={lensShas}
         onNearEnd={onNearEnd}
       />
       <InspectionSurface
