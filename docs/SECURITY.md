@@ -20,6 +20,15 @@ GitHub input, and is excluded from production installs. The exception cannot
 suppress a production finding. Update or replace that toolchain dependency before
 expiry; do not broaden the exception to other packages or advisories.
 
+`package.json` overrides `minimatch` to `^11.0.3`. Only 11.0.1 and later patch
+[GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), and the lint
+toolchain still declares `^3` and `^10`. It is development-only: it processes trusted
+repository lint globs and is excluded from production installs. Version 11 has no
+callable default export, so `eslint-plugin-import`, `eslint-plugin-react` and
+`eslint-plugin-jsx-a11y` rules that use `minimatch` crash with "is not a function" when
+configured with glob options, such as `pathGroups` on `import/order`. None are active
+today. Remove the override once the toolchain accepts version 11.
+
 ## Deployment verification
 
 - Restrict the optional `GITHUB_TOKEN` to public, read-only access. The application
