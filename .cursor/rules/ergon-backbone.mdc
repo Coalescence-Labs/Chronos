@@ -1,13 +1,13 @@
 ---
-description: Linear is Chronos's project backbone — track all agent work in tickets
+description: Ergon is Chronos's project backbone — track all agent work in tickets
 alwaysApply: true
 ---
 
-# Linear backbone
+# Ergon backbone
 
-Linear is how Chronos work stays visible. Full rules: [AGENTS.md](AGENTS.md) §3.
+Ergon is how Chronos work stays visible. Linear is retired: never read, file or update work there. Full rules: [AGENTS.md](AGENTS.md) §3.
 
-- **Before starting:** search Chronos issues (team Coalescence Labs / project Chronos); **dedup** before creating; set **In Progress** when you start.
+- **Before starting:** search Chronos issues (team `COA` / project Chronos); **dedup** before creating; set **In Progress** when you start.
 - **While working:** comment findings/blockers; link the PR; set **In Review** when the PR is open.
 - **Done** only when **merged and verified** — never mark broken or incomplete work Done.
 - Do not invent open architecture decisions. Privacy pre-flight is still mandatory for egress/AI.

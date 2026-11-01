@@ -32,11 +32,11 @@ The product direction is set. Most *technical* choices are **not yet made**. Do 
 - **AI feature surface beyond Graph Q&A beta** (other products; Agent UX directions A–E; generative-UI ambition).
 - **Written ZDR** for the AI provider (required before private-repo Agent / ending the public-only beta carve-out).
 
-## 3. Linear is the project backbone
+## 3. Ergon is the project backbone
 
-Linear is how Chronos work stays visible — for humans and for AI agents. Treat tickets as the source of truth for *what* is in flight; keep them honest as you go. Cursor agents also get a short always-on reminder in [`.cursor/rules/linear-backbone.mdc`](.cursor/rules/linear-backbone.mdc); **this section is canonical**.
+Ergon is how Chronos work stays visible — for humans and for AI agents. Treat tickets as the source of truth for *what* is in flight; keep them honest as you go. Cursor agents also get a short always-on reminder in [`.cursor/rules/ergon-backbone.mdc`](.cursor/rules/ergon-backbone.mdc); **this section is canonical**. Linear is retired: never read, file or update work there, even if a Linear connector is available.
 
-**Team / project:** Coalescence Labs · project **Chronos**.
+**Team / project:** `COA` · project **Chronos**, at [ergon.coalescencelabs.app](https://ergon.coalescencelabs.app). Agents use the Ergon MCP server; tickets are addressed by identifier (`COA-123`).
 
 ### Before you start
 - Search Chronos issues first; **dedup** before creating.
@@ -59,8 +59,8 @@ Linear is how Chronos work stays visible — for humans and for AI agents. Treat
 - **Runtime:** `bun install`, `bun run dev`, `bun run test`. Bun auto-loads `.env`.
 - **Language:** TypeScript, strict.
 - **Style:** match surrounding code; comment density and naming should be indistinguishable from neighboring files. Don't add narration comments.
-- **Commits/PRs:** branch off the default branch before committing. Commit and push your completed work by default unless the owner explicitly asks otherwise; finished changes must not remain only in a local checkout. Prefer Linear identifiers (e.g. `COA-123`) in branch/PR titles when a ticket exists.
-- **Branch names:** use a lowercase purpose prefix: `feature/`, `bugfix/`, `hotfix/`, `maintenance/`, `perf/`, `refactor/`, `docs/`, `test/`, or `ci/`, followed by a kebab-case description. Include the lowercase Linear identifier when available, e.g. `perf/coa-236-speed-up-page-transitions`. Never create or push a branch whose name starts with `t3code`. If tooling creates one automatically, rename it to a permitted name before committing or pushing; tool defaults do not override this rule.
+- **Commits/PRs:** branch off the default branch before committing. Commit and push your completed work by default unless the owner explicitly asks otherwise; finished changes must not remain only in a local checkout. Prefer Ergon identifiers (e.g. `COA-123`) in branch/PR titles when a ticket exists.
+- **Branch names:** use a lowercase purpose prefix: `feature/`, `bugfix/`, `hotfix/`, `maintenance/`, `perf/`, `refactor/`, `docs/`, `test/`, or `ci/`, followed by a kebab-case description. Include the lowercase Ergon identifier when available, e.g. `perf/coa-236-speed-up-page-transitions`. Never create or push a branch whose name starts with `t3code`. If tooling creates one automatically, rename it to a permitted name before committing or pushing; tool defaults do not override this rule.
 - **Tests:** colocate or under `tests/`; run with `bun run test` (bare `bun test` omits `--preload` and `--parallel`, and reports false failures). Write tests for graph-layout logic especially — it's the core and the easiest place for subtle bugs.
 - **Server boundary:** modules that read secrets, tokens or spend start with `import "server-only"`, so a client import fails the build. Never use `"use server"` to mean "runs on the server": it makes every export a public endpoint with caller-chosen arguments. Reserve it for real Server Actions, which must authenticate and validate their own input.
 
@@ -71,7 +71,7 @@ Chronos/
   README.md                 # public overview
   CLAUDE.md                 # thin agent entry point -> points here
   AGENTS.md                 # this file
-  .cursor/rules/            # Cursor always-on agent rules (Linear backbone, etc.)
+  .cursor/rules/            # Cursor always-on agent rules (Ergon backbone, etc.)
   docs/
     PRODUCT.md              # vision + philosophy
     ARCHITECTURE.md         # how it's built + OPEN DECISIONS
@@ -120,7 +120,7 @@ Keep this map current as directories are added.
 2. **Polish is part of "done."** A feature that works but feels rough is not done. See [docs/DESIGN.md](docs/DESIGN.md).
 3. **Respect the cognitive-load mandate.** Every UI addition must *reduce* confusion, not add a knob. If it adds a knob, justify it.
 4. **Don't invent open decisions into "fact."** Flag them.
-5. **Keep Linear current.** Find/create the Chronos ticket, update status, link the PR — see §3.
+5. **Keep Ergon current.** Find/create the Chronos ticket, update status, link the PR — see §3.
 
 ## 7. zero-native (phase 2) — keep it thin
 

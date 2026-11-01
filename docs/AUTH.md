@@ -331,5 +331,5 @@ See `.env.example`. Required for auth (all or nothing): `WORKOS_CLIENT_ID`,
 
 ## Out of scope here
 
-- Multi-repo switcher UI — [COA-201](https://linear.app/coalescence-labs/issue/COA-201)
+- Multi-repo switcher UI — [COA-201](https://ergon.coalescencelabs.app/issue/COA-201)
 - AI / Chronos Agent — Account hosts `chronosAgentOptIn`; stack + open items in [AI.md](AI.md) (architecture #4 remainder / #5 written ZDR)
