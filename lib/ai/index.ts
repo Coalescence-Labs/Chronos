@@ -1,10 +1,10 @@
 /**
- * AI integration point — intentionally empty.
+ * AI integration point — Chronos Agent orchestration lives under lib/agent.
  *
- * Both the feature surface (decision #4) and the ZDR provider (decision #5)
- * are OPEN — see docs/ARCHITECTURE.md. Any code added here must first clear
- * the privacy pre-flight (.claude/skills/privacy-preflight/) and respect
- * docs/PRIVACY.md: opt-in only, ZDR verified in writing, minimum context.
+ * Feature surface (#4) and provider (#5) remain open in docs/ARCHITECTURE.md
+ * until owner ratifies graph Q&A. Gate + safe markdown ship in M1; live calls
+ * require opt-in, Redis spend controls, and Vercel AI Gateway + written ZDR.
  */
 
+export { evaluateAgentGate, isAgentFeatureConfigured, isAgentKillSwitchActive } from "@/lib/agent";
 export const AI_FEATURES_ENABLED = false;

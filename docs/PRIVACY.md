@@ -189,6 +189,36 @@ Cookieless, anonymous, first-party product analytics (no third party, no cross-d
 4. **Retention/training:** product analytics, not an AI path — no ZDR question; cookieless, aggregated, no training.
 5. **Consent:** cookieless/anonymous (no consent banner needed); disclosed in the public [PRIVACY.md](../PRIVACY.md). Opt-out via the env switch.
 
+## Chronos Agent (graph Q&A — proposed)
+
+Opt-in graph Q&amp;A from history already loaded in the browser. Live model calls
+require Account opt-in (`chronosAgentOptIn`), optional Upstash spend controls, and
+Vercel AI Gateway with **written ZDR** (open decision #5 — owner must ratify
+provider tier). `CHRONOS_AGENT_KILL_SWITCH` disables Agent without redeploying UI.
+
+### Privacy pre-flight — Agent (M1 gate; orchestration follows)
+
+1. **What leaves (when live):** the user's natural-language question; graph-anchored
+   facts derived from loaded commits/refs (sha, parents, dates, first-line messages,
+   branch/tag names — **author names omitted**); optional selected commit sha; PR
+   titles/labels only when GitHub connect grants access and the user asks a PR-capable
+   question. **Not sent:** file contents, diffs, whole-repo dumps, tokens, or Exa/web
+   search.
+2. **Where:** Vercel AI Gateway → configured ZDR model(s). Jev moderation sends **only
+   the question text** for classification flags before orchestration. Spend ledger and
+   rate limits use Chronos-only Upstash keys (counts/usd estimates — no repo content).
+3. **Minimum:** fact tools answer from in-memory graph; model sees compact fact bundles,
+   not raw GitHub payloads.
+4. **Retention & training:** ZDR in writing required before enabling live calls; Redis
+   ledger holds monthly spend totals only.
+5. **Consent:** Account toggle + in-product disclosure before first send; public paste
+   works without Agent.
+6. **Least privilege:** no new GitHub scopes for Agent; PR tools reuse existing read
+   permissions when connected.
+7. **Secrets:** `AI_GATEWAY_API_KEY` server-only; never in client bundles or logs.
+8. **Untrusted input:** model output passes through `renderSafeAgentMarkdown` before
+   HTML render; questions treated as untrusted in prompts.
+
 ## Search indexing & link previews (COA-126)
 
 The repo view's URL contains the repo identity (`/repo/[owner]/[repo]`), so search/social must not expose *which repo someone viewed* — the same promise `scrubUrl` keeps for analytics:
