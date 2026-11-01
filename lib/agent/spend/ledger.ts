@@ -1,3 +1,4 @@
+import "server-only";
 import { chronosKey, getRedis, isRedisConfigured } from "@/lib/redis";
 
 const MONTHLY_CAP_USD = 5;

@@ -1,25 +1,18 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import type { RepoHistory } from "@/lib/graph";
+import { parseAgentHistory } from "@/lib/agent/history-input";
 import { generateAgentStarters } from "@/lib/agent/starters";
 import { assertPublicRepoForAgent } from "@/lib/agent/public-repo";
 import { isAuthConfigured } from "@/lib/auth/config";
-import { enforceRequestLimitAsync } from "@/lib/security/request";
+import { enforceRequestLimitAsync, isSameOriginMutation } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
 import { errorResponse } from "@/lib/ingest/respond";
 import { githubAuthForRequest } from "@/lib/ingest/github/auth";
 import { parseRepoInput } from "@/lib/ingest/github/parse";
 
-const MAX_COMMITS = 2_500;
-
-function parseHistory(raw: unknown): RepoHistory | null {
-  if (!raw || typeof raw !== "object") return null;
-  const history = raw as RepoHistory;
-  if (!Array.isArray(history.commits) || !Array.isArray(history.refs)) return null;
-  if (history.commits.length > MAX_COMMITS) return null;
-  return history;
-}
-
 export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginMutation(request)) {
+    return Response.json({ ok: false, error: "Forbidden", starters: [], source: "fallback" }, { status: 403 });
+  }
   if (!isAuthConfigured()) {
     return Response.json({ ok: false, error: "Sign in required." }, { status: 401 });
   }
@@ -45,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const owner = typeof body.owner === "string" ? body.owner.trim() : "";
   const repo = typeof body.repo === "string" ? body.repo.trim() : "";
-  const history = parseHistory(body.history);
+  const history = parseAgentHistory(body.history);
   const defaultBranch =
     typeof body.defaultBranch === "string" ? body.defaultBranch.trim() : undefined;
 

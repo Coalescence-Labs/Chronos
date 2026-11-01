@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { resolveDefaultBranch, type RepoHistory } from "@/lib/graph";
 
 /**
- * Loaded-history fingerprint for starter cache invalidation.
+ * Loaded-history fingerprint for starter cache invalidation. Shared with the
+ * browser cache (`client-cache.ts`), so nothing server-only belongs here.
  *
  * Choice (documented):
  * - **Branch tip SHAs** — unique `ref.sha` for `type === "branch"`, sorted
@@ -33,24 +33,4 @@ export function starterDayKey(date = new Date()): string {
   const month = date.getUTCMonth() + 1;
   const year = date.getUTCFullYear();
   return `${day}-${month}-${year}`;
-}
-
-export function buildStarterCacheMaterial(input: {
-  owner: string;
-  repo: string;
-  workosUserId: string;
-  history: RepoHistory;
-  defaultBranch?: string;
-  now?: Date;
-}): { fingerprint: string; dayKey: string; material: string; snapshotHash: string } {
-  const fingerprint = buildStarterHistoryFingerprint(input.history, input.defaultBranch);
-  const dayKey = starterDayKey(input.now);
-  const material = [
-    `${input.owner.trim()}/${input.repo.trim()}`,
-    input.workosUserId.trim(),
-    dayKey,
-    fingerprint,
-  ].join("\0");
-  const snapshotHash = createHash("sha256").update(material).digest("hex").slice(0, 32);
-  return { fingerprint, dayKey, material, snapshotHash };
 }

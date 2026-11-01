@@ -1,9 +1,11 @@
+import "server-only";
+import { createHash } from "node:crypto";
 import { chronosKey, getRedis } from "@/lib/redis";
 import {
   agentStartersResponseSchema,
   type AgentStartersResponse,
 } from "./schema";
-import { buildStarterCacheMaterial } from "./fingerprint";
+import { buildStarterHistoryFingerprint, starterDayKey } from "./fingerprint";
 import type { RepoHistory } from "@/lib/graph";
 
 /** In-process fallback when Upstash is unset (tests / local without Redis). */
@@ -23,6 +25,26 @@ const memoryCache = new Map<string, { expiresAt: number; value: AgentStartersRes
  */
 export function starterCacheKey(snapshotHash: string): string {
   return chronosKey("agent-starters", snapshotHash);
+}
+
+export function buildStarterCacheMaterial(input: {
+  owner: string;
+  repo: string;
+  workosUserId: string;
+  history: RepoHistory;
+  defaultBranch?: string;
+  now?: Date;
+}): { fingerprint: string; dayKey: string; material: string; snapshotHash: string } {
+  const fingerprint = buildStarterHistoryFingerprint(input.history, input.defaultBranch);
+  const dayKey = starterDayKey(input.now);
+  const material = [
+    `${input.owner.trim()}/${input.repo.trim()}`,
+    input.workosUserId.trim(),
+    dayKey,
+    fingerprint,
+  ].join("\0");
+  const snapshotHash = createHash("sha256").update(material).digest("hex").slice(0, 32);
+  return { fingerprint, dayKey, material, snapshotHash };
 }
 
 export function resolveStarterCacheKey(input: {

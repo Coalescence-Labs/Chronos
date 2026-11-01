@@ -1,3 +1,4 @@
+import "server-only";
 import type { GitHubRequestAuth } from "@/lib/ingest/github/fetch";
 
 export interface PullRequestFact {

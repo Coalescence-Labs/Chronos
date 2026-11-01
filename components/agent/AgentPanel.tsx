@@ -23,7 +23,7 @@ import { sanitizeAgentGenUiParts } from "@/lib/agent/gen-ui";
 import { renderSafeAgentMarkdown } from "@/lib/agent/safe-markdown";
 import {
   AGENT_PRIVATE_UI_HINT,
-} from "@/lib/agent/public-repo";
+} from "@/lib/agent/public-repo-copy";
 import {
   STARTER_SLOT_COUNT,
   clearClientStarterCache,

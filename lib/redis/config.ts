@@ -1,3 +1,4 @@
+import "server-only";
 /** Chronos-only Upstash Redis — ledger, rate limits, credential coord, idempotency. */
 
 export function isRedisConfigured(): boolean {

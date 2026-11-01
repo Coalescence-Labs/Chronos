@@ -20,7 +20,7 @@ import { RepoAgentChrome } from "@/components/agent/RepoAgentChrome";
 import {
   AGENT_PRIVATE_CONTROL_LABEL,
   AGENT_PRIVATE_UI_HINT,
-} from "@/lib/agent/public-repo";
+} from "@/lib/agent/public-repo-copy";
 import styles from "./repo.module.css";
 
 /**

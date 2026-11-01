@@ -53,6 +53,11 @@ export async function enforceDistributedRateLimit(
     );
     throw error;
   }
+  // The client allows requests once its 5s timeout passes. These are fairness limits, so keep
+  // that, but say so. Never log the identity.
+  if (result.reason === "timeout") {
+    console.warn("Upstash rate limiter timed out — request allowed without a limit check");
+  }
   const retryAfterSeconds = result.reset
     ? Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))
     : 60;

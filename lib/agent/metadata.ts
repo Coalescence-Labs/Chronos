@@ -1,3 +1,4 @@
+import "server-only";
 import { isAuthConfigured } from "@/lib/auth/config";
 import { githubMetadataClient } from "@/lib/github-app/metadata-client";
 import { AGENT_METADATA_OPT_IN_KEY } from "./config";

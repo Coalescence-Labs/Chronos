@@ -1,3 +1,4 @@
+import "server-only";
 import { WorkOS } from "@workos-inc/node";
 
 let client: WorkOS | undefined;

@@ -1,3 +1,4 @@
+import "server-only";
 /** Chronos Agent — env gates and model defaults (orchestration in later PRs). */
 
 export const AGENT_METADATA_OPT_IN_KEY = "chronosAgentOptIn";

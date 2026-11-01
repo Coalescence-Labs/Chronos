@@ -1,3 +1,4 @@
+import "server-only";
 /**
  * GitHub App connect (COA-202) — distinct from WorkOS "Sign in with GitHub".
  * Decision #7 BFF: installation id sealed server-side; short-lived installation

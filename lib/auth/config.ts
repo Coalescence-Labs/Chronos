@@ -1,3 +1,4 @@
+import "server-only";
 /**
  * Auth configuration + cookie posture for WorkOS AuthKit (COA-200).
  *

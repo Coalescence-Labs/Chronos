@@ -1,3 +1,4 @@
+import "server-only";
 import { createHmac, randomBytes } from "node:crypto";
 import { IngestError } from "@/lib/ingest/errors";
 import { isRedisConfigured } from "@/lib/redis/config";

@@ -1,3 +1,4 @@
+import "server-only";
 import { resolveGitHubRequestAuth } from "@/lib/github-app";
 import { IngestError } from "../errors";
 import { fetchRepoMeta, type RepoMeta } from "./fetch";
@@ -10,8 +11,8 @@ import type { RepoId } from "./parse";
  * Prefers a mint of the connected GitHub App installation token;
  * falls back to app pool / anonymous.
  *
- * AuthKit is loaded dynamically so bun unit tests that import `/api/repo`
- * do not pull `server-only` into the static module graph.
+ * AuthKit is loaded dynamically so importing `/api/repo` does not need a Next
+ * runtime.
  */
 export async function githubAuthForRequest(repo: RepoId, request?: Request): Promise<GitHubRequestAuth> {
   const deadline = AbortSignal.timeout(20_000);

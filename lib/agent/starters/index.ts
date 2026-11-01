@@ -19,9 +19,9 @@ export {
 export {
   buildStarterHistoryFingerprint,
   starterDayKey,
-  buildStarterCacheMaterial,
 } from "./fingerprint";
 export {
+  buildStarterCacheMaterial,
   starterCacheKey,
   resolveStarterCacheKey,
   readStarterCache,

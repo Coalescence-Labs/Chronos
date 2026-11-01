@@ -1,3 +1,4 @@
+import "server-only";
 import { generateText, gateway } from "ai";
 import type { AgentBranchFocus, AgentChatContextRef } from "@/lib/agent/chat-context";
 import { agentTurnContextPayload } from "@/lib/agent/chat-context";

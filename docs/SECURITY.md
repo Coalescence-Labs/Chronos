@@ -72,7 +72,10 @@ Connection-management and Agent requests use separate 30/minute buckets. With Up
 configured these limits are enforced server-side across every instance (sliding window,
 `chronos:rl:*`); without it they are per-instance only and production logs a one-time
 warning. A failing Upstash call is logged (error name only, never the identity) and
-surfaces as a 500 rather than silently lifting the limit.
+fails the request; the status depends on the route. A call that passes the client's
+5-second timeout is the exception: it is logged and the request is allowed, because
+these are fairness limits, not access control. A slow Upstash therefore delays requests
+and lifts the limit until it recovers.
 Configure **Vercel Firewall rate limits** for `/api/repo*` and `/api/github/*` before
 large-scale exposure: process-local limits (Upstash unset) cannot enforce a deployment-wide quota.
 On 2026-10-18 the project's read-only Firewall API inspection returned no active

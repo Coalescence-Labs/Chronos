@@ -56,12 +56,13 @@ Linear is how Chronos work stays visible — for humans and for AI agents. Treat
 
 ## 4. Conventions
 
-- **Runtime:** `bun install`, `bun run dev`, `bun test`. Bun auto-loads `.env`.
+- **Runtime:** `bun install`, `bun run dev`, `bun run test`. Bun auto-loads `.env`.
 - **Language:** TypeScript, strict.
 - **Style:** match surrounding code; comment density and naming should be indistinguishable from neighboring files. Don't add narration comments.
 - **Commits/PRs:** branch off the default branch before committing. Commit and push your completed work by default unless the owner explicitly asks otherwise; finished changes must not remain only in a local checkout. Prefer Linear identifiers (e.g. `COA-123`) in branch/PR titles when a ticket exists.
 - **Branch names:** use a lowercase purpose prefix: `feature/`, `bugfix/`, `hotfix/`, `maintenance/`, `perf/`, `refactor/`, `docs/`, `test/`, or `ci/`, followed by a kebab-case description. Include the lowercase Linear identifier when available, e.g. `perf/coa-236-speed-up-page-transitions`. Never create or push a branch whose name starts with `t3code`. If tooling creates one automatically, rename it to a permitted name before committing or pushing; tool defaults do not override this rule.
-- **Tests:** colocate or under `tests/`; prefer `bun test`. Write tests for graph-layout logic especially — it's the core and the easiest place for subtle bugs.
+- **Tests:** colocate or under `tests/`; run with `bun run test` (bare `bun test` omits `--preload` and `--parallel`, and reports false failures). Write tests for graph-layout logic especially — it's the core and the easiest place for subtle bugs.
+- **Server boundary:** modules that read secrets, tokens or spend start with `import "server-only"`, so a client import fails the build. Never use `"use server"` to mean "runs on the server": it makes every export a public endpoint with caller-chosen arguments. Reserve it for real Server Actions, which must authenticate and validate their own input.
 
 ## 5. Repository map (intended)
 

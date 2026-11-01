@@ -1,3 +1,4 @@
+import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { GIT_COMMANDS, GitCommandError, gitMcpConfig, repoHead, runGit, type GitMcpConfig } from "./git";
 

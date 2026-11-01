@@ -1,3 +1,4 @@
+import "server-only";
 import { isRedisConfigured } from "@/lib/redis/config";
 import { isAgentFeatureConfigured, isAgentKillSwitchActive } from "./config";
 import { readAgentOptIn } from "./metadata";

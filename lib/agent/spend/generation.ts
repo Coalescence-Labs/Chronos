@@ -1,3 +1,4 @@
+import "server-only";
 import { reserveAgentSpendUsd, settleAgentSpendUsd } from "./ledger";
 
 const CATALOG_URL = "https://ai-gateway.vercel.sh/v1/models";

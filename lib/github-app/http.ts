@@ -1,3 +1,4 @@
+import "server-only";
 import { IngestError } from "@/lib/ingest/errors";
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;

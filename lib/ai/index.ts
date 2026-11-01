@@ -1,3 +1,4 @@
+import "server-only";
 /**
  * AI integration point — Chronos Agent orchestration lives under lib/agent.
  *

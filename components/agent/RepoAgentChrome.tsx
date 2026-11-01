@@ -8,7 +8,7 @@ import type { AgentLensTargets } from "@/lib/agent/gen-ui";
 import {
   AGENT_PRIVATE_CONTROL_LABEL,
   AGENT_PRIVATE_UI_HINT,
-} from "@/lib/agent/public-repo";
+} from "@/lib/agent/public-repo-copy";
 import type { RepoHistory } from "@/lib/graph";
 import styles from "./agent.module.css";
 

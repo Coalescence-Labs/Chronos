@@ -1,3 +1,4 @@
+import "server-only";
 import { claimIdempotencyKey } from "@/lib/redis/idempotency";
 
 export async function notifyAgentSpendThreshold(

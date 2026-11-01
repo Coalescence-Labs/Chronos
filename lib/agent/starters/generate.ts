@@ -1,3 +1,4 @@
+import "server-only";
 import { generateText, gateway, Output } from "ai";
 import { z } from "zod";
 import type { RepoHistory } from "@/lib/graph";

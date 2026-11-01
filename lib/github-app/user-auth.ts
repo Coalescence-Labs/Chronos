@@ -1,3 +1,4 @@
+import "server-only";
 import { sealData, unsealData } from "iron-session";
 import {
   githubAppClientId,

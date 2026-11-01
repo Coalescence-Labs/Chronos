@@ -1,3 +1,4 @@
+import "server-only";
 import { generateText, gateway } from "ai";
 import { agentJevModelId } from "./models";
 import { guardGeneratePrompt } from "./spend-limits";

@@ -3,16 +3,14 @@ import type { AgentAnswerUiHint } from "@/lib/agent/answer-format";
 import { resolveAgentAnswerUi } from "@/lib/agent/answer-format";
 import type { AgentBranchFocus, AgentChatContextRef } from "@/lib/agent/chat-context";
 import { agentTurnContextPayload } from "@/lib/agent/chat-context";
-import type { RepoHistory } from "@/lib/graph";
+import { parseAgentHistory } from "@/lib/agent/history-input";
 import { runAgentTurn } from "@/lib/agent/orchestrate";
 import { assertPublicRepoForAgent } from "@/lib/agent/public-repo";
-import { enforceRequestLimitAsync } from "@/lib/security/request";
+import { enforceRequestLimitAsync, isSameOriginMutation } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
 import { errorResponse } from "@/lib/ingest/respond";
 import { githubAuthForRequest } from "@/lib/ingest/github/auth";
 import { parseRepoInput } from "@/lib/ingest/github/parse";
-
-const MAX_COMMITS = 2_500;
 
 function parseFocusedBranch(raw: unknown): AgentBranchFocus | null {
   if (!raw || typeof raw !== "object") return null;
@@ -40,14 +38,6 @@ function parseContextRefs(raw: unknown): AgentChatContextRef[] {
   return refs.slice(0, 8);
 }
 
-function parseHistory(raw: unknown): RepoHistory | null {
-  if (!raw || typeof raw !== "object") return null;
-  const history = raw as RepoHistory;
-  if (!Array.isArray(history.commits) || !Array.isArray(history.refs)) return null;
-  if (history.commits.length > MAX_COMMITS) return null;
-  return history;
-}
-
 function parseAnswerUi(raw: unknown): AgentAnswerUiHint | null {
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
@@ -59,6 +49,9 @@ function parseAnswerUi(raw: unknown): AgentAnswerUiHint | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginMutation(request)) {
+    return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
   const { user } = await withAuth({ ensureSignedIn: true });
   try {
     await enforceRequestLimitAsync(request, user.id, "agent");
@@ -86,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
   const question = typeof body.question === "string" ? body.question : "";
   const owner = typeof body.owner === "string" ? body.owner.trim() : "";
   const repo = typeof body.repo === "string" ? body.repo.trim() : "";
-  const history = parseHistory(body.history);
+  const history = parseAgentHistory(body.history);
   if (!question.trim() || !owner || !repo || !history) {
     return Response.json({ ok: false, error: "Missing question, repo, or history." }, { status: 400 });
   }
@@ -117,7 +110,7 @@ export async function POST(request: Request): Promise<Response> {
     repo,
     question,
     history,
-    selectedSha: body.selectedSha,
+    selectedSha: typeof body.selectedSha === "string" ? body.selectedSha : null,
     focusedBranch,
     contextRefs,
     ui: parseAnswerUi(body.ui) ?? resolveAgentAnswerUi({ surface: "narrow-panel", density: "narrow" }),
