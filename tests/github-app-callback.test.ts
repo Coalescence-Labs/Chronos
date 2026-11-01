@@ -9,7 +9,9 @@ const personal: GitHubAppSessionData = {
   connectedAt: "2026-10-01T00:00:00.000Z", permissions: "contents:read,metadata:read",
 };
 let activeUser = "user_test";
-let accessibleId = 200;
+let accessibleIds = [200, 100];
+let accountLogin = "acme";
+let accountType: "User" | "Organization" = "Organization";
 let authorizationVersion = "initial";
 const jar = new Map<string, string>();
 const writes: GitHubAppSessionData[] = [];
@@ -35,7 +37,7 @@ mock.module("@/lib/github-app", () => ({
   ...realGitHubApp,
   isGitHubAppConfigured: () => true,
   peekGitHubInstallBinding: async () => personal,
-  fetchInstallationAccount: async (id: number) => ({ installationId: id, accountLogin: "acme", accountType: "Organization" }),
+  fetchInstallationAccount: async (id: number) => ({ installationId: id, accountLogin, accountType }),
   writeGitHubInstallMetadata: async (_id: string, data: GitHubAppSessionData) => { writes.push(data); },
   saveGitHubAppSession: async (data: GitHubAppSessionData) => { saves.push(data); },
 }));
@@ -44,12 +46,12 @@ beforeEach(() => {
   for (const [key, value] of Object.entries(env)) { previous[key] = process.env[key]; process.env[key] = value; }
   globalThis.fetch = (async (input) => String(input).startsWith("https://github.com/login/oauth/access_token")
     ? Response.json({ access_token: "ghu_test_user", refresh_token: "ghr_test_refresh", expires_in: 28800 })
-    : Response.json({ installations: [{ id: accessibleId }, { id: 100 }] })) as typeof fetch;
+    : Response.json({ installations: accessibleIds.map((id) => ({ id })) })) as typeof fetch;
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;
   jar.clear(); writes.length = 0; saves.length = 0;
-  activeUser = "user_test"; accessibleId = 200; authorizationVersion = "initial";
+  activeUser = "user_test"; accessibleIds = [200, 100]; accountLogin = "acme"; accountType = "Organization"; authorizationVersion = "initial";
   for (const [key, value] of Object.entries(previous)) {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;
   }
@@ -92,6 +94,41 @@ describe("verified organization connect callback", () => {
     expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("access-denied");
     expect(writes).toEqual([]);
     expect(saves).toEqual([]);
+  });
+
+  test("a stale saved account does not block a verified new connection or erase its binding", async () => {
+    accessibleIds = [200];
+    await startInstall();
+    const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
+    const { GET } = await import("@/app/api/github/callback/route");
+    const result = await GET(new Request(`https://chronos.test/api/github/callback?code=test-code&state=${pending.state}`));
+    expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("connected");
+    expect(writes[0]?.installationId).toBe(200);
+    expect(saves[0]?.additionalInstallations?.[0]?.installationId).toBe(100);
+    expect(saves[0]?.userAccessToken).toBe("ghu_test_user");
+  });
+
+  test("reinstalling on the same account replaces its obsolete installation in the cookie", async () => {
+    accessibleIds = [200]; accountLogin = "ADA"; accountType = "User";
+    await startInstall();
+    const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
+    const { GET } = await import("@/app/api/github/callback/route");
+    const result = await GET(new Request(`https://chronos.test/api/github/callback?code=test-code&state=${pending.state}`));
+    expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("connected");
+    expect(saves[0]?.installationId).toBe(200);
+    expect(saves[0]?.additionalInstallations).toBeUndefined();
+  });
+
+  test("an installation-list outage does not save new bindings or credentials", async () => {
+    await startInstall();
+    const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
+    globalThis.fetch = (async (input) => String(input).startsWith("https://github.com/login/oauth/access_token")
+      ? Response.json({ access_token: "ghu_test_user", expires_in: 28800 })
+      : Response.json({}, { status: 503 })) as typeof fetch;
+    const { GET } = await import("@/app/api/github/callback/route");
+    const result = await GET(new Request(`https://chronos.test/api/github/callback?code=test-code&state=${pending.state}`));
+    expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("error");
+    expect(writes).toEqual([]); expect(saves).toEqual([]);
   });
 
   test("a callback started before disconnect cannot restore a connection", async () => {

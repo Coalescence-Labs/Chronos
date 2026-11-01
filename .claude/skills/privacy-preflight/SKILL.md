@@ -24,7 +24,7 @@ Answer all of these in your PR description / output. If you can't answer one, st
 1. **What data leaves?** Name the exact fields (e.g. "last 50 commit messages + branch names"). Not "context" — the actual data.
 2. **Where does it go?** Name the destination (provider, endpoint, our server, third party).
 3. **Is it the minimum?** Could the feature work with less? If yes, cut it down. Default to the smallest payload that does the job.
-4. **Retention & training?** What does the destination do with it? For AI: is there a **written ZDR guarantee** (no retention, no training)? Link it. No written ZDR → do not ship.
+4. **Retention & training?** What does the destination do with it? For AI: is there a **written ZDR guarantee** (no retention, no training)? Link it. **No written ZDR → do not ship**, except the owner-ratified **public-repo Graph Q&A beta carve-out** documented in `docs/PRIVACY.md` / `docs/AI.md`. Private-repo Agent, whole-repo dumps, or any widening of that carve-out still require written ZDR.
 5. **Consent.** Is this **opt-in**? Does the UI clearly tell the user what is sent off-device before it happens?
 6. **Least privilege.** If new OAuth scopes: are they read-only and minimal? (Chronos never needs write scopes.)
 7. **Secrets.** Confirm no tokens/secrets in the client bundle, logs, or the outbound payload.

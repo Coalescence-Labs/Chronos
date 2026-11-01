@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { enforceRequestLimit, isSameOriginMutation } from "@/lib/security/request";
+import { afterEach, describe, expect, test } from "bun:test";
+import { enforceRequestLimit, enforceRequestLimitAsync, isSameOriginMutation } from "@/lib/security/request";
 import { contentSecurityPolicy } from "@/lib/security/headers";
 
 describe("mutation origin protection", () => {
@@ -20,6 +20,27 @@ describe("request fairness", () => {
     for (let i = 0; i < 120; i++) enforceRequestLimit(request, "burst_user");
     expect(() => enforceRequestLimit(request, "burst_user")).toThrow("Too many requests");
     expect(() => enforceRequestLimit(request, "another_user")).not.toThrow();
+  });
+});
+describe("instance-local limiter", () => {
+  const saved = { url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN };
+  afterEach(() => {
+    for (const [key, value] of [["UPSTASH_REDIS_REST_URL", saved.url], ["UPSTASH_REDIS_REST_TOKEN", saved.token]] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  test("the sync limiter still enforces when Upstash is configured", () => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://example.upstash.io";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "token";
+    const request = new Request("https://chronos.test/api/github/status");
+    for (let i = 0; i < 30; i++) enforceRequestLimit(request, "configured_user", "connection");
+    expect(() => enforceRequestLimit(request, "configured_user", "connection")).toThrow("Too many requests");
+  });
+  test("agent requests get their own 30/minute bucket without Upstash", async () => {
+    const request = new Request("https://chronos.test/api/agent/chat", { method: "POST" });
+    for (let i = 0; i < 30; i++) await enforceRequestLimitAsync(request, "agent_user", "agent");
+    await expect(enforceRequestLimitAsync(request, "agent_user", "agent")).rejects.toThrow("Too many requests");
+    await expect(enforceRequestLimitAsync(request, "agent_user", "repo")).resolves.toBeUndefined();
   });
 });
 describe("script policy", () => {

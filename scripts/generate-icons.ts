@@ -1,8 +1,9 @@
 /**
- * Generates the PWA icons (public/icons/*, app/apple-icon.png) from the
- * design tokens — a branch-graph motif on the dimensional dark gradient.
+ * Generates Chronos brand icons from the design-token branch-graph motif:
+ *   public/icons/* (PWA), app/apple-icon.png, app/favicon.ico
  * Pure Bun + node:zlib so it runs anywhere: `bun scripts/generate-icons.ts`.
  * Re-run and commit the output whenever the brand palette changes.
+ * Never use GitHub/octocat artwork for site, tab, or PWA icons.
  */
 
 import { deflateSync } from "node:zlib";
@@ -72,6 +73,36 @@ function encodePng(width: number, height: number, rgba: Uint8Array): Uint8Array 
     offset += part.length;
   }
   return png;
+}
+
+/** Classic ICO container with embedded PNGs (Vista+; every modern browser). */
+function encodeIco(pngs: { size: number; data: Uint8Array }[]): Uint8Array {
+  const count = pngs.length;
+  const headerSize = 6 + count * 16;
+  const total =
+    headerSize + pngs.reduce((sum, { data }) => sum + data.length, 0);
+  const out = new Uint8Array(total);
+  const view = new DataView(out.buffer);
+  view.setUint16(0, 0, true); // reserved
+  view.setUint16(2, 1, true); // type: icon
+  view.setUint16(4, count, true);
+
+  let offset = headerSize;
+  for (let i = 0; i < count; i++) {
+    const { size, data } = pngs[i]!;
+    const entry = 6 + i * 16;
+    out[entry] = size >= 256 ? 0 : size; // width (0 ⇒ 256)
+    out[entry + 1] = size >= 256 ? 0 : size; // height
+    out[entry + 2] = 0; // color count
+    out[entry + 3] = 0; // reserved
+    view.setUint16(entry + 4, 1, true); // planes
+    view.setUint16(entry + 6, 32, true); // bit count
+    view.setUint32(entry + 8, data.length, true);
+    view.setUint32(entry + 12, offset, true);
+    out.set(data, offset);
+    offset += data.length;
+  }
+  return out;
 }
 
 // ---------- drawing ----------
@@ -189,3 +220,13 @@ for (const target of targets) {
   await Bun.write(target.path, png);
   console.log(`wrote ${target.path} (${png.length} bytes)`);
 }
+
+// Multi-size ICO for browsers that still request /favicon.ico by default.
+const faviconSizes = [16, 32, 48] as const;
+const faviconPngs = faviconSizes.map((size) => ({
+  size,
+  data: encodePng(size, size, renderIcon(size)),
+}));
+const favicon = encodeIco(faviconPngs);
+await Bun.write("app/favicon.ico", favicon);
+console.log(`wrote app/favicon.ico (${favicon.length} bytes)`);

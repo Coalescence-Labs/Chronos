@@ -1,0 +1,170 @@
+/* Agent gen-UI primitives — Chronos tokens only (DESIGN.md). */
+
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  user-select: text;
+  font-size: var(--text-sm);
+  line-height: var(--leading-base);
+  color: var(--fg);
+}
+
+.run {
+  display: inline;
+  overflow-wrap: anywhere;
+}
+
+.block {
+  margin: 0;
+}
+
+.list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.listItem {
+  margin: 0;
+  padding: 0;
+}
+
+.listItem::marker {
+  color: var(--fg-subtle);
+}
+
+.commit {
+  user-select: text;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin: 0 0.08em;
+  padding: 0.02em 0.28em;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  opacity: 0.85;
+  cursor: pointer;
+  vertical-align: baseline;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.commit:hover,
+.commit:focus-visible {
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  border-color: var(--border);
+  color: var(--fg-muted);
+  opacity: 1;
+}
+
+.commit:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.commit[data-copied] {
+  color: var(--success);
+}
+
+.ref {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin: 0 0.15em;
+  padding: 0.05em var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  color: var(--accent-strong);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.5;
+  vertical-align: baseline;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.ref:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.ref[data-kind="tag"] {
+  border-style: dashed;
+  color: var(--fg-muted);
+}
+
+span.ref[data-kind="tag"] {
+  cursor: default;
+}
+
+button.ref[data-kind="tag"]:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--fg) 18%, transparent);
+}
+
+.ref[data-kind="branch"]:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.date {
+  display: inline;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.release {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+}
+
+.releaseTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.releaseBody {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.parents {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+  vertical-align: baseline;
+}
+
+.parentsLabel {
+  user-select: none;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

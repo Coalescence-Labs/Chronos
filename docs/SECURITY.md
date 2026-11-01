@@ -20,6 +20,15 @@ GitHub input, and is excluded from production installs. The exception cannot
 suppress a production finding. Update or replace that toolchain dependency before
 expiry; do not broaden the exception to other packages or advisories.
 
+`package.json` overrides `minimatch` to `^11.0.3`. Only 11.0.1 and later patch
+[GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), and the lint
+toolchain still declares `^3` and `^10`. It is development-only: it processes trusted
+repository lint globs and is excluded from production installs. Version 11 has no
+callable default export, so `eslint-plugin-import`, `eslint-plugin-react` and
+`eslint-plugin-jsx-a11y` rules that use `minimatch` crash with "is not a function" when
+configured with glob options, such as `pathGroups` on `import/order`. None are active
+today. Remove the override once the toolchain accepts version 11.
+
 ## Deployment verification
 
 - Restrict the optional `GITHUB_TOKEN` to public, read-only access. The application
@@ -63,14 +72,21 @@ cancellable and bounded at 25 seconds. Only
 explicit refresh-token conflicts retry automatically, up to four times with bounded
 backoff; 429s and general upstream failures do not.
 
-Per-instance fairness limits allow 120 requests/minute per signed-in user and 60 per
+Fairness limits allow 120 requests/minute per signed-in user and 60 per
 anonymous address (or a shared anonymous pool when a trusted address is unavailable).
 Only Vercel's replaced forwarding header is trusted; arbitrary client forwarding
 headers never select a new bucket on other hosts. Buckets retain salted hashes and
 counts for one minute, cap at 10,000 entries, and are never logged or persisted.
-Connection-management requests use a separate 30/minute bucket.
+Connection-management and Agent requests use separate 30/minute buckets. With Upstash
+configured these limits are enforced server-side across every instance (sliding window,
+`chronos:rl:*`); without it they are per-instance only and production logs a one-time
+warning. A failing Upstash call is logged (error name only, never the identity) and
+fails the request; the status depends on the route. A call that passes the client's
+5-second timeout is the exception: it is logged and the request is allowed, because
+these are fairness limits, not access control. A slow Upstash therefore delays requests
+and lifts the limit until it recovers.
 Configure **Vercel Firewall rate limits** for `/api/repo*` and `/api/github/*` before
-large-scale exposure: process-local limits cannot enforce a deployment-wide quota.
+large-scale exposure: process-local limits (Upstash unset) cannot enforce a deployment-wide quota.
 On 2026-10-18 the project's read-only Firewall API inspection returned no active
 or draft custom configuration. A starting rollout policy is 300 repo requests and
 60 connection requests per address per minute, initially observed in log mode and
@@ -78,12 +94,14 @@ then enforced after checking shared-address traffic. Keep GitHub callbacks usabl
 and return HTTP 429 for APIs rather than an interactive browser challenge. These
 are proposed operator settings, not globally enforced application limits.
 
-Refresh coordination and installation-token reuse are intentionally ephemeral and
-instance-local. Cross-instance refresh conflicts recover through bounded browser
-retries; persistent provider failure asks for reconnect. A distributed coordinator
-would require a separate infrastructure/privacy decision. No Redis/database or
-additional provider has been introduced by this change. Repo caching ADR 006 remains
-open; none of its proposed repo-content caching is implemented.
+Refresh coordination and installation-token reuse remain ephemeral in process memory
+when Upstash is unset. Optional **Upstash Redis** (`UPSTASH_REDIS_REST_*`) is used for
+deployment-wide request fairness, GitHub refresh locks, agent spend ledgers
+(**$5/user/mo** policy — see [AI.md](AI.md)), and outbound idempotency — never for
+durable repo content. Keys are prefixed `chronos:`; a shared Redis (e.g. with Organic)
+is acceptable only under that prefix. Values hold counts, locks, spend totals, and
+opaque idempotency markers only. Repo caching ADR 006 remains open; none of its
+proposed repo-content caching is implemented.
 
 The CSP uses a fresh request nonce with strict script execution, forbids framing,
 objects and unsafe base URLs, and permits inline styles only for graph geometry.

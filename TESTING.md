@@ -5,14 +5,14 @@ Chronos is built to a simple bar: **a feature that works but feels rough — or 
 Every pull request runs the full gate in CI — **lint → typecheck → unit/integration tests → production build → end-to-end tests** — on a clean machine. Nothing merges red.
 
 ```bash
-bun test          # unit + integration (fast; no browser, no network)
+bun run test      # unit + integration (fast; no browser, no network)
 bun run test:e2e  # Playwright end-to-end (phone + laptop)
 bun run lint:check && bun run typecheck && bun run build
 ```
 
 - **200+ unit/integration tests** across ~20 files, hermetic (no real network — GitHub is mocked).
 - **End-to-end tests** run on **two viewports** — a phone (390×844, touch) and a laptop (1440×900, pointer + keyboard) — against a real production build.
-- Runtime is **Bun** throughout (`bun test`); e2e is **Playwright**.
+- Runtime is **Bun** throughout (`bun run test`, which adds the `--preload` and `--parallel` that bare `bun test` lacks); e2e is **Playwright**.
 
 ---
 

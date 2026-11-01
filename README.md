@@ -42,6 +42,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture, including
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical architecture + open decisions |
 | [docs/DESIGN.md](docs/DESIGN.md) | Visual language, responsiveness, and the polish bar |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Security, privacy, and the ZDR AI model |
+| [docs/AI.md](docs/AI.md) | Chronos Agent infra — decided vs open |
 | [docs/AUTH.md](docs/AUTH.md) | WorkOS AuthKit accounts, session posture, MFA/passkeys |
 
 ## Tech stack
@@ -49,7 +50,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture, including
 - **Runtime / package manager:** [Bun](https://bun.sh) (not npm/yarn/node)
 - **Web app:** Next.js (React) — hosted on Vercel
 - **Native companion (phase 2):** `zero-native` (Zig native shell + the same web UI)
-- **AI (optional):** ZDR-compliant provider; feature surface TBD (see open decisions)
+- **AI (optional):** Graph Q&A beta via Vercel AI Gateway; long-term ZDR — see [docs/AI.md](docs/AI.md)
 
 ## Getting started
 

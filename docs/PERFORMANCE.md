@@ -1,12 +1,13 @@
 # Chronos performance investigation
 
 **Observed:** 2026-10-12, America/Los_Angeles (2026-10-13 UTC).
-**Tracking:** [COA-236](https://linear.app/coalescence-labs/issue/COA-236/chronos-large-repository-state-and-progressive-overview-organic-llm),
-with [COA-98](https://linear.app/coalescence-labs/issue/COA-98/chronos-track-key-performance-metrics-time-to-first-graph-layout-cost),
-[COA-74](https://linear.app/coalescence-labs/issue/COA-74/decision-rate-limit-and-caching-strategy-for-the-bff-proxy),
-and [COA-86](https://linear.app/coalescence-labs/issue/COA-86/chronos-custom-loading-page-skeleton-states).
-A separate investigation issue could not be created because Linear rejected
-creation at the workspace's free issue limit. COA-236 remains In Progress.
+**Tracking:** [COA-236](https://ergon.coalescencelabs.app/issue/COA-236),
+with [COA-98](https://ergon.coalescencelabs.app/issue/COA-98),
+[COA-74](https://ergon.coalescencelabs.app/issue/COA-74),
+and [COA-86](https://ergon.coalescencelabs.app/issue/COA-86).
+A separate investigation issue could not be created at the time because Linear,
+since replaced by Ergon, rejected creation at the workspace's free issue limit.
+COA-236 remains In Progress.
 
 The owner wants every page transition below **250ms**, including slower
 connections, without compromising quality or reliability. This investigation

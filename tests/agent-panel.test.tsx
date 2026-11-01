@@ -1,0 +1,153 @@
+import { describe, expect, test } from "bun:test";
+import { renderToStaticMarkup } from "react-dom/server";
+import { AgentPanel } from "@/components/agent/AgentPanel";
+import {
+  STARTER_SLOT_COUNT,
+  setClientStarterStorageForTests,
+  writeClientStarterCache,
+} from "@/lib/agent/starters/client-cache";
+import { linear } from "@/tests/fixtures/history";
+
+const SAMPLE_HISTORY = linear(3);
+
+const SCOPE_LEAD =
+  "Answers use commits already loaded in this view. Public repos only for now.";
+
+describe("Agent panel UI", () => {
+  test("empty state hierarchy: eyebrow, title, muted lead once, skeleton starters, no competing copy", () => {
+    const prev = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = "http://localhost:3005/callback";
+    try {
+      const html = renderToStaticMarkup(
+        <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
+      );
+
+      expect(html).toContain("Chronos Agent");
+      expect(html).toContain("Graph Q&amp;A");
+      expect(html).toContain("Public beta");
+      expect(html).toContain(SCOPE_LEAD);
+      // Visible empty-state must not restate scope under a second title.
+      expect(html).not.toContain("Ask about this graph</h3>");
+      expect(html).not.toContain("no invented history");
+      expect(html).not.toContain(">Question<");
+      // First paint with Auth configured: reserved skeleton slots — not static
+      // fallbacks (avoids default→generated flash while /api/agent/starters loads).
+      expect(html).toContain('aria-label="Loading example questions"');
+      expect(html).toContain('aria-busy="true"');
+      expect(html.match(/data-skeleton-index="/g)?.length).toBe(STARTER_SLOT_COUNT);
+      expect(html).not.toContain("Recent merges into main?");
+      expect(html).not.toContain("Branches that share a parent?");
+      // Thread empty-state is a prompt stack, not a message list.
+      expect(html).not.toContain("messageList");
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+      else process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = prev;
+    }
+  });
+
+  test("empty state uses static starters when WorkOS is unset (demo / offline)", () => {
+    const prev = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    try {
+      const html = renderToStaticMarkup(
+        <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
+      );
+      expect(html).toContain("Recent merges into main?");
+      expect(html).toContain("Branches that share a parent?");
+      expect(html).not.toContain('aria-label="Loading example questions"');
+      expect(html).toContain('aria-busy="false"');
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+      else process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = prev;
+    }
+  });
+
+  test("composer starts compact with Chronos Ask control and reserved footer facts band", () => {
+    const html = renderToStaticMarkup(
+      <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
+    );
+    expect(html).toContain("<textarea");
+    expect(html).toContain('rows="1"');
+    expect(html).toContain("Ask about this graph…");
+    expect(html).toContain('aria-label="Ask"');
+    expect(html).toContain(">Ask<");
+    expect(html).not.toContain("Send question");
+    expect(html).toContain("octocat/Hello-World");
+    expect(html).toContain('aria-label="Graph context"');
+    // Facts row is always mounted (empty) so focus/inspect does not grow the footer.
+    expect(html).toContain('data-empty="true"');
+    // No chat-precedent You/Agent meta chrome in the shell.
+    expect(html).not.toContain("You ·");
+    expect(html).not.toContain("Agent ·");
+  });
+});
+
+describe("agent panel starters hydration", () => {
+  test("starters settle per owner/repo scope — ready/fallback ignores progressive history", async () => {
+    const source = await Bun.file("components/agent/AgentPanel.tsx").text();
+    expect(source).toContain("startersScopeKey");
+    expect(source).toContain('if (startersPhase !== "loading") return');
+    expect(source).toContain("paintedScopeKey !== scopeKey");
+    // Hard reset is scoped; phase gate keeps chips stable after first paint.
+    expect(source).toContain("Stable once painted");
+  });
+
+  test("Auth-configured first paint stays on skeletons even with warm localStorage", () => {
+    const prev = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+    process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = "http://localhost:3005/callback";
+    try {
+      const storage = new Map<string, string>();
+      setClientStarterStorageForTests({
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => {
+          storage.set(key, value);
+        },
+        removeItem: (key) => {
+          storage.delete(key);
+        },
+      });
+      writeClientStarterCache(
+        { owner: "octocat", repo: "Hello-World", history: SAMPLE_HISTORY },
+        [
+          {
+            id: "warm",
+            label: "Warm cached starter label",
+            prompt: "Warm cached starter prompt?",
+          },
+          {
+            id: "warm-2",
+            label: "Another warm chip",
+            prompt: "Another warm chip?",
+          },
+        ],
+      );
+      const html = renderToStaticMarkup(
+        <AgentPanel owner="octocat" repo="Hello-World" history={SAMPLE_HISTORY} />,
+      );
+      // Must match SSR: skeletons, not warm localStorage chips.
+      expect(html).toContain('aria-label="Loading example questions"');
+      expect(html).not.toContain("Warm cached starter label");
+    } finally {
+      setClientStarterStorageForTests(null);
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI;
+      else process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = prev;
+    }
+  });
+
+  test("private repos do not paint starter chips on first render", () => {
+    const html = renderToStaticMarkup(
+      <AgentPanel
+        owner="acme"
+        repo="secret"
+        history={SAMPLE_HISTORY}
+        repoPrivate
+      />,
+    );
+    expect(html).not.toContain("Recent merges into main?");
+    expect(html).not.toContain('aria-label="Loading example questions"');
+    expect(html).toContain("Public repos only for now.");
+    expect(html).toContain('role="status"');
+    expect(html).toContain("disabled=");
+    expect(html).toContain('placeholder="Public repos only for now."');
+  });
+});

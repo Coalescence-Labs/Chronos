@@ -8,7 +8,13 @@ import type { IngestErrorCode } from "./errors";
  */
 
 export interface RepoResponse {
-  repo: { owner: string; repo: string; defaultBranch: string };
+  repo: {
+    owner: string;
+    repo: string;
+    defaultBranch: string;
+    /** GitHub visibility — Agent beta is public-only until written ZDR. */
+    private?: boolean;
+  };
   history: RepoHistory;
   /** Next commit page of the default branch, or null when complete. */
   nextPage: number | null;

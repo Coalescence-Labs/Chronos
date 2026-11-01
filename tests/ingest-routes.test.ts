@@ -28,7 +28,7 @@ describe("GET /api/repo", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
 
     const body = (await response.json()) as RepoResponse;
-    expect(body.repo).toEqual({ owner: "acme", repo: "widgets", defaultBranch: "main" });
+    expect(body.repo).toEqual({ owner: "acme", repo: "widgets", defaultBranch: "main", private: false });
     expect(body.nextPage).toBeNull();
 
     const { commits, refs } = body.history;

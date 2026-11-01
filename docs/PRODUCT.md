@@ -38,14 +38,13 @@ Approachability is a feature. Zero setup to view a public repo. One click to lin
 5. **Privacy is a promise.** Viewing a repo should never quietly cost the user their data. (See [PRIVACY.md](PRIVACY.md).)
 6. **Free and open.** A free hosted instance for everyone; the source is open so anyone can self-host or audit.
 
-## What "AI" means here — undecided, deliberately
+## What "AI" means here
 
-The owner wants AI integrated under strict ZDR, but **the AI feature surface is not yet specified.** Candidate directions (to be chosen, not assumed):
-- Summarize what happened on a branch / between two points.
-- Explain a tangled merge or history in plain language.
-- Natural-language Q&A over the repo's history.
+**Beta (ratified):** **Graph Q&A** — opt-in natural-language questions over history already loaded in the browser (Chronos Agent). Public repos only until written ZDR. Infra: [AI.md](AI.md); privacy: [PRIVACY.md](PRIVACY.md).
 
-Whatever it becomes, it must (a) reduce cognitive load, not add a chatbot for its own sake, (b) be opt-in, and (c) be ZDR. Until chosen, this stays in [ARCHITECTURE.md](ARCHITECTURE.md)'s open decisions.
+**Still open (do not invent):** Agent UX chrome (exploration directions A–E are draft, not ratified — reject defaulting to 2025 chat UI); generative / graph-native answer UI as a future ambition; any AI job beyond Graph Q&A beta. Written ZDR for private-repo / production hardening remains open (#5).
+
+Whatever ships next must (a) reduce cognitive load, not add a chatbot for its own sake, (b) be opt-in, and (c) move toward ZDR (mandatory outside the public-only beta carve-out).
 
 ## Out of scope (for now)
 

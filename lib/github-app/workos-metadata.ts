@@ -150,8 +150,18 @@ export async function writeGitHubInstallMetadata(
     ? parseGitHubInstallMetadata(Object.fromEntries(Object.keys(legacyPatch).map((key) => [key, current.metadata![key]!])))
     : undefined;
   const migrated = legacy ? githubInstallMetadataFromSession({ ...legacy, workosUserId }) : {};
+  const incoming = githubInstallBindings(data);
+  const saved = parseGitHubInstallMetadata(current.metadata);
+  const savedBindings = [...(saved ? githubInstallBindings(saved) : []), ...(legacy ? githubInstallBindings(legacy) : [])];
+  const replaced = savedBindings.filter((binding) => incoming.some((next) =>
+    next.installationId !== binding.installationId && next.accountType === binding.accountType &&
+    next.accountLogin.toLowerCase() === binding.accountLogin.toLowerCase(),
+  ));
+  const replacedKeys = new Set(replaced.map((binding) => `${INSTALL_PREFIX}${binding.installationId}`));
+  const replacedPatch = Object.fromEntries([...replacedKeys].filter((key) => key in (current.metadata ?? {})).map((key) => [key, null]));
   const patch = { ...legacyPatch,
-    ...Object.fromEntries(Object.entries(migrated).filter(([key]) => !(key in (current.metadata ?? {})))),
+    ...Object.fromEntries(Object.entries(migrated).filter(([key]) => !(key in (current.metadata ?? {})) && !replacedKeys.has(key))),
+    ...replacedPatch,
     ...githubInstallMetadataFromSession(data) };
   const retainedKeys = Object.keys(current.metadata ?? {}).filter((key) => !(key in patch));
   const reserve = current.metadata?.[VERSION_KEY] ? 0 : 1;
@@ -162,7 +172,8 @@ export async function writeGitHubInstallMetadata(
     userId: workosUserId,
     metadata: patch,
   });
-  if (authorizationVersion(updated.metadata) !== expectedVersion || !metadataWritePersisted(updated.metadata, data)) {
+  if (authorizationVersion(updated.metadata) !== expectedVersion || !metadataWritePersisted(updated.metadata, data) ||
+    Object.keys(replacedPatch).some((key) => key in (updated.metadata ?? {}))) {
     throw new Error("GitHub install metadata did not persist on WorkOS user");
   }
 }

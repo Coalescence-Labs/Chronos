@@ -30,7 +30,11 @@ export async function GET(request: Request): Promise<Response> {
 
     const tip = firstPage.commits[0];
     const body: RepoResponse = {
-      repo: { ...id, defaultBranch: meta.defaultBranch },
+      repo: {
+        ...id,
+        defaultBranch: meta.defaultBranch,
+        private: meta.private === true,
+      },
       history: {
         commits: firstPage.commits,
         refs: tip ? [{ name: "HEAD", type: "head", sha: tip.sha }, ...referencePage.refs] : referencePage.refs,

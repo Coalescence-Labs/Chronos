@@ -1,3 +1,4 @@
+import "server-only";
 import { githubAppPoolToken } from "./config";
 import { createInstallationAccessToken } from "./install";
 import { resolveGitHubAppSessionForUser } from "./resolve-session";

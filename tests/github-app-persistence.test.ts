@@ -163,6 +163,37 @@ describe("multiple install persistence and disconnect", () => {
     expect(updateCalls).toBe(0);
   });
 
+  test("a replacement removes obsolete IDs for the same account and preserves other connections", async () => {
+    metadata = { ...metadata, ...githubInstallMetadataFromSession({ ...binding, installationId: 99, additionalInstallations: undefined }) };
+    await writeGitHubInstallMetadata("user_test", { ...binding, installationId: 300, accountLogin: "ADA", additionalInstallations: undefined });
+    expect(Object.keys(metadata).sort()).toEqual(["chronosGhInstall_200", "chronosGhInstall_300", "unrelated"]);
+    const saved = parseGitHubInstallMetadata(metadata)!;
+    expect([saved, ...(saved.additionalInstallations ?? [])].map((install) => install.installationId)).toEqual([200, 300]);
+    expect(metadata.unrelated).toBe("keep");
+  });
+
+  test("a same-account replacement fits when existing bindings already fill the metadata capacity", async () => {
+    metadata = {
+      ...githubInstallMetadataFromSession({ ...binding, additionalInstallations: undefined }),
+      ...Object.fromEntries(Array.from({ length: 8 }, (_, index) => [`other${index}`, "keep"])),
+    };
+    await writeGitHubInstallMetadata("user_test", { ...binding, installationId: 300, additionalInstallations: undefined });
+    expect(Object.keys(metadata)).toHaveLength(9);
+    expect(metadata.chronosGhInstall_100).toBeUndefined();
+    expect(parseGitHubInstallMetadata(metadata)?.installationId).toBe(300);
+  });
+
+  test("replacing a legacy installation cannot migrate its obsolete ID back into metadata", async () => {
+    metadata = {
+      chronosGhInstallationId: "100", chronosGhAccountLogin: "ada", chronosGhAccountType: "User",
+      chronosGhConnectedAt: binding.connectedAt, chronosGhPermissions: binding.permissions,
+      ...githubInstallMetadataFromSession({ ...binding, ...binding.additionalInstallations![0], additionalInstallations: undefined }),
+      unrelated: "keep",
+    };
+    await writeGitHubInstallMetadata("user_test", { ...binding, installationId: 300, additionalInstallations: undefined });
+    expect(Object.keys(metadata).sort()).toEqual(["chronosGhInstall_200", "chronosGhInstall_300", "unrelated"]);
+  });
+
   test("clear removes all installation keys while retaining unrelated metadata", async () => {
     await clearGitHubInstallMetadata("user_test");
     expect(Object.keys(metadata).sort()).toEqual(["chronosGhVersion", "unrelated"]);

@@ -3,6 +3,7 @@ import { Fragment, type ReactNode } from "react";
 import buttonStyles from "@/components/ui/button.module.css";
 import { Surface } from "@/components/ui/Surface";
 import type { PublicGitHubConnection } from "@/lib/github-app/types";
+import { DevMissingEnvList } from "./DevMissingEnvList";
 import { DisconnectGitHubButton } from "./DisconnectGitHubButton";
 import styles from "./github-connection.module.css";
 import { Button } from "@/components/ui/Button";
@@ -53,7 +54,7 @@ const BANNERS: Record<string, { tone: BannerTone; message: ReactNode }> = {
   },
   "disconnected-manual": { tone: "neutral", message: <>Disconnected from Chronos. GitHub revocation couldn’t be confirmed. Revoke Chronos in <GitHubSettingsLink />.</> },
   unavailable: { tone: "danger", message: "Couldn't reach the connection service. Please retry shortly." },
-  "access-denied": { tone: "danger", message: "GitHub couldn’t verify all saved installations. Use the GitHub account with access to them, and check organization approval and SSO." },
+  "access-denied": { tone: "danger", message: "GitHub couldn’t verify the selected installation. Use the GitHub account with access to it, and check organization approval and SSO." },
   "connection-limit": { tone: "danger", message: "This account has reached its connection limit. Your existing connections are unchanged." },
   denied: { tone: "neutral", message: "Install cancelled. Nothing was saved." },
   pending: { tone: "neutral", message: "Organization access requested. After an owner approves it on GitHub, connect the organization here." },
@@ -175,6 +176,7 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
             <p className={styles.desc}>
               GitHub connections aren’t available in this deployment.
             </p>
+            <DevMissingEnvList names={connection.missingEnvVars} />
           </div>
         </div>
       </Surface>
@@ -220,7 +222,7 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
           <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
             {connection.login || connection.state === "reconnect-required" ? "Reconnect GitHub" : "Install GitHub App"}
           </a>
-          {connection.login && <DisconnectGitHubButton all={(connection.accounts?.length ?? 0) > 1} />}
+          {(connection.login || connection.state === "reconnect-required") && <DisconnectGitHubButton all={!connection.login || (connection.accounts?.length ?? 0) > 1} />}
         </div>
         <Facts className={styles.facts} />
         <p className={styles.orgHelp}>
@@ -231,7 +233,8 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
     );
   }
 
-  const accounts = connection.accounts ?? [{ login: connection.login, connectedAt: connection.connectedAt }];
+  const accounts = connection.accounts ?? [{ login: connection.login, connectedAt: connection.connectedAt, connected: true }];
+  const needsReconnect = accounts.some((account) => account.connected === false);
 
   return (
     <Surface level={1} padded={false} className={styles.card}>
@@ -252,7 +255,8 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
         {accounts.map((account) => (
           <li className={styles.account} key={account.login}>
             <span className={styles.login}>@{account.login}</span>
-            {account.connectedAt && (
+            {account.connected === false && <span className={styles.badge}>reconnect required</span>}
+            {account.connected !== false && account.connectedAt && (
               <span className={styles.since}>
                 since <time dateTime={account.connectedAt}>{account.connectedAt.slice(0, 10)}</time>
               </span>
@@ -267,6 +271,7 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
         <DisconnectGitHubButton all={accounts.length > 1} />
       </div>
       <p className={styles.orgHelp}>
+        {needsReconnect && "Some saved accounts need reconnecting. Check their GitHub access, or disconnect all to start again. "}
         Install on each organization to read its selected repos. An owner may need to approve.
         Disconnect revokes your connections across devices; installations stay on GitHub.
       </p>

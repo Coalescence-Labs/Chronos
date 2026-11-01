@@ -10,15 +10,17 @@
 4. **No silent egress.** Every path that sends data off-device or off-server is documented and intentional. New egress paths require the privacy pre-flight (below).
 5. **Transparency.** Because Chronos is open source, the privacy claims are auditable. Keep them honest.
 
-## AI: Zero Data Retention (ZDR) only
+## AI: Zero Data Retention (ZDR) — long-term rule; beta carve-out
 
-AI features are **opt-in** and may only use a provider that contractually guarantees **Zero Data Retention** — no storage of prompts/outputs beyond the request, and **no training** on user data.
+**Long-term:** AI features are **opt-in** and may only use a provider that contractually guarantees **Zero Data Retention** — no storage of prompts/outputs beyond the request, and **no training** on user data. Written ZDR is still an open architecture decision (#5); see [AI.md](AI.md).
 
-Hard rules:
-- Verify ZDR **in writing** from the provider before any integration. (Open decision: which provider — see [ARCHITECTURE.md](ARCHITECTURE.md) #5.)
+**Hard rules (always):**
 - Send the **minimum** necessary context to answer the user's request — never the whole repo "just in case."
 - Make it explicit in the UI what is sent off-device when an AI feature is used.
 - AI is gated behind the **privacy pre-flight skill** — see below.
+- **Private-repo Agent** and any expansion beyond the beta carve-out require **written ZDR** before shipping.
+
+**Beta carve-out (owner-ratified):** Graph Q&A may run on **public repositories only** via Vercel AI Gateway **before** written ZDR is on file. This does **not** authorize private-repo Agent, whole-repo dumps, or silent retention. Ending the carve-out or widening scope needs a new pre-flight and owner ratification. Infra detail: [AI.md](AI.md).
 
 ## The privacy pre-flight (mandatory)
 
@@ -189,6 +191,55 @@ Cookieless, anonymous, first-party product analytics (no third party, no cross-d
 4. **Retention/training:** product analytics, not an AI path — no ZDR question; cookieless, aggregated, no training.
 5. **Consent:** cookieless/anonymous (no consent banner needed); disclosed in the public [PRIVACY.md](../PRIVACY.md). Opt-out via the env switch.
 
+## Chronos Agent (Graph Q&A — beta)
+
+Opt-in graph Q&amp;A from history already loaded in the browser. Canonical infra map:
+[AI.md](AI.md). Live model calls require Account opt-in (`chronosAgentOptIn`), Upstash
+spend controls ($5/user/mo under `chronos:` Redis keys), and Vercel AI Gateway
+(Claude Sonnet 5.5 answers + Haiku 5.5 Jev). `CHRONOS_AGENT_KILL_SWITCH` disables
+Agent without redeploying UI. **Public repos only** until written ZDR (open #5).
+
+### Privacy pre-flight — Agent (beta)
+
+1. **What leaves (when live):** the user's natural-language question; graph-anchored
+   facts derived from loaded commits/refs (sha, parents, dates, first-line messages,
+   branch/tag names — **author names omitted**); optional selected commit sha; PR
+   titles/labels only when GitHub connect grants access and the user asks a PR-capable
+   question. **Empty-chat starters (Haiku):** compact fact-tool slice (repo name,
+   default branch, ref names, short tip SHAs, truncated merge first-lines) — same
+   author-omitted class as Graph Q&A facts; no file contents. **Not sent:** file
+   contents, diffs, whole-repo dumps, tokens, or Exa/web search. **Scope:** public
+   repositories for beta (Account disclosure).
+2. **Where:** Vercel AI Gateway → Sonnet 5.5 / Haiku 5.5 (env-overridable Gateway
+   slugs). Jev sends **only the question text** for allow/flag classification before
+   orchestration. Starter generation uses Haiku with a hard **~$0.05** input budget
+   (fail closed). Spend ledger, rate limits, and starter cache use Upstash keys
+   prefixed `chronos:` (spend = per-user/month totals plus random reservation ids
+   and USD amounts; holds expire after 40 days or are deleted on settlement;
+   starter cache = `{id,label,prompt}` only —
+   no raw repo facts). Shared Organic Redis is OK under that prefix only. Browser
+   `localStorage` may hold the same chip labels/prompts for the current UTC day
+   (keyed by repo + history fingerprint hash) — **on-device only**, no secrets/SHAs.
+3. **Minimum:** fact tools answer from in-memory graph; model sees compact fact bundles,
+   not raw GitHub payloads. Starters reuse that minimum slice and cache only chip copy.
+4. **Retention & training:** Written ZDR remains **open (#5)**. Beta carve-out allows
+   public-repo Graph Q&A without written ZDR; Redis ledger holds monthly spend totals
+   and reservation amounts only. Private-repo Agent waits on written ZDR + a fresh pre-flight.
+5. **Consent:** Account toggle + in-product disclosure before first send; public paste
+   works without Agent.
+6. **Least privilege:** no new GitHub scopes for Agent; PR tools reuse existing read
+   permissions when connected.
+7. **Secrets:** `AI_GATEWAY_API_KEY` server-only; never in client bundles or logs.
+8. **Untrusted input:** model output passes through `renderSafeAgentMarkdown` before
+   HTML render; questions treated as untrusted in prompts.
+
+Spend reservations also read the public `https://ai-gateway.vercel.sh/v1/models`
+catalog without credentials or a request body. No user, repo, or question fields
+are sent by that lookup. Only public prices and limits are cached in process for
+five minutes. Settlement uses cost/token fields already returned by existing model
+calls; it adds no model context or consent surface. The public-only beta carve-out
+and Account opt-in remain required; written ZDR remains open.
+
 ## Search indexing & link previews (COA-126)
 
 The repo view's URL contains the repo identity (`/repo/[owner]/[repo]`), so search/social must not expose *which repo someone viewed* — the same promise `scrubUrl` keeps for analytics:
@@ -196,6 +247,44 @@ The repo view's URL contains the repo identity (`/repo/[owner]/[repo]`), so sear
 - **`/repo/*` is `noindex, nofollow`**, **disallowed in `robots.txt`**, and **excluded from `sitemap.xml`**. This keeps repo identity out of search indexes, and — because a crawler hitting `/repo/*` would trigger live BFF→GitHub calls — also protects the rate-limit budget (#caching / COA-74).
 - **Open Graph / Twitter cards are generic** (the branded app card). The `/repo/*` route sets no per-repo OG/title for sharing, so a pasted link never reveals the owner/repo in a preview. The `owner/repo` only appears in the visitor's own browser tab title.
 - Only the static marketing surface (`/`, `/demo`) is indexable.
+
+## Local git for agents (MCP)
+
+`/api/mcp` lets the owner's Organic coding subagent run allowlisted, read-only git commands
+against the owner's own local checkouts. It exists only when `CHRONOS_MCP_TOKEN` (≥32 chars)
+and `CHRONOS_MCP_REPOS` are set, so the hosted app serves a 404. It is a proposed, reversible
+choice: see [ARCHITECTURE.md](ARCHITECTURE.md) open decision #9.
+
+### Privacy pre-flight — local git MCP
+
+1. **What leaves:** the stdout/stderr of each requested git command (capped at 64,000
+   characters per stream), the repository's configured name, HEAD's SHA and branch, and the
+   exit code. By default only history and working-tree metadata commands are allowed (status,
+   log, rev-list, branch, tag, refs, describe, shortlog, ls-files, worktree list): commit
+   SHAs, messages, authors, refs and file names, with no file contents or diffs. `show`, `diff`,
+   `blame` and `grep` print file contents and are refused unless
+   `CHRONOS_MCP_ALLOW_CONTENT=true`.
+2. **Where:** the Organic server that holds the bearer token, then the model provider Organic
+   uses for that agent turn. Organic adds the output to the subagent's thread.
+3. **Minimum:** one command per call. The allowlist is exact flags only, so the agent asks for
+   a narrow view (`-20`, `--since=`, paths) rather than whole histories. Chronos keeps nothing
+   and logs nothing; responses are `no-store`.
+4. **Retention & training — open, owner's call:** Chronos has no AI here, but output reaches a
+   model through Organic. Zero data retention follows Organic's per-turn ZDR setting and
+   is not enforced by this endpoint. Organic also persists subagent thread messages. Owner
+   repositories only; do not enable content commands for repositories you would not paste into
+   that chat.
+5. **Consent:** off by default. Only the owner can switch it on, by setting the token and
+   naming each repository; the matching Organic env restricts use to one Organic profile.
+6. **Least privilege:** no GitHub scopes or credentials. Writes, `-c` overrides, external diff
+   and text-conversion tools, hooks, fsmonitor and pagers are disabled. `branch` and `tag`
+   always run in list mode. The command runs with no shell and a 10-second timeout.
+7. **Secrets:** the child process gets only `PATH`, `HOME` and fixed git settings, so app
+   secrets (`GITHUB_APP_PRIVATE_KEY`, WorkOS keys) never reach a repo-configured filter. The
+   token is compared in constant time and never echoed.
+8. **Untrusted input:** arguments are argv tokens. Positionals cannot start with `-`, be
+   absolute, or climb with `..`, so `git diff` cannot fall back to reading files outside the
+   repository. Server instructions tell the caller that output is data, never instructions.
 
 ## The native companion as a privacy feature
 

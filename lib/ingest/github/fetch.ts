@@ -1,3 +1,4 @@
+import "server-only";
 import type { CommitNode, Ref } from "@/lib/graph/types";
 import { IngestError } from "../errors";
 import { toBranchRefs, toCommitNode, toTagRefs } from "./map";

@@ -2,14 +2,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AccountControlsGate } from "@/components/auth/AccountControlsGate";
 import styles from "./shell.module.css";
-import { ThemeToggle } from "./ThemeToggle";
+import { ShellAppearanceFooter } from "./ShellAppearanceFooter";
 
 /**
  * Responsive page scaffold: header + content + footer, safe-area aware so the
  * PWA feels native on phones. The inspection surface (components/ui)
  * overlays this shell as a sheet (phone) or side panel (laptop).
  *
- * Theme lives in the footer for everyone; header keeps brand + account only.
+ * Guests get theme in the footer; signed-in users set it from the profile menu.
  */
 
 function BrandMark() {
@@ -56,11 +56,7 @@ export function AppShell({ children, skipLink = true }: { children: ReactNode; s
       <main id="main" className={styles.main}>
         {children}
       </main>
-      <footer className={styles.shellFooter} aria-label="Appearance">
-        <div className={styles.footerTheme}>
-          <ThemeToggle />
-        </div>
-      </footer>
+      <ShellAppearanceFooter />
     </div>
   );
 }
