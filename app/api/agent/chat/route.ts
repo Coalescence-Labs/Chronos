@@ -6,9 +6,7 @@ import { agentTurnContextPayload } from "@/lib/agent/chat-context";
 import type { RepoHistory } from "@/lib/graph";
 import { runAgentTurn } from "@/lib/agent/orchestrate";
 import { assertPublicRepoForAgent } from "@/lib/agent/public-repo";
-import { enforceDistributedRateLimit } from "@/lib/redis/rate-limit";
-import { isRedisConfigured } from "@/lib/redis/config";
-import { requestRateLimitIdentity } from "@/lib/security/request";
+import { enforceRequestLimitAsync } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
 import { errorResponse } from "@/lib/ingest/respond";
 import { githubAuthForRequest } from "@/lib/ingest/github/auth";
@@ -63,13 +61,7 @@ function parseAnswerUi(raw: unknown): AgentAnswerUiHint | null {
 export async function POST(request: Request): Promise<Response> {
   const { user } = await withAuth({ ensureSignedIn: true });
   try {
-    if (isRedisConfigured()) {
-      const identity = requestRateLimitIdentity(request, user.id, "agent");
-      const limited = await enforceDistributedRateLimit(identity, "agent");
-      if (!limited.allowed) {
-        throw new IngestError("rate-limited", "Too many Agent requests. Please wait.", limited.retryAfterSeconds);
-      }
-    }
+    await enforceRequestLimitAsync(request, user.id, "agent");
   } catch (error) {
     if (error instanceof IngestError) return errorResponse(error);
     throw error;

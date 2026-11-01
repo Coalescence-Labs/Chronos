@@ -63,14 +63,18 @@ cancellable and bounded at 25 seconds. Only
 explicit refresh-token conflicts retry automatically, up to four times with bounded
 backoff; 429s and general upstream failures do not.
 
-Per-instance fairness limits allow 120 requests/minute per signed-in user and 60 per
+Fairness limits allow 120 requests/minute per signed-in user and 60 per
 anonymous address (or a shared anonymous pool when a trusted address is unavailable).
 Only Vercel's replaced forwarding header is trusted; arbitrary client forwarding
 headers never select a new bucket on other hosts. Buckets retain salted hashes and
 counts for one minute, cap at 10,000 entries, and are never logged or persisted.
-Connection-management requests use a separate 30/minute bucket.
+Connection-management and Agent requests use separate 30/minute buckets. With Upstash
+configured these limits are enforced server-side across every instance (sliding window,
+`chronos:rl:*`); without it they are per-instance only and production logs a one-time
+warning. A failing Upstash call is logged (error name only, never the identity) and
+surfaces as a 500 rather than silently lifting the limit.
 Configure **Vercel Firewall rate limits** for `/api/repo*` and `/api/github/*` before
-large-scale exposure: process-local limits cannot enforce a deployment-wide quota.
+large-scale exposure: process-local limits (Upstash unset) cannot enforce a deployment-wide quota.
 On 2026-10-18 the project's read-only Firewall API inspection returned no active
 or draft custom configuration. A starting rollout policy is 300 repo requests and
 60 connection requests per address per minute, initially observed in log mode and

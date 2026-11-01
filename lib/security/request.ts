@@ -24,13 +24,16 @@ export function isSameOriginMutation(request: Request): boolean {
   catch { return false; }
 }
 
-/** Instance-local fairness limit — used when Upstash is unset and in unit tests. */
+/**
+ * Instance-local fairness limit — the fallback when Upstash is unset, and used in unit tests.
+ * Always enforces; routes should call {@link enforceRequestLimitAsync} so a configured
+ * Upstash makes the limit deployment-wide.
+ */
 export function enforceRequestLimit(
   request: Request,
   userId?: string | null,
-  operation: Exclude<RateLimitOperation, "agent"> = "repo",
+  operation: RateLimitOperation = "repo",
 ): void {
-  if (isRedisConfigured()) return;
   const key = createHmac("sha256", salt).update(requestRateLimitIdentity(request, userId, operation)).digest("hex");
   const now = Date.now();
   for (const [id, entry] of requests) {
@@ -41,19 +44,29 @@ export function enforceRequestLimit(
   if (!requests.has(key) && requests.size >= 10_000) {
     throw new IngestError("rate-limited", "Chronos is busy. Please try again shortly.", 60);
   }
-  if (++entry.count > (operation === "connection" ? 30 : userId ? 120 : 60)) {
+  if (++entry.count > (operation === "connection" || operation === "agent" ? 30 : userId ? 120 : 60)) {
     throw new IngestError("rate-limited", "Too many requests. Please wait before trying again.", Math.max(1, Math.ceil((entry.reset - now) / 1000)));
   }
   requests.set(key, entry);
+}
+
+let warnedInstanceLocal = false;
+
+/** Production without Upstash enforces per-instance limits only; say so once rather than silently. */
+function warnInstanceLocalLimits(): void {
+  if (warnedInstanceLocal || process.env.NODE_ENV !== "production") return;
+  warnedInstanceLocal = true;
+  console.warn("UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN unset — rate limits are per-instance, not deployment-wide");
 }
 
 /** Deployment-wide limit when Upstash is configured; otherwise instance-local. */
 export async function enforceRequestLimitAsync(
   request: Request,
   userId?: string | null,
-  operation: Exclude<RateLimitOperation, "agent"> = "repo",
+  operation: RateLimitOperation = "repo",
 ): Promise<void> {
   if (!isRedisConfigured()) {
+    warnInstanceLocalLimits();
     enforceRequestLimit(request, userId, operation);
     return;
   }

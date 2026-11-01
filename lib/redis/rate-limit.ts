@@ -42,7 +42,17 @@ export async function enforceDistributedRateLimit(
   if (!limiter) {
     return { allowed: true, retryAfterSeconds: 0 };
   }
-  const result = await limiter.limit(identity);
+  let result;
+  try {
+    result = await limiter.limit(identity);
+  } catch (error) {
+    // Surface Redis-specific failures instead of an unexplained 500. Never log the identity.
+    console.error(
+      "Upstash rate limiter call failed — verify UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN and Upstash availability",
+      error instanceof Error ? error.name : "unknown",
+    );
+    throw error;
+  }
   const retryAfterSeconds = result.reset
     ? Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))
     : 60;
