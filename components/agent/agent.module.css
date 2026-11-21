@@ -38,6 +38,10 @@
   height: 100%;
   max-height: none;
   overflow: hidden;
+  /* Runs into the viewport bottom: no bottom edge or rounding to stop short on. */
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 /* Stage: graph sits over Agent (antechamber settings metaphor). */
@@ -699,14 +703,15 @@
 .footer {
   flex: none;
   border-top: 1px solid var(--border);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-5) var(--space-5) max(var(--space-5), env(safe-area-inset-bottom));
 }
 
 .snapshotBar {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin: var(--space-1) 0 0;
+  margin: var(--space-3) 0 0;
+  padding-inline: var(--space-3);
   min-width: 0;
 }
 
@@ -729,7 +734,7 @@
 }
 
 .thread:has(.emptyState) + .footer .snapshotBar {
-  margin-top: 0;
+  margin-top: var(--space-2);
 }
 
 .thread:has(.emptyState) + .footer .snapshotRepo {
@@ -882,19 +887,19 @@
 .composerForm {
   display: flex;
   align-items: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .composerInput {
   flex: 1;
   min-width: 0;
   user-select: text;
-  min-height: 2.75rem;
+  min-height: 3rem;
   max-height: 10rem;
-  height: 2.75rem;
+  height: 3rem;
   resize: none;
   overflow-y: auto;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
@@ -924,8 +929,8 @@
 .sendButton {
   flex: none;
   min-width: auto;
-  min-height: 2.75rem;
-  padding: 0 var(--space-4);
+  min-height: 3rem;
+  padding: 0 var(--space-5);
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
   font-weight: 600;

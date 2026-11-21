@@ -75,6 +75,12 @@
   padding: 0 var(--space-5) var(--space-5);
 }
 
+/* Full-height screens (repo graph + Agent) run to the viewport bottom: a
+   trailing strip of page under the stage reads as clutter, not breathing room. */
+.main:has([data-flush-bottom]) {
+  padding-bottom: 0;
+}
+
 /* Guest-only theme strip (signed-in users use the profile menu). Centered. */
 .shellFooter {
   display: flex;

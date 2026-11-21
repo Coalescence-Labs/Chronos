@@ -112,6 +112,7 @@ export function RepoAgentChrome({
   return (
     <div
       className={styles.chrome}
+      data-flush-bottom=""
       data-agent-open={underOpen ? "true" : undefined}
     >
       <div className={styles.desktopStage}>
