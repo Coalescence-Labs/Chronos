@@ -103,6 +103,46 @@ describe("GraphView accessibility", () => {
     expect(html).not.toContain(">HEAD<"); // HEAD duplicates the default branch
   });
 
+  test("ranked active-branch rail lists open tips in stable order", () => {
+    const open: RepoHistory = {
+      commits: [
+        commit("d0", ["m0"], 0),
+        commit("m0", ["base"], 1),
+        commit("fa", ["base"], 2),
+        commit("base", [], 3),
+      ],
+      refs: [
+        { name: "HEAD", type: "head", sha: "m0" },
+        { name: "main", type: "branch", sha: "m0" },
+        { name: "develop", type: "branch", sha: "d0" },
+        { name: "feat/a", type: "branch", sha: "fa" },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <GraphView history={open} layout={layoutGraph(open)} defaultBranch="main" />,
+    );
+    expect(html).toContain('aria-label="Active branches"');
+    expect(html).toContain(">Active<");
+    // Rail order: trunk → staging → open (not tip-row order alone).
+    const rail = html.slice(
+      html.indexOf('aria-label="Active branches"'),
+      html.indexOf('role="listbox"'),
+    );
+    expect(rail.indexOf(">main<")).toBeLessThan(rail.indexOf(">develop<"));
+    expect(rail.indexOf(">develop<")).toBeLessThan(rail.indexOf(">feat/a<"));
+  });
+
+  test("active-branch rail can be suppressed", () => {
+    const html = renderToStaticMarkup(
+      <GraphView
+        history={history}
+        layout={layoutGraph(history)}
+        showActiveBranchRail={false}
+      />,
+    );
+    expect(html).not.toContain('aria-label="Active branches"');
+  });
+
   test("branch badges are trace controls; tags are plain markers (COA-84)", () => {
     const tagged: RepoHistory = {
       commits: history.commits,
@@ -135,15 +175,17 @@ describe("GraphView accessibility", () => {
     const html = renderToStaticMarkup(
       <GraphView history={withDevelop} layout={layoutGraph(withDevelop)} />,
     );
-    expect(html).toMatch(/data-branch-role="main"[^>]*>main</);
-    expect(html).toMatch(/data-branch-role="develop"[^>]*>develop</);
-    // Anchor badges are filled with the lane color (dark text on color).
-    const main = html.match(/<button[^>]*data-branch-role="main"[^>]*>/)![0];
+    expect(html).toMatch(/data-ref-type="branch"[^>]*data-branch-role="main"[^>]*>main</);
+    expect(html).toMatch(/data-ref-type="branch"[^>]*data-branch-role="develop"[^>]*>develop</);
+    // Tip-row anchor badges are filled with the lane color (dark text on color).
+    const main = html.match(
+      /<button[^>]*data-ref-type="branch"[^>]*data-branch-role="main"[^>]*>/,
+    )![0];
     expect(main).toContain("background:var(--lane-0)");
     expect(main).toContain("var(--on-accent)");
-    // Short-lived branches and tags get no identity role.
-    expect(html).not.toMatch(/data-branch-role[^>]*>feature\/very-long-name</);
-    expect(html).not.toMatch(/data-branch-role[^>]*>v1\.0\.0</);
+    // Short-lived branches and tags get no identity role on tip-row badges.
+    expect(html).not.toMatch(/data-ref-type="branch"[^>]*data-branch-role[^>]*>feature\/very-long-name</);
+    expect(html).not.toMatch(/data-ref-type="tag"[^>]*data-branch-role/);
   });
 });
 

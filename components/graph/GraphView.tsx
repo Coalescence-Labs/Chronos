@@ -10,8 +10,15 @@ import {
 } from "react";
 import { setAgentContextDragData } from "@/lib/agent/chat-context";
 import { track } from "@/lib/analytics";
-import { attributeBranches, packShelves, pinnedLines } from "@/lib/graph";
+import {
+  attributeBranches,
+  listActiveBranches,
+  packShelves,
+  pinnedLines,
+  shouldShowActiveBranchRail,
+} from "@/lib/graph";
 import type { Capsule, EdgeKind, GraphLayout, RepoHistory } from "@/lib/graph";
+import { ActiveBranchRail } from "./ActiveBranchRail";
 import {
   BASE_EDGE_WIDTH,
   BASE_LANE_WIDTH,
@@ -88,6 +95,13 @@ export interface GraphViewProps {
    * end, so short histories backfill until they outgrow the viewport.
    */
   onNearEnd?: () => void;
+  /** API default branch when known — ranks the active-branch rail. */
+  defaultBranch?: string;
+  /**
+   * Show the ranked active-branch catalog when the open set fits (≤25).
+   * Defaults on; tip-row labels still handle the >25 case alone.
+   */
+  showActiveBranchRail?: boolean;
 }
 
 export function GraphView({
@@ -101,6 +115,8 @@ export function GraphView({
   onTracedTipChange,
   lensShas = null,
   onNearEnd,
+  defaultBranch,
+  showActiveBranchRail = true,
 }: GraphViewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef(1);
@@ -123,6 +139,15 @@ export function GraphView({
     () => attributeBranches(history, layout),
     [history, layout],
   );
+
+  const activeBranches = useMemo(
+    () => listActiveBranches(history, layout, defaultBranch),
+    [history, layout, defaultBranch],
+  );
+  const railBranches =
+    showActiveBranchRail && shouldShowActiveBranchRail(activeBranches)
+      ? activeBranches
+      : [];
 
   const labelsBySha = useMemo(() => {
     const map = new Map<string, RefLabel[]>();
@@ -474,6 +499,17 @@ export function GraphView({
 
   return (
     <div className={styles.root}>
+      {railBranches.length > 0 ? (
+        <ActiveBranchRail
+          branches={railBranches}
+          tracedTip={tracedTip}
+          onActivate={(branch) => {
+            onSelect?.(branch.tipSha);
+            toggleTrace(branch.tipSha);
+            scrollToRow(branch.tipRow);
+          }}
+        />
+      ) : null}
       <div
         ref={viewportRef}
         className={styles.viewport}
