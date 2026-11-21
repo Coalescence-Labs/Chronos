@@ -25,6 +25,20 @@ export interface IngestResult {
    * spent on history the user actually scrolls toward.
    */
   loadMore?: () => Promise<IngestResult>;
+  /**
+   * Set when the backfill stopped early (rate limit, upstream hiccup) after
+   * the first page already landed. The loaded history is kept, never torn
+   * down; `resume` continues from the page or branch tip that failed.
+   */
+  interrupted?: IngestInterruption;
+  /** Continue an interrupted backfill (remaining eager pages + branch tips). */
+  resume?: () => Promise<IngestResult>;
+}
+
+export interface IngestInterruption {
+  code: IngestError["code"];
+  message: string;
+  retryAfterSeconds?: number;
 }
 
 export interface IngestOptions {
@@ -129,24 +143,59 @@ export async function fetchPublicRepoHistory(
   };
 
   const initialPages = Math.min(options.initialPages ?? DEFAULT_INITIAL_PAGES, maxPages);
-  while (nextPage !== null && nextPage <= initialPages) {
-    nextPage = await fetchTrunkPage(nextPage);
-  }
+  const maxBranchTips = options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS;
+  // Tips already asked for (loaded or attempted-and-landed) — a resume only
+  // spends budget on the ones still missing.
+  const fetchedTips = new Set<string>();
+  let interrupted: IngestInterruption | undefined;
 
   // Side branches: the trunk pages only cover default-branch history, so
   // branch tips that haven't merged yet would never load — and a ref without
   // its commit can't appear in the graph. Load one page per missing tip;
   // deeper parents render as open edges until merged history picks them up.
-  const loadedShas = new Set(history.commits.map((commit) => commit.sha));
-  const missingTips = history.refs
-    .filter((ref) => ref.type === "branch" && !loadedShas.has(ref.sha))
-    .slice(0, options.maxBranchTips ?? DEFAULT_MAX_BRANCH_TIPS);
-  for (const ref of missingTips) {
-    const page = await requestJson<CommitsPageResponse>(
-      `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
-    );
-    if (merge(page.commits) > 0) options.onProgress?.(history, meta);
+  const pendingTips = () => {
+    const loadedShas = new Set(history.commits.map((commit) => commit.sha));
+    return history.refs
+      .filter((ref) => ref.type === "branch" && !loadedShas.has(ref.sha) && !fetchedTips.has(ref.name))
+      .slice(0, Math.max(0, maxBranchTips - fetchedTips.size));
+  };
+
+  /**
+   * Eager trunk pages, then one page per missing tip. Once the first page has
+   * painted, a failure here must not discard what already loaded (a rate
+   * limit mid-backfill used to replace ~15 drawn branches with an error
+   * screen, wasting the budget it had spent). Stop, keep the history, and
+   * record why so the UI can say so and offer to resume. Aborts still throw.
+   */
+  async function backfill(): Promise<void> {
+    interrupted = undefined;
+    try {
+      while (nextPage !== null && nextPage <= initialPages) {
+        nextPage = await fetchTrunkPage(nextPage);
+      }
+      for (const ref of pendingTips()) {
+        const page = await requestJson<CommitsPageResponse>(
+          `/api/repo/commits?repo=${repoParam}&sha=${encodeURIComponent(ref.name)}&page=1`,
+        );
+        fetchedTips.add(ref.name);
+        if (merge(page.commits) > 0) options.onProgress?.(history, meta);
+      }
+    } catch (error) {
+      if (options.signal?.aborted || !(error instanceof IngestError)) throw error;
+      interrupted = {
+        code: error.code,
+        message: error.message,
+        ...(error.retryAfterSeconds !== undefined ? { retryAfterSeconds: error.retryAfterSeconds } : {}),
+      };
+    }
   }
+
+  async function resume(): Promise<IngestResult> {
+    await backfill();
+    return makeResult();
+  }
+
+  await backfill();
 
   async function loadMore(): Promise<IngestResult> {
     // Pages are numbered from the *current* tip: a refresh that advanced the
@@ -169,6 +218,7 @@ export async function fetchPublicRepoHistory(
       truncated: nextPage !== null,
       ...(initial.referencesTruncated ? { referencesTruncated: true } : {}),
       loadMore: nextPage !== null && nextPage <= maxPages ? loadMore : undefined,
+      ...(interrupted ? { interrupted, resume } : {}),
     };
   }
 

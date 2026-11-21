@@ -205,6 +205,84 @@ describe("fetchPublicRepoHistory", () => {
       expect(error).toBeInstanceOf(IngestError);
     });
   });
+
+  test("a rate limit mid-tip-backfill keeps the loaded graph and resumes where it stopped", async () => {
+    const tips = ["a", "b", "c", "d"].map((name) => ({ name: `feat/${name}`, type: "branch" as const, sha: `${name}1` }));
+    const withTips: RepoResponse = {
+      ...initial,
+      history: { commits: initial.history.commits, refs: [...initial.history.refs, ...tips] },
+      nextPage: null,
+    };
+    let limited = true;
+    const calls: string[] = [];
+    const fetchImpl = ((input: RequestInfo | URL) => {
+      const url = new URL(input.toString(), "http://localhost");
+      calls.push(url.searchParams.get("sha") ?? url.pathname);
+      if (url.pathname === "/api/repo") return Promise.resolve(Response.json(withTips));
+      const sha = url.searchParams.get("sha")!;
+      if (sha === "feat/c" && limited) {
+        return Promise.resolve(Response.json(
+          { error: { code: "rate-limited", message: "GitHub's rate limit was reached.", retryAfterSeconds: 3420 } },
+          { status: 429 },
+        ));
+      }
+      const tip = sha.slice("feat/".length);
+      return Promise.resolve(Response.json({ commits: [node(`${tip}1`, ["c2"])], nextPage: null } satisfies CommitsPageResponse));
+    }) as typeof fetch;
+
+    const result = await fetchPublicRepoHistory("acme/widgets", { fetchImpl });
+    expect(result.history.commits.map((commit) => commit.sha)).toEqual(["c3", "c2", "a1", "b1"]);
+    expect(result.interrupted).toEqual({
+      code: "rate-limited", message: "GitHub's rate limit was reached.", retryAfterSeconds: 3420,
+    });
+    expect(result.resume).toBeDefined();
+
+    limited = false;
+    calls.length = 0;
+    const resumed = await result.resume!();
+    // Only the tips that never landed are fetched again.
+    expect(calls).toEqual(["feat/c", "feat/d"]);
+    expect(resumed.history.commits.map((commit) => commit.sha)).toEqual(["c3", "c2", "a1", "b1", "c1", "d1"]);
+    expect(resumed.interrupted).toBeUndefined();
+    expect(resumed.resume).toBeUndefined();
+  });
+
+  test("a failed eager trunk page keeps history and leaves loadMore on that page", async () => {
+    let fail = true;
+    const calls: string[] = [];
+    const fetchImpl = ((input: RequestInfo | URL) => {
+      const url = new URL(input.toString(), "http://localhost");
+      calls.push(url.pathname + url.search);
+      if (url.pathname === "/api/repo") return Promise.resolve(Response.json(initial));
+      if (fail) {
+        return Promise.resolve(Response.json({ error: { code: "upstream", message: "Hiccup." } }, { status: 502 }));
+      }
+      return Promise.resolve(Response.json({ commits: [node("c1")], nextPage: null } satisfies CommitsPageResponse));
+    }) as typeof fetch;
+
+    const result = await fetchPublicRepoHistory("acme/widgets", { fetchImpl });
+    expect(result.history.commits.map((commit) => commit.sha)).toEqual(["c3", "c2"]);
+    expect(result.interrupted?.code).toBe("upstream");
+    expect(result.loadMore).toBeDefined();
+    fail = false;
+    const more = await result.loadMore!();
+    expect(more.history.commits.map((commit) => commit.sha)).toEqual(["c3", "c2", "c1"]);
+    expect(calls.at(-1)).toBe("/api/repo/commits?repo=acme%2Fwidgets&sha=main&page=2");
+  });
+
+  test("an abort mid-backfill still rejects instead of returning partial history", async () => {
+    const controller = new AbortController();
+    const fetchImpl = ((input: RequestInfo | URL) => {
+      const url = new URL(input.toString(), "http://localhost");
+      if (url.pathname === "/api/repo") return Promise.resolve(Response.json(initial));
+      controller.abort();
+      return Promise.reject(new DOMException("Aborted", "AbortError"));
+    }) as typeof fetch;
+
+    await expect(
+      fetchPublicRepoHistory("acme/widgets", { fetchImpl, signal: controller.signal }),
+    ).rejects.toBeDefined();
+  });
 });
 
 describe("refreshRepoHistory", () => {
