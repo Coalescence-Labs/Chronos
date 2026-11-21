@@ -31,23 +31,63 @@
   min-height: 0;
 }
 
+/* Desktop Agent fills the under-pane; the graph surface slides to reveal it. */
 .desktopPanel {
   display: flex;
   flex-direction: column;
-  max-height: min(560px, calc(100dvh - var(--space-8)));
+  height: 100%;
+  max-height: none;
   overflow: hidden;
-  animation: agentDockIn var(--duration-slow) var(--ease-out) both;
 }
 
-.graphPane {
+/* Stage: graph sits over Agent (antechamber settings metaphor). */
+.desktopStage {
+  --agent-under-w: min(400px, 42vw);
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.graphSurface {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  transition:
+    transform var(--duration-slow) var(--ease-out),
+    box-shadow var(--duration-slow) var(--ease-out);
+}
+
+.chrome[data-agent-open="true"] .graphSurface {
+  transform: translateX(calc(-1 * var(--agent-under-w)));
+  box-shadow: var(--shadow-2);
 }
 
 .graphPaneHidden {
   display: none;
+}
+
+.agentUnder {
+  display: none;
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 0;
+  width: var(--agent-under-w);
+  background: var(--bg-elevated);
+  transform: translateX(100%);
+  transition: transform var(--duration-slow) var(--ease-out);
+  pointer-events: none;
+}
+
+.chrome[data-agent-open="true"] .agentUnder {
+  transform: none;
+  pointer-events: auto;
 }
 
 .mobilePane {
@@ -63,24 +103,6 @@
   min-height: 0;
   /* Tab bar sits below; keep Agent content clear of the segmented control. */
   padding: var(--space-2) var(--space-3) var(--space-2);
-}
-
-.desktopDock {
-  /* Keep the zoom row and a gap clear inside the graph work area. */
-  --agent-dock-bottom: calc(var(--touch-target) + 2px + var(--space-6));
-  position: absolute;
-  z-index: 40;
-  right: var(--space-3);
-  bottom: var(--agent-dock-bottom);
-  display: flex;
-  flex-direction: column;
-  width: min(400px, calc(100% - var(--space-6)));
-  max-height: calc(100% - var(--agent-dock-bottom) - var(--touch-target) - var(--space-6));
-  pointer-events: none;
-}
-
-.desktopDock[data-open="true"] .desktopPanel {
-  pointer-events: auto;
 }
 
 .desktopHeader,
@@ -995,17 +1017,6 @@
   box-shadow: var(--glass-highlight);
 }
 
-@keyframes agentDockIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 @keyframes agentMessageIn {
   from {
     opacity: 0;
@@ -1061,8 +1072,13 @@
 }
 
 @media (max-width: 700px) {
-  .desktopDock {
-    display: none;
+  .agentUnder {
+    display: none !important;
+  }
+
+  .chrome[data-agent-open="true"] .graphSurface {
+    transform: none;
+    box-shadow: none;
   }
 
   .tabBar {
@@ -1080,6 +1096,11 @@
 }
 
 @media (min-width: 701px) {
+  .agentUnder {
+    display: flex;
+    flex-direction: column;
+  }
+
   .mobilePane,
   .mobilePaneActive {
     display: none !important;
@@ -1087,7 +1108,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktopPanel,
+  .graphSurface,
+  .agentUnder {
+    transition: none;
+  }
+
   .messageRow,
   .emptyState {
     animation: none;
