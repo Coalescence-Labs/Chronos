@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/Button";
  */
 
 const CONNECT_HREF = "/api/github/connect";
+/** Saved installation, lost credential: authorize again without the install page. */
+const RECONNECT_HREF = "/api/github/connect?reconnect=1";
 const GITHUB_INSTALLATIONS_URL = "https://github.com/settings/apps/authorizations";
 
 function GitHubSettingsLink() {
@@ -29,7 +31,7 @@ const FACTS: { claim: string; detail: ReactNode }[] = [
   { claim: "Read-only access", detail: "Contents and metadata. Can’t push or edit." },
   { claim: "Repos you choose", detail: "Only the ones you pick on GitHub." },
   { claim: "No repo data stored", detail: "Commits pass through to draw the graph." },
-  { claim: "Encrypted session", detail: "GitHub authorization stays in an encrypted, server-only cookie. No repo data saved." },
+  { claim: "Encrypted session", detail: "GitHub authorization is encrypted in WorkOS Vault, never readable by the browser. No repo data saved." },
   {
     claim: "Revoke anytime",
     detail: (
@@ -219,7 +221,8 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
           </div>
         </div>
         <div className={styles.actions}>
-          <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
+          <a className={`${buttonStyles.button} ${buttonStyles.primary}`}
+            href={connection.login || connection.state === "reconnect-required" ? RECONNECT_HREF : CONNECT_HREF}>
             {connection.login || connection.state === "reconnect-required" ? "Reconnect GitHub" : "Install GitHub App"}
           </a>
           {(connection.login || connection.state === "reconnect-required") && <DisconnectGitHubButton all={!connection.login || (connection.accounts?.length ?? 0) > 1} />}

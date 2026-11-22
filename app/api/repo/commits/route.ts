@@ -6,7 +6,8 @@ import { parseRepoInput } from "@/lib/ingest/github/parse";
 import { errorResponse, jsonResponse } from "@/lib/ingest/respond";
 
 /**
- * Commit-page backfill with a fresh user/visibility check before each page,
+ * Commit-page backfill with a fresh user/visibility check before each
+ * credentialed page,
  * client-driven, so 10k+ commit histories stream in pages instead of
  * blocking a single request. Same privacy posture as /api/repo.
  *
@@ -27,7 +28,12 @@ export async function GET(request: Request): Promise<Response> {
     const page = Number(searchParams.get("page") ?? "1");
     validateCommitPage(page);
     const auth = await githubAuthForRequest(id, request);
-    await verifiedRepoMeta(id, auth);
+    // A credentialed request (pool or user token) might reach a private repo,
+    // so visibility is re-checked per page. Anonymous GitHub access cannot
+    // read private repos at all — the page fetch itself 404s — so skipping
+    // the check there halves the cost of every page against the shared
+    // 60/hr anonymous budget without widening access.
+    if (auth.accessToken) await verifiedRepoMeta(id, auth);
 
     const result = await fetchCommitPage(id, sha, page, auth);
     const body: CommitsPageResponse = {

@@ -127,7 +127,7 @@ describe("GET /api/repo/commits", () => {
   const commitsUrl = (params: Record<string, string>) =>
     new Request(`http://localhost/api/repo/commits?${new URLSearchParams(params)}`);
 
-  test("checks public visibility before each history page", async () => {
+  test("anonymous pages cost one GitHub call (no private reach to re-check)", async () => {
     const pages = [manyCommits(100, "p1-"), manyCommits(100, "p2-"), manyCommits(50, "p3-")];
     let calls = 0;
     restore = mockGitHub((url) => {
@@ -143,13 +143,32 @@ describe("GET /api/repo/commits", () => {
     const firstBody = (await first.json()) as CommitsPageResponse;
     expect(firstBody.commits).toHaveLength(100);
     expect(firstBody.nextPage).toBe(2);
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
 
     const last = await getCommits(commitsUrl({ repo: "acme/widgets", sha: "main", page: "3" }));
     const lastBody = (await last.json()) as CommitsPageResponse;
     expect(lastBody.commits).toHaveLength(50);
     expect(lastBody.nextPage).toBeNull();
-    expect(calls).toBe(4);
+    expect(calls).toBe(2);
+  });
+
+  test("credentialed pages still check visibility before each page", async () => {
+    const previous = process.env.GITHUB_TOKEN;
+    process.env.GITHUB_TOKEN = "ghp_test_public_pool";
+    const requested: string[] = [];
+    restore = mockGitHub((url) => {
+      requested.push(url.pathname);
+      if (url.pathname === "/repos/acme/widgets") return githubJson({ ...SMALL_REPO.meta, private: false });
+      return githubJson(manyCommits(10, "p1-"));
+    });
+    try {
+      const response = await getCommits(commitsUrl({ repo: "acme/widgets", sha: "main", page: "1" }));
+      expect(response.status).toBe(200);
+      expect(requested).toEqual(["/repos/acme/widgets", "/repos/acme/widgets/commits"]);
+    } finally {
+      if (previous === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = previous;
+    }
   });
 
   test("refuses pages beyond the hard cap with a friendly message", async () => {

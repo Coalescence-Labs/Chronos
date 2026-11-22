@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { storeGitHubCredentials } from "@/lib/github-app/credential-store";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { isAuthConfigured } from "@/lib/auth";
 import {
@@ -24,6 +25,7 @@ import {
 import { readGitHubAuthorizationVersion, INITIAL_GITHUB_AUTHORIZATION_VERSION } from "@/lib/github-app/workos-metadata";
 import { enforceRequestLimitAsync } from "@/lib/security/request";
 import { IngestError } from "@/lib/ingest/errors";
+import { sanitizeReturnPath } from "@/lib/auth/return-to";
 
 /**
  * GET /api/github/callback — GitHub App setup redirect after install.
@@ -81,6 +83,7 @@ export async function GET(request: Request): Promise<Response> {
         state: createInstallState(), workosUserId: user.id, stage: "authorize" as const,
         installationId, redirectUri: pending.redirectUri,
         codeVerifier: createGitHubCodeVerifier(), authorizationVersion,
+        ...(pending.returnTo ? { returnTo: pending.returnTo } : {}),
       };
       jar.set(GITHUB_COOKIE_POSTURE.stateCookieName, await sealGitHubConnectState(authorize), {
         httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" ||
@@ -108,7 +111,13 @@ export async function GET(request: Request): Promise<Response> {
     });
     // Save credentials only after the authoritative binding accepts this authorization.
     await writeGitHubInstallMetadata(user.id, { ...session, additionalInstallations: undefined });
+    // Durable copy (WorkOS Vault) so the connection survives sign-out, new
+    // devices and cookie loss; the cookie stays as the per-browser cache.
+    await storeGitHubCredentials(user.id, { ...credentials, authorizationVersion });
     await saveGitHubAppSession(session);
+    if (pending.returnTo) {
+      return NextResponse.redirect(new URL(sanitizeReturnPath(pending.returnTo), request.url));
+    }
     accountUrl.searchParams.set("github", "connected");
     return NextResponse.redirect(accountUrl);
   } catch (error) {

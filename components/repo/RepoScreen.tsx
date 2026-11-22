@@ -10,8 +10,9 @@ import {
   IngestError,
   refreshRepoHistory,
 } from "@/lib/ingest";
-import type { IngestResult } from "@/lib/ingest";
+import type { IngestInterruption, IngestResult } from "@/lib/ingest";
 import { GraphExplorer } from "./GraphExplorer";
+import styles from "./repo.module.css";
 
 /**
  * The live end-to-end view (COA-71): progressive ingestion → GraphExplorer.
@@ -36,6 +37,10 @@ interface LoadedState {
   /** More pages remain within the cap — scrolling will load them. */
   hasMore: boolean;
   complete: boolean;
+  /** Backfill paused (e.g. rate limit) — the graph stays, a note explains. */
+  interrupted?: IngestInterruption;
+  /** Signed in with a saved GitHub installation but no usable credential. */
+  githubReconnectRequired?: boolean;
 }
 
 interface FailedState {
@@ -66,6 +71,9 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   // The lazy-paging continuation for the *current* request; null while a
   // page fetch is in flight so onNearEnd (fired per render) can't double-load.
   const loadMoreRef = useRef<IngestResult["loadMore"] | null>(null);
+  // Continuation for an interrupted backfill (missing tips / eager pages).
+  const resumeRef = useRef<IngestResult["resume"] | null>(null);
+  const [resuming, setResuming] = useState(false);
   // Latest live history, so refresh can re-sync tips without depending on
   // `loaded` (which would re-create the callback every render).
   const historyRef = useRef<RepoHistory | null>(null);
@@ -79,11 +87,32 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const requestKey = `${owner}/${repo}#${attempt}`;
   const requestKeyRef = useRef(requestKey);
 
+  // One place turns an ingest result into screen state, so initial load,
+  // lazy paging and resume agree on interrupted/hasMore bookkeeping.
+  const applyResult = useCallback((result: IngestResult) => {
+    loadMoreRef.current = result.loadMore ?? null;
+    resumeRef.current = result.resume ?? null;
+    historyRef.current = result.history;
+    setLoaded({
+      key: requestKey,
+      history: snapshot(result.history),
+      defaultBranch: result.defaultBranch,
+      private: result.private === true,
+      truncated: result.truncated,
+      referencesTruncated: result.referencesTruncated,
+      hasMore: result.loadMore !== undefined,
+      complete: true,
+      ...(result.interrupted ? { interrupted: result.interrupted } : {}),
+      ...(result.githubReconnectRequired ? { githubReconnectRequired: true } : {}),
+    });
+  }, [requestKey]);
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     requestKeyRef.current = requestKey;
     loadMoreRef.current = null;
+    resumeRef.current = null;
     historyRef.current = null;
     pagesLoadedRef.current = 0;
     pagingRetryAt.current = 0;
@@ -92,7 +121,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
       signal: controller.signal,
-      onProgress: (h, { defaultBranch, private: repoPrivate, referencesTruncated }) => {
+      onProgress: (h, { defaultBranch, private: repoPrivate, referencesTruncated, githubReconnectRequired }) => {
         if (!cancelled) {
           historyRef.current = h;
           setLoaded({
@@ -102,6 +131,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             private: repoPrivate === true,
             truncated: false,
             referencesTruncated,
+            githubReconnectRequired,
             hasMore: false,
             complete: false,
           });
@@ -120,19 +150,9 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
     })
       .then((result) => {
         if (cancelled) return;
-        loadMoreRef.current = result.loadMore ?? null;
-        historyRef.current = result.history;
-        setLoaded({
-          key: requestKey,
-          history: snapshot(result.history),
-          defaultBranch: result.defaultBranch,
-          private: result.private === true,
-          truncated: result.truncated,
-          referencesTruncated: result.referencesTruncated,
-          hasMore: result.loadMore !== undefined,
-          complete: true,
-        });
+        applyResult(result);
         track({ name: "render_result", props: { ok: true } });
+        if (result.interrupted?.code === "rate-limited") track({ name: "rate_limited" });
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
@@ -154,7 +174,26 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       controller.abort();
       loadMoreRef.current = null;
     };
-  }, [owner, repo, requestKey]);
+  }, [owner, repo, requestKey, applyResult]);
+
+  const handleResume = useCallback(() => {
+    const resume = resumeRef.current;
+    if (!resume || resuming) return;
+    resumeRef.current = null;
+    setResuming(true);
+    resume()
+      .then((result) => {
+        if (requestKeyRef.current !== requestKey) return;
+        applyResult(result);
+      })
+      .catch(() => {
+        if (requestKeyRef.current !== requestKey) return;
+        resumeRef.current = resume;
+      })
+      .finally(() => {
+        if (requestKeyRef.current === requestKey) setResuming(false);
+      });
+  }, [requestKey, resuming, applyResult]);
 
   const handleNearEnd = useCallback(() => {
     if (Date.now() < pagingRetryAt.current) return;
@@ -167,18 +206,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
         if (requestKeyRef.current !== requestKey) return; // navigated away
         pagingRetryAt.current = 0;
         setPagingNote(null);
-        loadMoreRef.current = result.loadMore ?? null;
-        historyRef.current = result.history;
-        setLoaded({
-          key: requestKey,
-          history: snapshot(result.history),
-          defaultBranch: result.defaultBranch,
-          private: result.private === true,
-          truncated: result.truncated,
-          referencesTruncated: result.referencesTruncated,
-          hasMore: result.loadMore !== undefined,
-          complete: true,
-        });
+        applyResult(result);
         pagesLoadedRef.current += 1;
         track({ name: "lazy_page", props: { depth: pagesLoadedRef.current } });
       })
@@ -192,7 +220,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
         loadMoreRef.current = loadMore;
       })
       .finally(() => setLoadingMore(false));
-  }, [requestKey]);
+  }, [requestKey, applyResult]);
 
   // Manual re-sync of branch tips (COA-100). Updates the loaded history in
   // place — same components, so the viewport's scroll position and any active
@@ -238,6 +266,11 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const repoPrivate = loaded?.key === requestKey ? loaded.private === true : false;
   const error = failed?.key === requestKey ? failed.error : null;
   const note = refreshNote?.key === requestKey ? refreshNote.note : null;
+  const interrupted = loaded?.key === requestKey ? loaded.interrupted : undefined;
+  const reconnectGitHub = loaded?.key === requestKey && loaded.githubReconnectRequired === true;
+  const reconnectHref = `/api/github/connect?reconnect=1&returnTo=${encodeURIComponent(
+    `/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+  )}`;
 
   if (error) {
     const retryAfterSeconds =
@@ -288,7 +321,34 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             " · showing the most recent pages of a longer history"}
           {refreshing && " · refreshing…"}
           {loaded?.referencesTruncated && " · showing the first 100 branches and 100 tags"}
+          {interrupted && (
+            <>
+              {" · "}
+              {interrupted.code === "rate-limited"
+                ? `GitHub rate limit paused loading${
+                    interrupted.retryAfterSeconds
+                      ? ` · try again in ${formatRetryWait(interrupted.retryAfterSeconds)}`
+                      : ""
+                  } · showing what loaded`
+                : "some branches couldn't load"}
+              {" · "}
+              <button
+                type="button"
+                className={styles.statusAction}
+                onClick={handleResume}
+                disabled={resuming}
+              >
+                {resuming ? "resuming…" : "resume"}
+              </button>
+            </>
+          )}
           {pagingNote?.key === requestKey && ` · ${pagingNote.note}`}
+          {reconnectGitHub && (
+            <>
+              {" · GitHub connection lost, using shared limits · "}
+              <a className={styles.statusAction} href={reconnectHref}>reconnect</a>
+            </>
+          )}
           {!refreshing && note && ` · ${note}`}
         </>
       }

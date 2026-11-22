@@ -18,7 +18,7 @@ export {
   fetchPublicRepoHistory,
   refreshRepoHistory,
 } from "./client";
-export type { IngestOptions, IngestResult, RefreshOptions, RefreshResult } from "./client";
+export type { IngestInterruption, IngestOptions, IngestResult, RefreshOptions, RefreshResult } from "./client";
 export {
   INGEST_ERROR_STATUS,
   IngestError,

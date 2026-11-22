@@ -41,6 +41,7 @@ export async function GET(request: Request): Promise<Response> {
       },
       nextPage: firstPage.hasMore ? 2 : null,
       ...(referencePage.truncated ? { referencesTruncated: true } : {}),
+      ...(auth.reconnectRequired ? { githubReconnectRequired: true } : {}),
     };
     return jsonResponse(body);
   } catch (error) {

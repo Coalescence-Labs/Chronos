@@ -13,6 +13,7 @@ let accessibleIds = [200, 100];
 let accountLogin = "acme";
 let accountType: "User" | "Organization" = "Organization";
 let authorizationVersion = "initial";
+let savedBinding = false;
 const jar = new Map<string, string>();
 const writes: GitHubAppSessionData[] = [];
 const saves: GitHubAppSessionData[] = [];
@@ -31,7 +32,10 @@ mock.module("next/headers", () => ({ cookies: async () => ({
 }) }));
 mock.module("@workos-inc/authkit-nextjs", () => ({ withAuth: async () => ({ user: { id: activeUser } }) }));
 mock.module("@/lib/github-app/metadata-client", () => ({
-  githubMetadataClient: () => ({ userManagement: { getUser: async () => ({ metadata: { chronosGhVersion: authorizationVersion } }) } }),
+  githubMetadataClient: () => ({ userManagement: { getUser: async () => ({ metadata: {
+    chronosGhVersion: authorizationVersion,
+    ...(savedBinding ? { chronosGhInstall_100: JSON.stringify(["ada", "User", "2026-10-01T00:00:00.000Z", "contents:read,metadata:read", authorizationVersion]) } : {}),
+  } }) } }),
 }));
 mock.module("@/lib/github-app", () => ({
   ...realGitHubApp,
@@ -51,7 +55,7 @@ beforeEach(() => {
 afterEach(() => {
   globalThis.fetch = originalFetch;
   jar.clear(); writes.length = 0; saves.length = 0;
-  activeUser = "user_test"; accessibleIds = [200, 100]; accountLogin = "acme"; accountType = "Organization"; authorizationVersion = "initial";
+  activeUser = "user_test"; accessibleIds = [200, 100]; accountLogin = "acme"; accountType = "Organization"; authorizationVersion = "initial"; savedBinding = false;
   for (const [key, value] of Object.entries(previous)) {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;
   }
@@ -163,5 +167,34 @@ describe("verified organization connect callback", () => {
     expect(new URL(result.headers.get("location")!).searchParams.get("github")).toBe("pending");
     expect(writes).toEqual([]);
     expect(saves).toEqual([]);
+  });
+
+  test("reconnect with a saved installation skips the install page and returns to the repo", async () => {
+    savedBinding = true;
+    const { GET: connect } = await import("@/app/api/github/connect/route");
+    const start = await connect(new Request("https://chronos.test/api/github/connect?reconnect=1&returnTo=%2Frepo%2Facme%2Fwidgets"));
+    const authorize = new URL(start.headers.get("location")!);
+    expect(authorize.origin + authorize.pathname).toBe("https://github.com/login/oauth/authorize");
+    const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
+    expect(pending.stage).toBe("authorize");
+    expect(pending.installationId).toBe(100);
+    expect(pending.returnTo).toBe("/repo/acme/widgets");
+
+    const { GET } = await import("@/app/api/github/callback/route");
+    const result = await GET(new Request(`https://chronos.test/api/github/callback?code=test-code&state=${pending.state}`));
+    expect(new URL(result.headers.get("location")!).pathname).toBe("/repo/acme/widgets");
+    expect(saves[0]?.userAccessToken).toBe("ghu_test_user");
+  });
+
+  test("reconnect without a saved installation falls back to the install page; returnTo can't leave the origin", async () => {
+    process.env.GITHUB_APP_SLUG = "chronos-test";
+    try {
+      const { GET: connect } = await import("@/app/api/github/connect/route");
+      const start = await connect(new Request("https://chronos.test/api/github/connect?reconnect=1&returnTo=%2F%2Fevil.test"));
+      expect(new URL(start.headers.get("location")!).pathname).toBe("/apps/chronos-test/installations/new");
+      const pending = await readGitHubConnectState(jar.get(GITHUB_COOKIE_POSTURE.stateCookieName));
+      expect(pending.stage).toBe("install");
+      expect(pending.returnTo).toBeUndefined();
+    } finally { delete process.env.GITHUB_APP_SLUG; }
   });
 });

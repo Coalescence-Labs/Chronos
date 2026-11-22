@@ -43,11 +43,14 @@ requests only **read access to contents and metadata**. Personal and organizatio
 installations are separate, and organization policy may require an owner's
 approval. Chronos checks your own GitHub access before reading a connected repo.
 
-GitHub authorization is kept in an encrypted, httpOnly cookie for up to seven
-days, unreadable to browser JavaScript. WorkOS stores only the installation IDs,
-account names/types, connection dates and permission summaries needed to remember
-your connections — never GitHub tokens or repo content. Signing out clears the
-cookies; reconnecting verifies your GitHub access again. Disconnect clears your
+Your GitHub authorization (the access and refresh tokens GitHub issues to
+Chronos for you) is stored encrypted in **WorkOS Vault**, with a key specific to
+your account, and cached in an encrypted, httpOnly cookie that browser
+JavaScript can't read. That keeps you connected across sign-outs and devices.
+WorkOS user metadata holds only the installation IDs, account names/types,
+connection dates and permission summaries needed to remember your connections —
+never GitHub tokens or repo content. Signing out clears the cookies but keeps
+your connection. Disconnect deletes the stored authorization, clears your
 saved connections across devices and revokes your GitHub authorization when
 available. Installations stay on GitHub so other people can keep using them;
 their owners can remove them there. A non-secret revocation marker remains in
