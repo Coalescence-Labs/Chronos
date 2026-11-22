@@ -18,8 +18,10 @@ import { INITIAL_GITHUB_AUTHORIZATION_VERSION } from "./workos-metadata";
  *
  * Priority (COA-202 / GitHub App):
  * 1. Verify user repo access, then mint a token for the matching installation
- * 2. Optional server `GITHUB_TOKEN` app pool (anonymous / unconnected)
- * 3. Unauthenticated (shared GitHub anonymous budget)
+ * 2. Connected user, repo outside their installations: the user's own token,
+ *    public repos only
+ * 3. Optional server `GITHUB_TOKEN` app pool (anonymous / unconnected)
+ * 4. Unauthenticated (shared GitHub anonymous budget)
  */
 export async function resolveGitHubRequestAuth(
   workosUserId: string | null | undefined,
@@ -40,6 +42,23 @@ export async function resolveGitHubRequestAuth(
     const accessToken = await waitForSharedCredential(createInstallationAccessToken(binding.installationId, repo), signal);
     signal?.throwIfAborted();
     return { accessToken, privateAccessVerified: true, repoMeta, signal };
+  }
+  // Signed in and connected, but this repo's owner isn't one of the user's
+  // installations (most public repos): read it with the user's own token so
+  // their 5,000/hr budget applies instead of the shared pool / 60/hr anonymous
+  // one. privateAccessVerified stays false, so verifiedRepoMeta still refuses
+  // private repos on this path. Any trouble with the user token falls back to
+  // the pool rather than failing a public read.
+  if (userSession?.userAccessToken) {
+    try {
+      const userToken = await activeGitHubUserToken(userSession, signal);
+      signal?.throwIfAborted();
+      const repoMeta = await fetchRepoMeta(repo, { accessToken: userToken, signal });
+      if (!repoMeta.private) return { accessToken: userToken, privateAccessVerified: false, repoMeta, signal };
+    } catch (error) {
+      signal?.throwIfAborted();
+      if (error instanceof IngestError && ["auth-refreshing", "disconnect-incomplete"].includes(error.code)) throw error;
+    }
   }
   return { accessToken: githubAppPoolToken(), privateAccessVerified: false, signal };
 }

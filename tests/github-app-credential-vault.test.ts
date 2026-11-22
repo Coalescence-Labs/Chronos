@@ -181,4 +181,33 @@ describe("durable GitHub credentials (WorkOS Vault)", () => {
     expect(result.ok).toBe(true);
     expect(stored()).toBeUndefined();
   });
+
+  test("public repos outside the user's installations read with the user's own token", async () => {
+    cookie = { ...binding, userAccessToken: "ghu_user", userRefreshToken: "ghr_user", userTokenExpiresAt: Date.now() + 3_600_000 };
+    const realFetch = globalThis.fetch;
+    let isPrivate = false;
+    const authHeaders: (string | null)[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      authHeaders.push(new Headers(init?.headers).get("authorization"));
+      expect(new URL(input.toString()).pathname).toBe("/repos/octocat/hello");
+      return Response.json({ default_branch: "main", private: isPrivate });
+    }) as typeof fetch;
+    const previousPool = process.env.GITHUB_TOKEN;
+    delete process.env.GITHUB_TOKEN;
+    try {
+      const { resolveGitHubRequestAuth } = await import("@/lib/github-app/token");
+      const publicAuth = await resolveGitHubRequestAuth(USER, { owner: "octocat", repo: "hello" });
+      expect(publicAuth.accessToken).toBe("ghu_user");
+      expect(publicAuth.privateAccessVerified).toBe(false);
+      expect(authHeaders).toEqual(["Bearer ghu_user"]);
+
+      isPrivate = true;
+      const privateAuth = await resolveGitHubRequestAuth(USER, { owner: "octocat", repo: "hello" });
+      expect(privateAuth.accessToken).toBeUndefined();
+      expect(privateAuth.privateAccessVerified).toBe(false);
+    } finally {
+      globalThis.fetch = realFetch;
+      if (previousPool === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = previousPool;
+    }
+  });
 });
