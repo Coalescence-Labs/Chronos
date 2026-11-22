@@ -110,7 +110,7 @@ describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
     );
     expect(html).toContain("data-flush-bottom");
     const shell = await Bun.file("components/shell/shell.module.css").text();
-    expect(shell).toMatch(/\.main:has\(\[data-flush-bottom\]\)\s*\{\s*padding-bottom:\s*0/);
+    expect(shell).toMatch(/@media \(min-width: 701px\)\s*\{\s*\.main:has\(\[data-flush-bottom\]\)\s*\{\s*padding-bottom:\s*0/);
     const css = await Bun.file("components/agent/agent.module.css").text();
     expect(css).toMatch(/\.desktopPanel\s*\{[^}]*border-bottom:\s*none/);
     expect(css).toMatch(/\.footer\s*\{[^}]*safe-area-inset-bottom/);
