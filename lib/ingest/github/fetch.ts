@@ -34,6 +34,12 @@ export interface GitHubRequestAuth {
   privateAccessVerified?: boolean;
   repoMeta?: RepoMeta;
   signal?: AbortSignal;
+  /**
+   * The signed-in user has a saved GitHub installation but no usable
+   * credential (cookie lost before Vault, grant revoked): this request runs
+   * on the shared budget and the UI should offer a one-click reconnect.
+   */
+  reconnectRequired?: boolean;
 }
 
 function githubHeaders(auth?: GitHubRequestAuth): HeadersInit {

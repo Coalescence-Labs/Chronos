@@ -58,7 +58,13 @@ export async function resolveGitHubRequestAuth(
     } catch (error) {
       signal?.throwIfAborted();
       if (error instanceof IngestError && ["auth-refreshing", "disconnect-incomplete"].includes(error.code)) throw error;
+      if (error instanceof IngestError && error.code === "reconnect-required") {
+        return { accessToken: githubAppPoolToken(), privateAccessVerified: false, reconnectRequired: true, signal };
+      }
     }
+  }
+  if (userSession && !userSession.userAccessToken) {
+    return { accessToken: githubAppPoolToken(), privateAccessVerified: false, reconnectRequired: true, signal };
   }
   return { accessToken: githubAppPoolToken(), privateAccessVerified: false, signal };
 }

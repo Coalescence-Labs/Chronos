@@ -39,6 +39,8 @@ interface LoadedState {
   complete: boolean;
   /** Backfill paused (e.g. rate limit) — the graph stays, a note explains. */
   interrupted?: IngestInterruption;
+  /** Signed in with a saved GitHub installation but no usable credential. */
+  githubReconnectRequired?: boolean;
 }
 
 interface FailedState {
@@ -101,6 +103,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
       hasMore: result.loadMore !== undefined,
       complete: true,
       ...(result.interrupted ? { interrupted: result.interrupted } : {}),
+      ...(result.githubReconnectRequired ? { githubReconnectRequired: true } : {}),
     });
   }, [requestKey]);
 
@@ -118,7 +121,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
 
     fetchPublicRepoHistory(`${owner}/${repo}`, {
       signal: controller.signal,
-      onProgress: (h, { defaultBranch, private: repoPrivate, referencesTruncated }) => {
+      onProgress: (h, { defaultBranch, private: repoPrivate, referencesTruncated, githubReconnectRequired }) => {
         if (!cancelled) {
           historyRef.current = h;
           setLoaded({
@@ -128,6 +131,7 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             private: repoPrivate === true,
             truncated: false,
             referencesTruncated,
+            githubReconnectRequired,
             hasMore: false,
             complete: false,
           });
@@ -263,6 +267,10 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
   const error = failed?.key === requestKey ? failed.error : null;
   const note = refreshNote?.key === requestKey ? refreshNote.note : null;
   const interrupted = loaded?.key === requestKey ? loaded.interrupted : undefined;
+  const reconnectGitHub = loaded?.key === requestKey && loaded.githubReconnectRequired === true;
+  const reconnectHref = `/api/github/connect?reconnect=1&returnTo=${encodeURIComponent(
+    `/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+  )}`;
 
   if (error) {
     const retryAfterSeconds =
@@ -335,6 +343,12 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
             </>
           )}
           {pagingNote?.key === requestKey && ` · ${pagingNote.note}`}
+          {reconnectGitHub && (
+            <>
+              {" · GitHub connection lost, using shared limits · "}
+              <a className={styles.statusAction} href={reconnectHref}>reconnect</a>
+            </>
+          )}
           {!refreshing && note && ` · ${note}`}
         </>
       }

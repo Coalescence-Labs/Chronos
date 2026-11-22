@@ -18,6 +18,8 @@ export interface IngestResult {
   /** True while older history exists upstream that isn't loaded yet. */
   truncated: boolean;
   referencesTruncated?: boolean;
+  /** Signed in, but the GitHub connection needs a reconnect (shared budget in use). */
+  githubReconnectRequired?: boolean;
   /**
    * Lazy paging: fetches one more trunk page (100 commits) into the same
    * history and resolves with the updated result. Absent once everything is
@@ -54,7 +56,9 @@ export interface IngestOptions {
   /** Called after each page so the UI can render incrementally. */
   onProgress?: (
     history: RepoHistory,
-    meta: { defaultBranch: string; private?: boolean; referencesTruncated?: boolean },
+    meta: {
+      defaultBranch: string; private?: boolean; referencesTruncated?: boolean; githubReconnectRequired?: boolean;
+    },
   ) => void;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
@@ -111,6 +115,7 @@ export async function fetchPublicRepoHistory(
     defaultBranch,
     ...(repoPrivate ? { private: true as const } : { private: false as const }),
     ...(initial.referencesTruncated ? { referencesTruncated: true } : {}),
+    ...(initial.githubReconnectRequired ? { githubReconnectRequired: true } : {}),
   };
   options.onProgress?.(history, meta);
 
@@ -222,6 +227,7 @@ export async function fetchPublicRepoHistory(
       private: repoPrivate,
       truncated: nextPage !== null,
       ...(initial.referencesTruncated ? { referencesTruncated: true } : {}),
+      ...(initial.githubReconnectRequired ? { githubReconnectRequired: true } : {}),
       loadMore: nextPage !== null && nextPage <= maxPages ? loadMore : undefined,
       ...(interrupted ? { interrupted, resume } : {}),
     };

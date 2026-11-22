@@ -210,4 +210,11 @@ describe("durable GitHub credentials (WorkOS Vault)", () => {
       if (previousPool === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = previousPool;
     }
   });
+
+  test("a saved installation without usable credentials flags a reconnect instead of silently going anonymous", async () => {
+    const { resolveGitHubRequestAuth } = await import("@/lib/github-app/token");
+    const auth = await resolveGitHubRequestAuth(USER, { owner: "octocat", repo: "hello" });
+    expect(auth.reconnectRequired).toBe(true);
+    expect(auth.privateAccessVerified).toBe(false);
+  });
 });

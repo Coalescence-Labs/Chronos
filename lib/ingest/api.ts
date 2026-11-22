@@ -19,6 +19,8 @@ export interface RepoResponse {
   /** Next commit page of the default branch, or null when complete. */
   nextPage: number | null;
   referencesTruncated?: boolean;
+  /** Signed in with a saved installation but no usable GitHub credential. */
+  githubReconnectRequired?: boolean;
 }
 
 export interface CommitsPageResponse {

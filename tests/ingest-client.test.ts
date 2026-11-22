@@ -288,6 +288,16 @@ describe("fetchPublicRepoHistory", () => {
     expect(result.resume).toBeDefined();
   });
 
+  test("passes the BFF's reconnect-needed flag through progress and result", async () => {
+    const { fetchImpl } = bffMock({ ...initial, nextPage: null, githubReconnectRequired: true }, {});
+    const seen: (boolean | undefined)[] = [];
+    const result = await fetchPublicRepoHistory("acme/widgets", {
+      fetchImpl, onProgress: (_history, meta) => seen.push(meta.githubReconnectRequired),
+    });
+    expect(seen).toEqual([true]);
+    expect(result.githubReconnectRequired).toBe(true);
+  });
+
   test("an abort mid-backfill still rejects instead of returning partial history", async () => {
     const controller = new AbortController();
     const fetchImpl = ((input: RequestInfo | URL) => {
