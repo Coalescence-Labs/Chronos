@@ -270,6 +270,24 @@ describe("fetchPublicRepoHistory", () => {
     expect(calls.at(-1)).toBe("/api/repo/commits?repo=acme%2Fwidgets&sha=main&page=2");
   });
 
+  test("a timeout or network failure on a tip fetch keeps the graph as an upstream interruption", async () => {
+    const withTip: RepoResponse = {
+      ...initial,
+      history: { commits: initial.history.commits, refs: [...initial.history.refs, { name: "feat/slow", type: "branch", sha: "s1" }] },
+      nextPage: null,
+    };
+    const fetchImpl = ((input: RequestInfo | URL) => {
+      const url = new URL(input.toString(), "http://localhost");
+      if (url.pathname === "/api/repo") return Promise.resolve(Response.json(withTip));
+      return Promise.reject(new DOMException("The operation timed out.", "TimeoutError"));
+    }) as typeof fetch;
+
+    const result = await fetchPublicRepoHistory("acme/widgets", { fetchImpl });
+    expect(result.history.commits.map((commit) => commit.sha)).toEqual(["c3", "c2"]);
+    expect(result.interrupted?.code).toBe("upstream");
+    expect(result.resume).toBeDefined();
+  });
+
   test("an abort mid-backfill still rejects instead of returning partial history", async () => {
     const controller = new AbortController();
     const fetchImpl = ((input: RequestInfo | URL) => {

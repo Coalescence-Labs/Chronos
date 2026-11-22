@@ -181,11 +181,16 @@ export async function fetchPublicRepoHistory(
         if (merge(page.commits) > 0) options.onProgress?.(history, meta);
       }
     } catch (error) {
-      if (options.signal?.aborted || !(error instanceof IngestError)) throw error;
+      // Only the caller's own abort (navigation, unmount) ends the load. A
+      // per-request timeout or network failure is just another interruption.
+      if (options.signal?.aborted) throw error;
+      const cause = error instanceof IngestError
+        ? error
+        : new IngestError("upstream", "GitHub took too long or couldn't be reached.");
       interrupted = {
-        code: error.code,
-        message: error.message,
-        ...(error.retryAfterSeconds !== undefined ? { retryAfterSeconds: error.retryAfterSeconds } : {}),
+        code: cause.code,
+        message: cause.message,
+        ...(cause.retryAfterSeconds !== undefined ? { retryAfterSeconds: cause.retryAfterSeconds } : {}),
       };
     }
   }
