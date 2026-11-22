@@ -18,6 +18,8 @@ export interface GitHubConnectState {
   installationId?: number;
   codeVerifier?: string;
   authorizationVersion?: string;
+  /** Same-origin path to land on after connecting (sanitized; default /account). */
+  returnTo?: string;
 }
 
 export function createGitHubCodeVerifier(): string { return randomBytes(32).toString("base64url"); }

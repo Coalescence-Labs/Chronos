@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/Button";
  */
 
 const CONNECT_HREF = "/api/github/connect";
+/** Saved installation, lost credential: authorize again without the install page. */
+const RECONNECT_HREF = "/api/github/connect?reconnect=1";
 const GITHUB_INSTALLATIONS_URL = "https://github.com/settings/apps/authorizations";
 
 function GitHubSettingsLink() {
@@ -219,7 +221,8 @@ export function GitHubConnectionCard({ connection, status, onRetry }: GitHubConn
           </div>
         </div>
         <div className={styles.actions}>
-          <a className={`${buttonStyles.button} ${buttonStyles.primary}`} href={CONNECT_HREF}>
+          <a className={`${buttonStyles.button} ${buttonStyles.primary}`}
+            href={connection.login || connection.state === "reconnect-required" ? RECONNECT_HREF : CONNECT_HREF}>
             {connection.login || connection.state === "reconnect-required" ? "Reconnect GitHub" : "Install GitHub App"}
           </a>
           {(connection.login || connection.state === "reconnect-required") && <DisconnectGitHubButton all={!connection.login || (connection.accounts?.length ?? 0) > 1} />}
