@@ -10,11 +10,18 @@ export {
 export {
   attributeBranches,
   branchLines,
+  branchPriority,
   mergedBranchName,
   packShelves,
   pinnedLines,
 } from "./lines";
 export type { BranchAttribution, BranchLine } from "./lines";
+export {
+  ACTIVE_BRANCH_RAIL_CAP,
+  listActiveBranches,
+  shouldShowActiveBranchRail,
+} from "./active-branches";
+export type { ActiveBranch, ActiveBranchKind } from "./active-branches";
 export { applyGlance, canApplyGlance, resolveDefaultBranch } from "./glance";
 export type { Capsule, GlanceFlags, GlanceResult } from "./glance";
 export {

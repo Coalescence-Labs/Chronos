@@ -53,7 +53,7 @@ describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
     expect(source).toContain("ArrowRight");
   });
 
-  test("collapsed desktop chrome has no floating FAB — dock only mounts when open", () => {
+  test("desktop Agent sits under the graph surface (antechamber reveal)", () => {
     const open = renderToStaticMarkup(
       <RepoAgentChrome
         owner="octocat"
@@ -65,8 +65,9 @@ describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
         <div>graph</div>
       </RepoAgentChrome>,
     );
-    expect(open).toContain('data-open="true"');
+    expect(open).toContain('data-agent-open="true"');
     expect(open).toContain("Minimize Agent");
+    expect(open).not.toContain("desktopDock");
 
     const closed = renderToStaticMarkup(
       <RepoAgentChrome
@@ -79,15 +80,40 @@ describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
         <div>graph</div>
       </RepoAgentChrome>,
     );
-    expect(closed).not.toContain("desktopDock");
-    expect(closed).not.toContain("Open Chronos Agent");
+    expect(closed).not.toContain('data-agent-open="true"');
+    expect(closed).not.toContain("Minimize Agent");
     expect(closed).not.toContain("desktopFab");
   });
 
-  test("agent CSS no longer defines a floating desktop FAB", async () => {
+  test("agent CSS reveals Agent from under via graph translate, not a floating dock", async () => {
     const css = await Bun.file("components/agent/agent.module.css").text();
+    expect(css).toContain(".agentUnder");
+    expect(css).toContain(".graphSurface");
+    expect(css).toContain("data-agent-open");
+    expect(css).toMatch(/\.chrome\[data-agent-open="true"\]\s+\.graphSurface/);
+    expect(css).not.toContain(".desktopDock");
     expect(css).not.toContain(".desktopFab");
-    expect(css).not.toContain("agentFabIn");
+    expect(css).not.toContain("agentDockIn");
+  });
+
+  test("repo stage runs flush to the viewport bottom", async () => {
+    const html = renderToStaticMarkup(
+      <RepoAgentChrome
+        owner="octocat"
+        repo="Hello-World"
+        history={SAMPLE_HISTORY}
+        desktopOpen={false}
+        onDesktopOpenChange={() => {}}
+      >
+        <div>graph</div>
+      </RepoAgentChrome>,
+    );
+    expect(html).toContain("data-flush-bottom");
+    const shell = await Bun.file("components/shell/shell.module.css").text();
+    expect(shell).toMatch(/@media \(min-width: 701px\)\s*\{\s*\.main:has\(\[data-flush-bottom\]\)\s*\{\s*padding-bottom:\s*0/);
+    const css = await Bun.file("components/agent/agent.module.css").text();
+    expect(css).toMatch(/\.desktopPanel\s*\{[^}]*border-bottom:\s*none/);
+    expect(css).toMatch(/\.footer\s*\{[^}]*safe-area-inset-bottom/);
   });
 
   test("private repos disable the mobile Agent tab with calm copy", () => {
@@ -108,5 +134,6 @@ describe("RepoAgentChrome mobile Graph | Agent tabs", () => {
     expect(html).toContain('title="Public repos only for now."');
     expect(html).toContain('aria-disabled="true"');
     expect(html).toContain("Public repos only for now. Private repositories stay off Agent");
+    expect(html).not.toContain('data-agent-open="true"');
   });
 });

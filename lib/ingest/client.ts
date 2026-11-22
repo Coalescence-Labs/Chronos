@@ -48,7 +48,8 @@ export interface IngestOptions {
 
 export const DEFAULT_MAX_PAGES = 10;
 export const DEFAULT_INITIAL_PAGES = 3;
-export const DEFAULT_MAX_BRANCH_TIPS = 10;
+/** Side tips fetched so the active-branch rail (≤25) can jump/trace every open tip. */
+export const DEFAULT_MAX_BRANCH_TIPS = 25;
 
 async function getJson<T>(fetchImpl: typeof fetch, url: string, signal?: AbortSignal): Promise<T> {
   const deadline = AbortSignal.timeout(25_000);

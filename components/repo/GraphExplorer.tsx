@@ -331,6 +331,7 @@ export function GraphExplorer({
         onTracedTipChange={setTracedTip}
         lensShas={lensShas}
         onNearEnd={onNearEnd}
+        defaultBranch={defaultBranch}
       />
       <InspectionSurface
         open={selected !== undefined}

@@ -267,7 +267,7 @@ export function AgentPanel({
   const resizeComposer = useCallback(() => {
     const node = composerRef.current;
     if (!node) return;
-    // Idle: drop inline height so CSS `height: 2.75rem` owns the footprint (no
+    // Idle: drop inline height so CSS `height: 3rem` owns the footprint (no
     // hydrate jump from scrollHeight vs font metrics).
     if (!draft) {
       node.style.height = "";
@@ -275,7 +275,7 @@ export function AgentPanel({
     }
     node.style.height = "auto";
     const next = Math.min(node.scrollHeight, 160);
-    node.style.height = `${Math.max(next, 44)}px`;
+    node.style.height = `${Math.max(next, 48)}px`;
   }, [draft]);
 
   useEffect(() => {

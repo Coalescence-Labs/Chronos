@@ -49,7 +49,8 @@ export function mergedBranchName(message: string): string | undefined {
   return undefined;
 }
 
-function refRank(name: string): number {
+/** Stable claim/display priority: trunk → staging → everything else. */
+export function branchPriority(name: string): number {
   const base = name.toLowerCase();
   if (base === "main" || base === "master" || base === "trunk") return 0;
   if (base === "develop" || base === "dev" || base === "development") return 1;
@@ -96,7 +97,7 @@ export function attributeBranches(history: RepoHistory, layout: GraphLayout): Br
   // Live refs claim first; trunk before develop before everything else, so
   // shared history always belongs to the longer-lived branch.
   const branchRefs = [...history.refs.filter((ref) => ref.type === "branch")].sort(
-    (a, b) => refRank(a.name) - refRank(b.name),
+    (a, b) => branchPriority(a.name) - branchPriority(b.name),
   );
   for (const ref of branchRefs) claim(ref.name, "ref", ref.sha);
 

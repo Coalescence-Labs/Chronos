@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AgentPanel } from "./AgentPanel";
 import { AgentMark } from "./AgentMark";
 import type { AgentBranchFocus } from "@/lib/agent/chat-context";
@@ -64,6 +64,24 @@ export function RepoAgentChrome({
   children,
 }: RepoAgentChromeProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("graph");
+  // Keep the under-pane mounted after the first open so close/reopen slides
+  // without remounting starters/thread state.
+  const [desktopMounted, setDesktopMounted] = useState(desktopOpen);
+
+  useEffect(() => {
+    if (desktopOpen) setDesktopMounted(true);
+  }, [desktopOpen]);
+
+  useEffect(() => {
+    if (!desktopOpen) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onDesktopOpenChange(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [desktopOpen, onDesktopOpenChange]);
 
   const panelProps = {
     owner,
@@ -79,6 +97,7 @@ export function RepoAgentChrome({
   } as const;
 
   const agentAvailable = !repoPrivate;
+  const underOpen = desktopOpen && agentAvailable;
 
   const onTabListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -91,34 +110,55 @@ export function RepoAgentChrome({
   };
 
   return (
-    <div className={styles.chrome}>
-      <div
-        id="repo-panel-graph"
-        role="tabpanel"
-        aria-labelledby="repo-tab-graph"
-        className={mobileTab === "agent" ? styles.graphPaneHidden : styles.graphPane}
-      >
-        {children}
-      </div>
-
-      <div
-        id="repo-panel-agent"
-        role="tabpanel"
-        aria-labelledby="repo-tab-agent"
-        className={mobileTab === "agent" ? styles.mobilePaneActive : styles.mobilePane}
-      >
-        <AgentPanel layout="mobile" {...panelProps} />
-      </div>
-
-      {desktopOpen ? (
-        <div className={styles.desktopDock} data-open="true">
-          <AgentPanel
-            layout="desktop"
-            {...panelProps}
-            onMinimize={() => onDesktopOpenChange(false)}
-          />
+    <div
+      className={styles.chrome}
+      data-flush-bottom=""
+      data-agent-open={underOpen ? "true" : undefined}
+    >
+      <div className={styles.desktopStage}>
+        <div
+          id="repo-panel-graph"
+          role="tabpanel"
+          aria-labelledby="repo-tab-graph"
+          className={
+            mobileTab === "agent" ? styles.graphPaneHidden : styles.graphSurface
+          }
+          onClickCapture={(event) => {
+            // While Agent is revealed from under, a click on the shifted graph
+            // closes it (antechamber settings pattern) instead of acting.
+            if (!underOpen) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onDesktopOpenChange(false);
+          }}
+        >
+          {children}
         </div>
-      ) : null}
+
+        {agentAvailable && desktopMounted ? (
+          <aside
+            className={styles.agentUnder}
+            data-open={underOpen ? "true" : undefined}
+            aria-hidden={!underOpen}
+            inert={!underOpen ? true : undefined}
+          >
+            <AgentPanel
+              layout="desktop"
+              {...panelProps}
+              onMinimize={() => onDesktopOpenChange(false)}
+            />
+          </aside>
+        ) : null}
+
+        <div
+          id="repo-panel-agent"
+          role="tabpanel"
+          aria-labelledby="repo-tab-agent"
+          className={mobileTab === "agent" ? styles.mobilePaneActive : styles.mobilePane}
+        >
+          <AgentPanel layout="mobile" {...panelProps} />
+        </div>
+      </div>
 
       <nav className={styles.tabBar} aria-label="Repo view">
         <div
