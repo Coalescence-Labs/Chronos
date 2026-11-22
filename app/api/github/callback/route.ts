@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { storeGitHubCredentials } from "@/lib/github-app/credential-store";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { isAuthConfigured } from "@/lib/auth";
 import {
@@ -108,6 +109,9 @@ export async function GET(request: Request): Promise<Response> {
     });
     // Save credentials only after the authoritative binding accepts this authorization.
     await writeGitHubInstallMetadata(user.id, { ...session, additionalInstallations: undefined });
+    // Durable copy (WorkOS Vault) so the connection survives sign-out, new
+    // devices and cookie loss; the cookie stays as the per-browser cache.
+    await storeGitHubCredentials(user.id, { ...credentials, authorizationVersion });
     await saveGitHubAppSession(session);
     accountUrl.searchParams.set("github", "connected");
     return NextResponse.redirect(accountUrl);

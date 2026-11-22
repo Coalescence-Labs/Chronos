@@ -207,16 +207,24 @@ no repo content.
 | **Connect / callback** | (signed in) | write | write | user installs |
 | **Sign-out** | clear | clear | **keep** | **keep** |
 | **Disconnect** | (signed in) | clear | clear bindings; rotate revocation version | keep; revoke user grant |
-| **Sign-in (return)** | write | requires GitHub authorization again | read | unchanged |
+| **Sign-in (return)** | write | refilled from WorkOS Vault on first use | read | unchanged |
 
-Metadata restores installation identities, not credentials. Credential-free
+Metadata restores installation identities; **WorkOS Vault** restores credentials
+(COA-747). One encrypted Vault object per WorkOS user holds the GitHub user
+access/refresh tokens, their expiry and the authorization version they were
+issued under. Each request uses the freshest of the cookie and Vault copies whose
+version matches the binding; a cookie-only connection is copied into Vault on first
+use. Refreshes write the rotated tokens to Vault before the cookie, and a refresh
+that finds its token already consumed adopts the successor from Vault, so a
+response lost on the way to the browser no longer severs the connection. Vault
+failures degrade to cookie-only behaviour. Credential-free
 rehydration never overwrites a live cookie. Every private request reads authoritative
 bindings and checks their authorization version before user/repo access verification.
 `/account` checks live GitHub installation access before showing "connected";
 at least one saved installation must be verified, and any unverified accounts are
 labeled "reconnect required". Expired, revoked and unavailable states stay distinct.
-Transient errors never erase bindings. After sign-out, use **Reconnect GitHub** to
-authorize access again. Reconnect-required states always offer **Disconnect**, even
+Transient errors never erase bindings. After sign-out, signing back in restores the
+connection from Vault; **Reconnect GitHub** is needed only if the grant itself was revoked. Reconnect-required states always offer **Disconnect**, even
 when a stale session prevents the account name from being resolved.
 
 ### Shared browser / cross-account safety
@@ -239,14 +247,16 @@ User refreshes share one promise per user/token within an instance, including a
 60-second grace window for delayed requests. The cache is capped at 256 entries,
 never logged or persisted. Across instances, the browser retries only explicit
 refresh conflicts with bounded backoff; it does not automatically retry rate limits
-or general provider failures. A distributed credential broker remains a future
-infrastructure decision, not an implied guarantee of this cookie-based model.
+or general provider failures. Across instances, WorkOS Vault is the
+shared record: a refresh rejected because another instance already rotated the token
+adopts the successor stored there.
 
 Installation tokens are restricted to one repo and read permissions. Up to 256
 entries are reused in process memory, expiring before GitHub's expiry and within
 55 minutes. Every reuse still requires fresh durable-binding and user/repo access
 checks. No repo contents or authorization decisions are cached.
-Sign-out clears cookies only; disconnect clears metadata and credentials.
+Sign-out clears cookies only (Vault credentials stay); disconnect clears metadata,
+Vault credentials and the cookie.
 
 No multi-repo switcher (COA-201).
 

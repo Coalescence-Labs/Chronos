@@ -1,6 +1,6 @@
 # Security operations
 
-GitHub credentials remain in encrypted httpOnly cookies or server memory. Repo
+GitHub credentials remain in encrypted httpOnly cookies, server memory, or one encrypted WorkOS Vault object per user (user access/refresh tokens only). Repo
 content is never persisted, cached server-side, or logged. Neither a shared token
 nor a missing/failed Chronos login authorizes private repository access. Both repo
 endpoints require explicit public visibility or a verified user connection.

@@ -29,7 +29,7 @@ const FACTS: { claim: string; detail: ReactNode }[] = [
   { claim: "Read-only access", detail: "Contents and metadata. Can’t push or edit." },
   { claim: "Repos you choose", detail: "Only the ones you pick on GitHub." },
   { claim: "No repo data stored", detail: "Commits pass through to draw the graph." },
-  { claim: "Encrypted session", detail: "GitHub authorization stays in an encrypted, server-only cookie. No repo data saved." },
+  { claim: "Encrypted session", detail: "GitHub authorization is encrypted in WorkOS Vault, never readable by the browser. No repo data saved." },
   {
     claim: "Revoke anytime",
     detail: (
