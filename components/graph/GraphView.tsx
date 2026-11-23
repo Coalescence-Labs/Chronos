@@ -16,6 +16,7 @@ import {
   packShelves,
   pinnedLines,
   shouldShowActiveBranchRail,
+  stapleRole,
 } from "@/lib/graph";
 import type { Capsule, EdgeKind, GraphLayout, RepoHistory } from "@/lib/graph";
 import { ActiveBranchRail } from "./ActiveBranchRail";
@@ -24,8 +25,8 @@ import {
   BASE_LANE_WIDTH,
   BASE_NODE_RADIUS,
   BASE_ROW_HEIGHT,
+  branchColor,
   edgePath,
-  laneColor,
 } from "./geometry";
 import styles from "./graph.module.css";
 
@@ -50,12 +51,10 @@ const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 1.75;
 const ZOOM_STEP = 1.2;
 
-/** Long-term branches render as filled pills (main is always lane 0). */
-function branchRole(name: string): "main" | "develop" | undefined {
-  const base = name.toLowerCase();
-  if (base === "main" || base === "master" || base === "trunk") return "main";
-  if (base === "develop" || base === "dev" || base === "development") return "develop";
-  return undefined;
+/** Staple branches render as filled pills in their fixed color (COA-784). */
+function branchRole(name: string, defaultBranch?: string): "main" | "develop" | undefined {
+  const role = stapleRole(name, defaultBranch);
+  return role === "trunk" ? "main" : role;
 }
 
 /** A row label: a live ref, or a branch name recovered from a merge commit. */
@@ -136,8 +135,8 @@ export function GraphView({
     [history.commits],
   );
   const { lines, lineBySha } = useMemo(
-    () => attributeBranches(history, layout),
-    [history, layout],
+    () => attributeBranches(history, layout, defaultBranch),
+    [history, layout, defaultBranch],
   );
 
   const activeBranches = useMemo(
@@ -212,6 +211,10 @@ export function GraphView({
   // edges (and the fork-point join) belong to the merged branch's line.
   const edgeDimmed = (fromSha: string, toSha: string, kind: EdgeKind) =>
     tracedLine !== null && lineBySha.get(kind === "merge" ? toSha : fromSha) !== tracedLine;
+  // Color follows the owning line, not the lane (COA-784): staple branches
+  // keep their fixed color wherever they're drawn; others use their lane's.
+  const commitColor = (sha: string, lane: number) =>
+    branchColor(lineBySha.get(sha)?.name, lane, defaultBranch);
 
   // Trace the line a commit belongs to (toggle); used by the graph/lane side
   // of a row and by branch badges. No-op for commits on no named line.
@@ -538,8 +541,8 @@ export function GraphView({
                   style={{
                     left: start,
                     top: shelves[i]! * SHELF_HEIGHT + 6,
-                    color: laneColor(line.lane),
-                    borderColor: laneColor(line.lane),
+                    color: branchColor(line.name, line.lane, defaultBranch),
+                    borderColor: branchColor(line.name, line.lane, defaultBranch),
                   }}
                   title={`${line.name} — jump to the tip`}
                   draggable
@@ -586,7 +589,7 @@ export function GraphView({
                   rowHeight,
                 )}
                 fill="none"
-                stroke={laneColor(edge.viaLane)}
+                stroke={commitColor(edge.kind === "merge" ? edge.toSha : edge.fromSha, edge.viaLane)}
                 strokeWidth={edgeWidth}
                 strokeLinecap="round"
                 opacity={reflowing ? 0 : edgeDimmed(edge.fromSha, edge.toSha, edge.kind) ? 0.12 : 1}
@@ -599,7 +602,7 @@ export function GraphView({
                 y1={yOf(edge.fromRow)}
                 x2={xOf(edge.fromLane)}
                 y2={yOf(edge.fromRow) + rowHeight * 0.75}
-                stroke={laneColor(edge.fromLane)}
+                stroke={commitColor(edge.fromSha, edge.fromLane)}
                 strokeWidth={edgeWidth}
                 strokeDasharray="2 5"
                 strokeLinecap="round"
@@ -622,7 +625,7 @@ export function GraphView({
                     height={h}
                     rx={h / 2}
                     fill="var(--bg-elevated)"
-                    stroke={laneColor(placed.lane)}
+                    stroke={commitColor(placed.sha, placed.lane)}
                     strokeWidth={2}
                     strokeDasharray="3 2"
                     opacity={isDimmed(placed.sha) ? 0.18 : 1}
@@ -638,8 +641,8 @@ export function GraphView({
                   cx={xOf(placed.lane)}
                   cy={yOf(placed.row)}
                   r={nodeRadius}
-                  fill={isMerge ? "var(--bg-elevated)" : laneColor(placed.lane)}
-                  stroke={laneColor(placed.lane)}
+                  fill={isMerge ? "var(--bg-elevated)" : commitColor(placed.sha, placed.lane)}
+                  stroke={commitColor(placed.sha, placed.lane)}
                   strokeWidth={isMerge ? 2 : 0}
                   opacity={isDimmed(placed.sha) ? 0.18 : 1}
                   style={{ transform: placed.sha === selectedSha ? "scale(1.6)" : undefined }}
@@ -702,12 +705,14 @@ export function GraphView({
                 {labels && (
                   <span className={styles.refs} style={{ left: refsLeft }}>
                     {labels.map((label) => {
-                      const role = label.type === "branch" ? branchRole(label.name) : undefined;
-                      const color = laneColor(placed.lane);
-                      // Branch badges wear their lane's color so label and
-                      // line read as one thing; long-term branches fill the
-                      // pill so the anchors stand out (main is always lane 0,
-                      // so its color is fixed by construction). Merged-branch
+                      const role =
+                        label.type === "branch" ? branchRole(label.name, defaultBranch) : undefined;
+                      const color = role
+                        ? branchColor(label.name, placed.lane, defaultBranch)
+                        : commitColor(placed.sha, placed.lane);
+                      // Branch badges wear their line's color so label and
+                      // line read as one thing; staple branches fill the
+                      // pill in their fixed color (COA-784). Merged-branch
                       // names (recovered from merge messages) are quiet
                       // annotations, not pills.
                       const identity =

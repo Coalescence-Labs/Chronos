@@ -168,7 +168,16 @@ function contrast(a: string, b: string): number {
   return (hi! + 0.05) / (lo! + 0.05);
 }
 
-const LANES = ["--lane-0", "--lane-1", "--lane-2", "--lane-3", "--lane-4", "--lane-5", "--lane-6", "--lane-7"];
+const LANES = [
+  "--branch-trunk",
+  "--branch-develop",
+  "--lane-0",
+  "--lane-1",
+  "--lane-2",
+  "--lane-3",
+  "--lane-4",
+  "--lane-5",
+];
 
 // [foreground, background, minimum ratio]: 4.5 = AA body text, 3 = AA large
 // text / UI components (lanes, icons, focus ring).
@@ -189,6 +198,9 @@ const REQUIREMENTS: Array<[string, string, number]> = [
   ["--warning", "--bg", 3],
   ["--on-accent", "--accent", 4.5],
   ["--on-accent", "--accent-2", 4.5],
+  // Staple branch pills are filled with their color under --on-accent text.
+  ["--on-accent", "--branch-trunk", 4.5],
+  ["--on-accent", "--branch-develop", 4.5],
   ...LANES.flatMap((lane): Array<[string, string, number]> => [
     [lane, "--bg", 3],
     [lane, "--bg-raised", 3],
@@ -202,5 +214,18 @@ describe.each([
   test.each(REQUIREMENTS)("%s on %s ≥ %s:1", (fg, bg, minimum) => {
     const ratio = contrast(tokens[fg]!, tokens[bg]!);
     expect(ratio).toBeGreaterThanOrEqual(minimum);
+  });
+});
+
+describe.each([
+  ["dark", dark],
+  ["light", light],
+] as const)("staple branch colors — %s theme (COA-784)", (_theme, tokens) => {
+  test("no rotating lane color can pass for a staple branch", () => {
+    const staples = [tokens["--branch-trunk"]!, tokens["--branch-develop"]!].map((v) => v.toLowerCase());
+    expect(staples[0]).not.toBe(staples[1]);
+    for (let lane = 0; lane < 6; lane++) {
+      expect(staples).not.toContain(tokens[`--lane-${lane}`]!.toLowerCase());
+    }
   });
 });

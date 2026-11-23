@@ -1,12 +1,30 @@
+import { stapleRole, type StapleRole } from "@/lib/graph";
+
 export const BASE_ROW_HEIGHT = 44; // --touch-target at zoom 1
 export const BASE_LANE_WIDTH = 18;
 export const BASE_NODE_RADIUS = 4.5;
 export const BASE_EDGE_WIDTH = 1.75;
 
-const LANE_COLOR_COUNT = 8; // --lane-0 … --lane-7 in app/globals.css
+const LANE_COLOR_COUNT = 6; // --lane-0 … --lane-5 in app/globals.css
 
+/**
+ * Rotating color for ordinary branches. The palette deliberately excludes the
+ * staple colors, so no feature branch can ever pass for main or develop.
+ */
 export function laneColor(lane: number): string {
   return `var(--lane-${lane % LANE_COLOR_COUNT})`;
+}
+
+/** Fixed staple-branch colors (COA-784) — identical in every repo. */
+export const STAPLE_COLOR: Record<StapleRole, string> = {
+  trunk: "var(--branch-trunk)",
+  develop: "var(--branch-develop)",
+};
+
+/** A named branch's color: its staple color, else its lane's rotating color. */
+export function branchColor(name: string | undefined, lane: number, defaultBranch?: string): string {
+  const role = name === undefined ? undefined : stapleRole(name, defaultBranch);
+  return role ? STAPLE_COLOR[role] : laneColor(lane);
 }
 
 /** Child→parent path with half-row S-curves through the via lane. */

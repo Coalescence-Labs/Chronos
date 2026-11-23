@@ -16,6 +16,8 @@ export {
   pinnedLines,
 } from "./lines";
 export type { BranchAttribution, BranchLine } from "./lines";
+export { stapleRole } from "./branch-roles";
+export type { StapleRole } from "./branch-roles";
 export {
   ACTIVE_BRANCH_RAIL_CAP,
   listActiveBranches,

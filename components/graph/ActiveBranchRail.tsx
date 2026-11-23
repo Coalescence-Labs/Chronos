@@ -1,8 +1,8 @@
 "use client";
 
 import { setAgentContextDragData } from "@/lib/agent/chat-context";
-import type { ActiveBranch } from "@/lib/graph";
-import { laneColor } from "./geometry";
+import { stapleRole, type ActiveBranch } from "@/lib/graph";
+import { branchColor } from "./geometry";
 import styles from "./graph.module.css";
 
 /**
@@ -16,11 +16,9 @@ export interface ActiveBranchRailProps {
   onActivate: (branch: ActiveBranch) => void;
 }
 
-function branchRole(name: string): "main" | "develop" | undefined {
-  const base = name.toLowerCase();
-  if (base === "main" || base === "master" || base === "trunk") return "main";
-  if (base === "develop" || base === "dev" || base === "development") return "develop";
-  return undefined;
+function branchRole(branch: ActiveBranch): "main" | "develop" | undefined {
+  const role = stapleRole(branch.name, branch.kind === "default" ? branch.name : undefined);
+  return role === "trunk" ? "main" : role;
 }
 
 export function ActiveBranchRail({
@@ -39,7 +37,12 @@ export function ActiveBranchRail({
       <ul className={styles.branchRailList}>
         {branches.map((branch) => {
           const traced = tracedTip === branch.tipSha;
-          const role = branchRole(branch.name);
+          const role = branchRole(branch);
+          const color = branchColor(
+            branch.name,
+            branch.lane,
+            branch.kind === "default" ? branch.name : undefined,
+          );
           return (
             <li key={branch.name} className={styles.branchRailItem}>
               <button
@@ -49,8 +52,8 @@ export function ActiveBranchRail({
                 data-branch-role={role}
                 data-traced={traced || undefined}
                 style={{
-                  color: laneColor(branch.lane),
-                  borderColor: laneColor(branch.lane),
+                  color,
+                  borderColor: color,
                 }}
                 title={`${branch.name} — jump to tip and trace`}
                 aria-pressed={traced}

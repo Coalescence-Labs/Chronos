@@ -39,15 +39,19 @@
   /* Agent ripple: ember in dark; light theme overrides to brand accent. */
   --agent-stream-highlight: var(--ember);
 
-  /* ---- color: graph lanes (cycle of 8; pair with shape cues, never color alone) ---- */
-  --lane-0: #7c9cff;
-  --lane-1: #5eead4;
-  --lane-2: #a78bfa;
-  --lane-3: #f9a8d4;
-  --lane-4: #fbbf24;
+  /* ---- color: staple branches (fixed in every repo, COA-784) ---- */
+  /* default / main / master */
+  --branch-trunk: #7c9cff;
+  /* develop / dev / development */
+  --branch-develop: #5eead4;
+
+  /* ---- color: other branches (cycle of 6; never a staple hue; pair with shape cues) ---- */
+  --lane-0: #a78bfa;
+  --lane-1: #f9a8d4;
+  --lane-2: #fbbf24;
+  --lane-3: #bef264;
+  --lane-4: #fdba74;
   --lane-5: #7dd3fc;
-  --lane-6: #bef264;
-  --lane-7: #fdba74;
 
   /* ---- color: lines & glass ---- */
   --border: rgba(232, 234, 240, 0.08);
@@ -117,10 +121,10 @@
 
 /*
  * Light theme — not inverted dark: cool paper surfaces with the same accent
- * family pulled down to AA-legible depths. Lanes keep their dark-theme hue
- * order (blue, teal, violet, pink, amber, sky, lime, orange) so a repo reads
- * the same in both themes, but each is deepened to hold ≥3:1 on light
- * surfaces (contrast enforced by tests/theme.test.ts).
+ * family pulled down to AA-legible depths. Staple branches keep their role
+ * hue in both themes (trunk blue/indigo, develop teal); other lanes are
+ * deepened pigments that hold ≥3:1 on light surfaces (contrast enforced by
+ * tests/theme.test.ts).
  */
 [data-theme="light"] {
   color-scheme: light;
@@ -156,15 +160,17 @@
   /* Light stream highlight: brand indigo already in the design language. */
   --agent-stream-highlight: var(--accent);
 
-  /* ---- color: graph lanes (cycle of 8; pair with shape cues, never color alone) ---- */
-  --lane-0: #2e4a6b;
-  --lane-1: #c75b39;
-  --lane-2: #5e7349;
-  --lane-3: #6b4a6b;
-  --lane-4: #9c7320;
-  --lane-5: #2c6e66;
-  --lane-6: #8a5a3b;
-  --lane-7: #44443f;
+  /* ---- color: staple branches (same roles as dark: indigo trunk, teal develop) ---- */
+  --branch-trunk: #2e4a6b;
+  --branch-develop: #2c6e66;
+
+  /* ---- color: other branches (cycle of 6; never a staple hue) ---- */
+  --lane-0: #c75b39;
+  --lane-1: #5e7349;
+  --lane-2: #6b4a6b;
+  --lane-3: #9c7320;
+  --lane-4: #8a5a3b;
+  --lane-5: #44443f;
 
   /* ---- color: lines & glass ---- */
   --border: rgba(58, 58, 56, 0.14);

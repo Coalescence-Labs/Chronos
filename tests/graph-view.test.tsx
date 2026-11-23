@@ -156,10 +156,10 @@ describe("GraphView accessibility", () => {
     expect(html).toMatch(/<span[^>]*data-ref-type="tag"[^>]*title="v1.0.0"/);
   });
 
-  test("branch badges wear their lane's color, tying label to line", () => {
-    const html = render(history); // main on lane 0
+  test("main's badge wears the fixed trunk color, tying label to line", () => {
+    const html = render(history);
     const badge = html.match(/<button[^>]*data-ref-type="branch"[^>]*>main<\/button>/)![0];
-    expect(badge).toContain("var(--lane-0)");
+    expect(badge).toContain("var(--branch-trunk)");
   });
 
   test("long-term branches carry fixed identity colors", () => {
@@ -181,7 +181,11 @@ describe("GraphView accessibility", () => {
     const main = html.match(
       /<button[^>]*data-ref-type="branch"[^>]*data-branch-role="main"[^>]*>/,
     )![0];
-    expect(main).toContain("background:var(--lane-0)");
+    expect(main).toContain("background:var(--branch-trunk)");
+    const develop = html.match(
+      /<button[^>]*data-ref-type="branch"[^>]*data-branch-role="develop"[^>]*>/,
+    )![0];
+    expect(develop).toContain("background:var(--branch-develop)");
     expect(main).toContain("var(--on-accent)");
     // Short-lived branches and tags get no identity role on tip-row badges.
     expect(html).not.toMatch(/data-ref-type="branch"[^>]*data-branch-role[^>]*>feature\/very-long-name</);
@@ -206,8 +210,53 @@ describe("GraphView virtualization", () => {
     const history = heavyMerge(20, 8);
     const layout = layoutGraph(history, { maxLanes: DEFAULT_MAX_LANES });
     const html = renderToStaticMarkup(<GraphView history={history} layout={layout} />);
-    expect(html).toContain("var(--lane-0)");
+    expect(html).toContain("var(--branch-trunk)"); // main's spine
     expect(html).toContain("var(--lane-1)");
     expect(html).not.toMatch(/(stroke|fill)="#/);
+  });
+});
+
+describe("GraphView staple branch colors (COA-784)", () => {
+  // develop forks from base; feature forks from develop. main is the default.
+  const history: RepoHistory = {
+    commits: [
+      commit("m2", ["m1"], 0),
+      commit("feat", ["d1"], 1),
+      commit("d1", ["base"], 2),
+      commit("m1", ["base"], 3),
+      commit("base", [], 4),
+    ],
+    refs: [
+      { name: "main", type: "branch", sha: "m2" },
+      { name: "develop", type: "branch", sha: "d1" },
+      { name: "feature/x", type: "branch", sha: "feat" },
+      { name: "HEAD", type: "head", sha: "m2" },
+    ],
+  };
+  const circleFill = (html: string, sha: string) => {
+    const rows = [...html.matchAll(/<circle[^>]*>/g)].map((match) => match[0]);
+    const order = layoutGraph(history).placements.findIndex((placed) => placed.sha === sha);
+    return rows[order]!.match(/fill="([^"]+)"/)![1];
+  };
+
+  test("trunk and develop commits wear fixed colors; other branches never do", () => {
+    const html = render(history);
+    expect(circleFill(html, "m2")).toBe("var(--branch-trunk)");
+    expect(circleFill(html, "base")).toBe("var(--branch-trunk)");
+    expect(circleFill(html, "d1")).toBe("var(--branch-develop)");
+    const feature = circleFill(html, "feat");
+    expect(feature).toMatch(/^var\(--lane-\d\)$/);
+  });
+
+  test("a default branch with an unusual name wears the trunk color", () => {
+    const renamed: RepoHistory = {
+      ...history,
+      refs: history.refs.map((ref) => (ref.name === "main" ? { ...ref, name: "production" } : ref)),
+    };
+    const html = renderToStaticMarkup(
+      <GraphView history={renamed} layout={layoutGraph(renamed)} defaultBranch="production" />,
+    );
+    expect(circleFill(html, "m2")).toBe("var(--branch-trunk)");
+    expect(html).toMatch(/data-branch-role="main"[^>]*>production</);
   });
 });

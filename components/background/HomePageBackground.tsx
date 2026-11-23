@@ -1,6 +1,16 @@
-import { BASE_EDGE_WIDTH, BASE_NODE_RADIUS, laneColor } from "@/components/graph/geometry";
+import {
+  BASE_EDGE_WIDTH,
+  BASE_NODE_RADIUS,
+  laneColor,
+  STAPLE_COLOR,
+} from "@/components/graph/geometry";
 import snapshot from "./chronos-graph.json";
 import styles from "./home-background.module.css";
+
+/** The snapshot's lane 0 is Chronos's own main, so it wears the trunk color. */
+function snapshotColor(lane: number): string {
+  return lane === 0 ? STAPLE_COLOR.trunk : laneColor(lane - 1);
+}
 
 export function HomePageBackground() {
   return (
@@ -14,7 +24,7 @@ export function HomePageBackground() {
       >
         <g fill="none" strokeWidth={BASE_EDGE_WIDTH} strokeLinecap="round">
           {snapshot.edges.map((edge, index) => (
-            <path key={index} d={edge.d} stroke={laneColor(edge.lane)} />
+            <path key={index} d={edge.d} stroke={snapshotColor(edge.lane)} />
           ))}
         </g>
         {snapshot.nodes.map((node, index) => (
@@ -23,8 +33,8 @@ export function HomePageBackground() {
             cx={node.x}
             cy={node.y}
             r={BASE_NODE_RADIUS}
-            fill={node.merge ? "var(--bg-elevated)" : laneColor(node.lane)}
-            stroke={laneColor(node.lane)}
+            fill={node.merge ? "var(--bg-elevated)" : snapshotColor(node.lane)}
+            stroke={snapshotColor(node.lane)}
             strokeWidth={node.merge ? 2 : 0}
           />
         ))}
