@@ -7,9 +7,10 @@ import { GraphView } from "@/components/graph/GraphView";
 const { default: Home } = await import("@/app/page");
 
 describe("smoke", () => {
-  test("root route renders", () => {
-    const html = renderToString(<Home />);
+  test("root route renders the public home for signed-out visitors", async () => {
+    const html = renderToString(await Home());
     expect(html).toContain("Chronos");
+    expect(html).toContain("See your git history at a glance");
   });
 
   test("layoutGraph places every commit", () => {

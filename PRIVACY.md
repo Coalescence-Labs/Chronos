@@ -17,6 +17,7 @@ This page explains, in plain language, exactly what happens to data when you use
 | If I sign in, where does my identity go? | **WorkOS** (our auth provider). Chronos keeps only an encrypted session cookie — not your password, and not repo data. |
 | Do you use tracking cookies? | **No.** Analytics is cookieless and anonymous. Auth uses a secure session cookie only when you sign in. |
 | Do your analytics record *which* repo I looked at? | **No.** Repo names are scrubbed out before anything is recorded. |
+| Does Chronos remember the repos I open? | **Only on your own device, and only if you are signed in.** Your recent and pinned repos live in your browser's local storage — never sent to us, private repos are not saved. Sign out or tap "Clear recents" to remove them. |
 | Is it open source? | **Yes** — Apache 2.0. You can read or audit every line. |
 
 ---

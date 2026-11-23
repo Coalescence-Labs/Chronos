@@ -102,6 +102,7 @@ Chronos/
     auth/                   # AuthProvider + minimal AccountControls (no multi-repo switcher) + GitHubConnectionCard (/account)
     ui/                     # design-system primitives (Surface, Button, InspectionSurface, states)
     shell/                  # AppShell (responsive scaffold)
+    home/                   # SignedInHome + RepoLibrary: signed-in `/` with device-local pinned/recent repos (COA-151; store in lib/recent-repos.ts)
     pwa/                    # service-worker registration
   proxy.ts                  # Next.js 16 AuthKit session refresh (auth optional; public routes stay open)
   docs/AUTH.md              # WorkOS accounts, MFA/passkeys investigation, GitHub-login vs repo-OAuth split

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { HomePageBackground } from "@/components/background/HomePageBackground";
 import { RepoUrlForm } from "@/components/repo/RepoUrlForm";
+import { SignedInHome } from "@/components/home/SignedInHome";
 import { AppShell } from "@/components/shell/AppShell";
+import { isSignedIn } from "@/lib/auth/home-session";
 import { PROXY_DISCLOSURE } from "@/lib/ingest";
 import styles from "./page.module.css";
 
-export default function Home() {
+function PublicHome() {
   return (
     <div className={styles.home}>
       <HomePageBackground />
@@ -32,4 +34,13 @@ export default function Home() {
       </AppShell>
     </div>
   );
+}
+
+/**
+ * `/` has two faces: the public welcome page, and a quieter signed-in home with
+ * the user's pinned and recent repos (COA-151). Anything short of a confirmed
+ * session gets the public page.
+ */
+export default async function Home() {
+  return (await isSignedIn()) ? <SignedInHome /> : <PublicHome />;
 }

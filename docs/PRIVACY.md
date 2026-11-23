@@ -41,6 +41,32 @@ How it works and what this document binds:
 
 Default bias remains: minimize what *rests* on our servers, and never retain or train on repo data.
 
+## Signed-in home library (COA-151) — browser-local
+
+Signed-in users see their pinned and recently opened repos on `/`. The list is
+stored in this browser's `localStorage` (`chronos:repos:v1`) and nowhere else.
+
+### Privacy pre-flight — signed-in home library
+
+1. **What leaves:** nothing. `owner/repo` names and last-viewed times are written
+   to and read from the user's own browser. No request, analytics event, URL,
+   log or server store carries them. Opening an entry reports only
+   `repo_submitted { source: "recent" | "pinned" }`, never the repo.
+2. **Where:** the browser's `localStorage` on this device. Not synced, not in WorkOS
+   metadata, not in the HTML or service-worker cache (the signed-in page carries no
+   identity or repo names).
+3. **Minimum:** up to 12 unpinned and 24 pinned entries, each `{ owner, repo,
+   lastViewedAt, pinned }` plus the id of the signed-in user the list belongs to
+   (the same non-secret id `/api/auth/me` already returns). **Private repos are
+   never recorded.** Nothing is recorded for visitors who are not signed in.
+4. **Retention:** until the user clears it. "Clear recents" forgets unpinned
+   entries, pins are removed by unpinning them first, and signing out (from the
+   header menu or `/account`) deletes the whole list and the cached signed-in `/`.
+   If a session simply expires, the list stays but is only shown to the same user;
+   a different user signing in on that device replaces it.
+5. **Consent surface:** visible "Clear recents" and pin controls on the list itself;
+   this section; the public [PRIVACY.md](../PRIVACY.md).
+
 ## Route preparation and browser-local Glance
 
 The owner approved intent-based route preparation and a browser-local Glance

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 import { msBucket, track } from "@/lib/analytics";
+import { browserRepoStorage, noteVisit } from "@/lib/recent-repos";
 import type { RepoHistory } from "@/lib/graph";
 import {
   fetchPublicRepoHistory,
@@ -133,6 +134,9 @@ export function RepoScreen({ owner, repo }: RepoScreenProps) {
           complete: true,
         });
         track({ name: "render_result", props: { ok: true } });
+        // Device-local library for signed-in users (COA-151); never private repos.
+        const storage = browserRepoStorage();
+        if (storage && result.private !== true) noteVisit(storage, owner, repo, Date.now());
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
