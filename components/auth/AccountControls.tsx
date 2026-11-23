@@ -1,7 +1,9 @@
 "use client";
 
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
+import { useEffect } from "react";
 import { signOutAction } from "@/lib/auth/actions";
+import { adoptUser, browserRepoStorage, forgetRepoLibrary } from "@/lib/recent-repos";
 import { AccountControlsSkeleton } from "./AccountControlsSkeleton";
 import { ProfileMenu } from "./ProfileMenu";
 import { SignInLink } from "./SignInLink";
@@ -23,6 +25,14 @@ import { SignInLink } from "./SignInLink";
 export function AccountControls() {
   const configured = Boolean(process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI);
   const { user, loading } = useAuth();
+  const userId = loading ? undefined : user?.id;
+
+  // The one place a signed-in user is confirmed on the client: it enables the
+  // device-local repo library (COA-151). A null user while loading is never a sign-out.
+  useEffect(() => {
+    const storage = browserRepoStorage();
+    if (userId && storage) adoptUser(storage, userId);
+  }, [userId]);
 
   if (!configured) {
     return null;
@@ -41,6 +51,7 @@ export function AccountControls() {
       user={user}
       onSignOut={() => {
         void (async () => {
+          await forgetRepoLibrary();
           try {
             await signOutAction();
           } catch {

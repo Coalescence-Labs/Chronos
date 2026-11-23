@@ -48,8 +48,11 @@ export function scrubUrl(rawUrl: string): string | null {
  * the caller before they ever reach here (COA-98).
  */
 
-/** Where a repo view was initiated. `github` is reserved for the future link flow. */
-export type RepoSource = "url" | "demo" | "github";
+/**
+ * Where a repo view was initiated. `github` is reserved for the future link
+ * flow; `recent` / `pinned` are the signed-in home library (COA-151).
+ */
+export type RepoSource = "url" | "demo" | "github" | "recent" | "pinned";
 /** Progressive-depth affordances we want to know are discovered/used. */
 export type InteractionKind = "glance" | "trace" | "inspect" | "peek";
 export type ThemeChoice = "system" | "dark" | "light";

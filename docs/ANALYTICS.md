@@ -28,7 +28,7 @@ This is the binding contract for every event and every property. It is enforced 
 
 ### Will collect (safe)
 
-- **Enums** — a fixed, allowlisted vocabulary: entry source (`url` | `github`), error code (`rate_limit` | `not_found` | `network` | `parse` | `unknown`), interaction kind (`glance` | `trace` | `inspect` | `peek`), theme (`dark` | `light` | `system`), device class (`phone` | `laptop`).
+- **Enums** — a fixed, allowlisted vocabulary: entry source (`url` | `github` | `recent` | `pinned`), error code (`rate_limit` | `not_found` | `network` | `parse` | `unknown`), interaction kind (`glance` | `trace` | `inspect` | `peek`), theme (`dark` | `light` | `system`), device class (`phone` | `laptop`).
 - **Counts** — integers with no identifying meaning: lazy-page depth, commit-count bucket (bucketed, never exact — e.g. `lt_100`, `100_1k`, `1k_10k`, `gt_10k`), lane-count bucket.
 - **Durations** — milliseconds: time-to-first-graph, layout cost, fetch wait.
 - **Anonymous environment** — already provided by Vercel from the request (country, OS, browser, device) with a daily-rotating, non-cross-site hash. We add nothing to this.
@@ -130,7 +130,7 @@ const ENABLED = process.env.NEXT_PUBLIC_ANALYTICS_ENABLED !== "false"; // off-sw
 
 // Allowlisted events. The union IS the spec; nothing off-list compiles.
 type AnalyticsEvent =
-  | { name: "repo_submitted"; props: { source: "url" | "github" } }
+  | { name: "repo_submitted"; props: { source: "url" | "github" | "recent" | "pinned" } }
   | { name: "render_result";  props: { ok: boolean; error?: ErrorCode } }
   | { name: "graph_ready";    props: { device: DeviceClass; ms_bucket: MsBucket; size_bucket: SizeBucket } }
   | { name: "lazy_page";      props: { depth: number } }
@@ -165,7 +165,7 @@ Why this shape:
 
 | Event | Props | Answers |
 |---|---|---|
-| `repo_submitted` | `source: url \| github` | Which entry point is used; top of funnel |
+| `repo_submitted` | `source: url \| github \| recent \| pinned` | Which entry point is used; top of funnel. `recent` / `pinned` are the signed-in home library (COA-151) — the source only, never the repo |
 | `render_result` | `ok: boolean`, `error?: ErrorCode` | Success/failure rate **by error code** |
 | `lazy_page` | `depth: number` | Progressive-load depth; do users scroll into history |
 | `interaction` | `kind: glance \| trace \| inspect \| peek` | Are progressive-depth affordances discovered |

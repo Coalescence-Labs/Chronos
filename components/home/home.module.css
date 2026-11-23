@@ -1,0 +1,217 @@
+.home {
+  position: relative;
+  isolation: isolate;
+}
+
+:global(html):has(.home) {
+  overscroll-behavior-y: none;
+}
+
+.home :global(main) {
+  overscroll-behavior-y: contain;
+}
+
+/* The form sits at a fixed offset, so the library hydrating below it never moves it. */
+.page {
+  width: 100%;
+  max-width: 34rem;
+  margin-inline: auto;
+  padding-top: clamp(var(--space-6), 24dvh, 10rem);
+  padding-bottom: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-7);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.library {
+  width: 100%;
+  max-width: 30rem; /* same measure as the repo field above */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  animation: library-in var(--duration-base) var(--ease-out);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--space-6);
+  padding-inline: var(--space-2);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.clear {
+  min-height: var(--touch-target);
+  margin-block: calc(var(--space-2) * -1);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--fg-subtle);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.clear:hover {
+  color: var(--fg);
+}
+
+.clear:focus-visible,
+.pin:focus-visible,
+.rowLink:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-highlight);
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.row:hover,
+.row:focus-within {
+  border-color: var(--border-strong);
+  background-color: var(--bg-raised);
+}
+
+.rowLink {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+/* The owner gives way first, so the repo name stays readable on narrow phones. */
+.repoName {
+  min-width: 0;
+  display: flex;
+  white-space: nowrap;
+}
+
+.owner,
+.repo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.owner {
+  flex-shrink: 4;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+.repo {
+  font-weight: 700;
+}
+
+.when {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.pin {
+  flex-shrink: 0;
+  width: var(--touch-target);
+  min-height: var(--touch-target);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.pin:hover {
+  color: var(--fg);
+}
+
+.pin[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.empty {
+  margin: calc(var(--space-4) * -1) 0 0;
+  font-size: var(--text-sm);
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.empty a {
+  color: var(--accent);
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.empty a:hover {
+  color: var(--accent-strong);
+}
+
+@keyframes library-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library {
+    animation: none;
+  }
+}

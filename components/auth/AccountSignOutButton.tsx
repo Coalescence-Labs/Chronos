@@ -2,6 +2,7 @@
 
 import { signOutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/Button";
+import { forgetRepoLibrary } from "@/lib/recent-repos";
 
 /** Account-page sign-out — local cookie clear + hard same-origin home. */
 export function AccountSignOutButton() {
@@ -11,6 +12,7 @@ export function AccountSignOutButton() {
       variant="ghost"
       onClick={() => {
         void (async () => {
+          await forgetRepoLibrary();
           try {
             await signOutAction();
           } catch {
