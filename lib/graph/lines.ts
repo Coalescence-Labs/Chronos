@@ -57,6 +57,10 @@ export function branchPriority(name: string): number {
   return 2;
 }
 
+function claimRank(name: string, defaultBranch: string | undefined): number {
+  return name === defaultBranch ? -1 : branchPriority(name);
+}
+
 export interface BranchAttribution {
   /** All named lines, sorted by tip row. */
   lines: BranchLine[];
@@ -64,7 +68,15 @@ export interface BranchAttribution {
   lineBySha: Map<string, BranchLine>;
 }
 
-export function attributeBranches(history: RepoHistory, layout: GraphLayout): BranchAttribution {
+/**
+ * `defaultBranch` claims first (ahead of the name priority), so a repo whose
+ * default isn't called main still has its trunk own the shared history.
+ */
+export function attributeBranches(
+  history: RepoHistory,
+  layout: GraphLayout,
+  defaultBranch?: string,
+): BranchAttribution {
   const placementBySha = new Map(layout.placements.map((placed) => [placed.sha, placed]));
   const commitBySha = new Map<string, CommitNode>();
   for (const commit of history.commits) {
@@ -97,7 +109,7 @@ export function attributeBranches(history: RepoHistory, layout: GraphLayout): Br
   // Live refs claim first; trunk before develop before everything else, so
   // shared history always belongs to the longer-lived branch.
   const branchRefs = [...history.refs.filter((ref) => ref.type === "branch")].sort(
-    (a, b) => branchPriority(a.name) - branchPriority(b.name),
+    (a, b) => claimRank(a.name, defaultBranch) - claimRank(b.name, defaultBranch),
   );
   for (const ref of branchRefs) claim(ref.name, "ref", ref.sha);
 

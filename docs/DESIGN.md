@@ -13,6 +13,7 @@ The aesthetic serves the product north star: **understanding per glance**. Beaut
 This is the product. Get it right and everything else follows.
 
 - **Lanes read instantly.** Branch lanes, merges, and divergences should be parseable without a legend. Color and position carry meaning consistently.
+- **Staple branches have fixed colors in every repo.** The trunk (the default branch, main or master) is always `--branch-trunk` (blue in dark, indigo in light), and develop is always `--branch-develop` (teal). Other branches cycle through `--lane-0…5`, which never reuse those two colors. Color follows the branch that owns each commit, not the lane it sits in (COA-784).
 - **Progressive depth.** Glanceable by default; detail on hover (laptop) / tap (phone). Never dump everything at once.
 - **Meaningful motion.** Animate to explain change (a branch appearing, a merge resolving), not to entertain. Respect `prefers-reduced-motion`.
 - **No knob soup.** Every control must earn its place by reducing confusion. If a feature needs a settings panel to be understood, redesign the feature.
