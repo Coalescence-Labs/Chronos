@@ -5,6 +5,7 @@ import {
   clearRecents,
   MAX_PINNED_REPOS,
   MAX_RECENT_REPOS,
+  noteVisit,
   parseRepoDocument,
   recordVisit,
   REPOS_STORAGE_KEY,
@@ -31,11 +32,38 @@ describe("recent repos store", () => {
   let storage: ReturnType<typeof memoryStorage>;
   beforeEach(() => {
     storage = memoryStorage();
+    clearAll(storage); // also resets the module's confirmed-user state between tests
   });
 
   test("records nothing until a signed-in user adopts the device", () => {
     expect(recordVisit(storage, "octocat", "Hello-World", 1)).toBe(false);
     expect(raw(storage)).toBeNull();
+  });
+
+  test("a leftover list is not written to once the user is no longer confirmed", () => {
+    adoptUser(storage, "u1");
+    recordVisit(storage, "o", "mine", 1);
+    const leftover = raw(storage)!;
+    // Session expired: nothing ran forgetRepoLibrary, but this page has no confirmed user.
+    clearAll(memoryStorage());
+    storage.data.set(REPOS_STORAGE_KEY, leftover);
+    expect(recordVisit(storage, "o", "stranger", 2)).toBe(false);
+    noteVisit(storage, "o", "stranger", 2);
+    expect(raw(storage)).toBe(leftover);
+  });
+
+  test("a visit that finishes before the user is confirmed is kept and flushed on adoption", () => {
+    noteVisit(storage, "o", "early", 7);
+    expect(raw(storage)).toBeNull();
+    adoptUser(storage, "u1");
+    expect(library(storage)!.recent).toEqual([{ owner: "o", repo: "early", lastViewedAt: 7, pinned: false }]);
+  });
+
+  test("a pending visit is dropped on sign-out and never reaches the next user", () => {
+    noteVisit(storage, "o", "early", 7);
+    clearAll(storage);
+    adoptUser(storage, "u2");
+    expect(library(storage, "u2")!.recent).toHaveLength(0);
   });
 
   test("records a visit and refreshes it instead of duplicating, ignoring case", () => {

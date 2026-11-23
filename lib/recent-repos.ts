@@ -147,20 +147,38 @@ export function getAdoptedUser(): string | null {
   return adoptedUser;
 }
 
+/**
+ * A visit that finished before the header confirmed who is signed in (a direct
+ * load of a repo link). Held in memory only; flushed if a user is adopted.
+ */
+let pendingVisit: { owner: string; repo: string; at: number } | null = null;
+
 /** Enable the library for `userId`, resetting it if it belonged to someone else. */
 export function adoptUser(storage: RepoStorage, userId: string): void {
   if (!userId) return;
   const doc = parseRepoDocument(readRaw(storage));
   if (doc?.user !== userId) write(storage, { v: 1, user: userId, repos: [] });
   adoptedUser = userId;
+  const pending = pendingVisit;
+  pendingVisit = null;
+  if (pending) recordVisit(storage, pending.owner, pending.repo, pending.at);
   emitChange();
 }
 
-/** Record a successful repo view. No-op unless a signed-in user adopted this device. */
+/**
+ * Report a successful repo view. Recorded now if a user is confirmed on this
+ * page, otherwise held until one is — a signed-out visitor never gets recorded.
+ */
+export function noteVisit(storage: RepoStorage, owner: string, repo: string, now: number): void {
+  if (adoptedUser) recordVisit(storage, owner, repo, now);
+  else if (validRepoName(owner, repo)) pendingVisit = { owner, repo, at: now };
+}
+
+/** Record a view for the confirmed user. No-op unless the stored list is theirs. */
 export function recordVisit(storage: RepoStorage, owner: string, repo: string, now: number): boolean {
   if (!validRepoName(owner, repo)) return false;
   const doc = parseRepoDocument(readRaw(storage));
-  if (!doc) return false;
+  if (!doc || adoptedUser === null || doc.user !== adoptedUser) return false;
   const key = repoKey(owner, repo);
   const existing = doc.repos.find((item) => repoKey(item.owner, item.repo) === key);
   const repos = existing
@@ -193,6 +211,7 @@ export function clearRecents(storage: RepoStorage): boolean {
 /** Remove the whole document (sign-out). */
 export function clearAll(storage: RepoStorage): void {
   adoptedUser = null;
+  pendingVisit = null;
   try {
     storage.removeItem(REPOS_STORAGE_KEY);
   } catch {

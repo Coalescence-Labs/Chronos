@@ -123,6 +123,6 @@ describe("recents privacy wiring", () => {
 
   test("RepoScreen never records private repos", async () => {
     const screen = await Bun.file("components/repo/RepoScreen.tsx").text();
-    expect(screen).toMatch(/result\.private !== true\) recordVisit/);
+    expect(screen).toMatch(/result\.private !== true\) noteVisit/);
   });
 });
